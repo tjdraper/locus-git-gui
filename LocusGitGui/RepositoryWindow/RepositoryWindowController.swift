@@ -1,5 +1,6 @@
 import AppKit
 import os
+import SwiftUI
 
 /// The window for one repository.
 final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
@@ -8,6 +9,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     let repository: Repository
     var onDisplayNameRead: ((String?) -> Void)?
     private let commands: RepositoryCommandRunner
+    private let viewStates: RepositoryViewStateStore
+    private let sidebar: SidebarModel
+    private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
     private let titleItem: RepositoryTitleItem
     private lazy var toolbar = RepositoryToolbar(title: titleItem) { [weak self] in self?.showBackgroundFailure() }
@@ -19,14 +23,30 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     /// The latest failure of something the app did by itself, shown as the toolbar warning until a
     /// later attempt succeeds.
     private var backgroundFailure: GitFailure?
+    /// The frame outside full screen, which is the one worth coming back to.
+    private var windowFrame: String?
 
-    init(commands: RepositoryCommandRunner, displayName: String?) {
+    init(commands: RepositoryCommandRunner, displayName: String?, viewStates: RepositoryViewStateStore) {
         self.commands = commands
+        self.viewStates = viewStates
         repository = commands.repository
         titleItem = RepositoryTitleItem(repository: repository, displayName: displayName)
+        let viewState = viewStates.state(for: repository)
+        windowFrame = viewState.windowFrame
+        sidebar = SidebarModel(state: viewState)
+        let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
+        // The split view sets the columns' sizes, not SwiftUI.
+        sidebarController.sizingOptions = []
+        columns = RepositorySplitViewController(
+            sidebar: sidebarController,
+            history: ColumnPlaceholderController(),
+            detail: ColumnPlaceholderController(),
+            columns: viewState.columns
+        )
         let window = RepositoryWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1000, height: 700),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 760),
+            // The sidebar runs the full height of the window, under the toolbar.
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -40,6 +60,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         window.identifier = RepositoryWindowRestoration.identifier
         window.restorationClass = RepositoryWindowRestoration.self
         super.init(window: window)
+        // Setting the content resizes the window to it, so the size is set again after.
+        window.contentViewController = columns
+        window.setContentSize(NSSize(width: 1200, height: 760))
+        sidebar.onChange = { [weak self] in self?.saveViewState() }
+        columns.onColumnsChange = { [weak self] in self?.saveViewState() }
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
         window.toolbar = toolbar.toolbar
         window.toolbarStyle = .unified
@@ -58,6 +83,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         gitLogWindow.show()
     }
 
+    /// Reached through the responder chain from View > Filter Sidebar.
+    @objc func filterSidebar(_: Any?) {
+        columns.showSidebar()
+        sidebar.requestFilterFocus()
+    }
+
     /// As last read from the repository's `.locus` folder.
     var displayName: String? {
         titleItem.title.displayName
@@ -71,6 +102,27 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         tab.toolTip = (repository.workTree.path as NSString).abbreviatingWithTildeInPath
     }
 
+    /// Where the window was when this repository's was last closed, if that's still on a screen.
+    /// True when the window was put there. A window restored after a relaunch doesn't need this,
+    /// since macOS brings back its frame itself.
+    func moveToRememberedFrame() -> Bool {
+        guard let window, let windowFrame else { return false }
+        window.setFrame(from: windowFrame)
+        if NSScreen.screens.contains(where: { $0.visibleFrame.intersects(window.frame) }) {
+            return true
+        }
+        window.setContentSize(NSSize(width: 1200, height: 760))
+        return false
+    }
+
+    func windowDidMove(_: Notification) {
+        rememberFrame()
+    }
+
+    func windowDidResize(_: Notification) {
+        rememberFrame()
+    }
+
     func window(_: NSWindow, willEncodeRestorableState state: NSCoder) {
         RepositoryWindowRestoration.encode(repository, into: state)
     }
@@ -81,6 +133,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_: Notification) {
+        saveViewState()
         watcher.stop()
         scheduler.cancel()
         gitLogWindow.close()
@@ -91,7 +144,6 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         do {
             let snapshot = try await RepositorySnapshot.read(repository, running: commands.run)
             show(RepositoryTitleBar(status: snapshot.status, operation: snapshot.operation))
-            clearBackgroundFailure()
             // Read only once Git has reached the repository, so a folder that's gone or out of
             // reach isn't taken for one whose name was cleared.
             let displayName = await Self.readDisplayName(in: repository.workTree)
@@ -99,6 +151,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
                 titleItem.setDisplayName(displayName)
                 onDisplayNameRead?(displayName)
             }
+            sidebar.show(try await SidebarContents.read(running: commands.run))
+            clearBackgroundFailure()
             let elapsed = ContinuousClock.now - started
             let files = snapshot.status.files.count
             Self.log.info("Refreshed \(files) files in \(elapsed, privacy: .public) (\(reason.rawValue, privacy: .public))")
@@ -106,13 +160,15 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             return
         } catch is RepositoryCommandRunner.NoUsableGit {
             return
-        } catch let failure as RepositorySnapshot.ReadFailure {
-            show(.unavailable)
+        } catch let failure as GitReadFailure {
+            if failure.command == RepositoryStatus.command {
+                show(.unavailable)
+            }
             reportBackgroundFailure(GitFailure(
                 summary: failure.outputWasUnreadable
-                    ? "Locus Git Gui couldn’t read Git’s report on this repository’s status."
-                    : "Git couldn’t read this repository’s status.",
-                arguments: RepositoryStatus.command.arguments,
+                    ? "Locus Git Gui couldn’t read Git’s report on this repository’s \(failure.subject)."
+                    : "Git couldn’t read this repository’s \(failure.subject).",
+                arguments: failure.command.arguments,
                 result: failure.result
             ))
         } catch let ChildProcess.Failure.couldNotStart(error) {
@@ -132,6 +188,22 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     @concurrent
     private static func readDisplayName(in workTree: URL) async -> String? {
         RepositoryDisplayName.read(from: workTree).name
+    }
+
+    private func rememberFrame() {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        windowFrame = window.frameDescriptor
+        saveViewState()
+    }
+
+    private func saveViewState() {
+        var state = RepositoryViewState()
+        state.windowFrame = windowFrame
+        state.selection = sidebar.selection
+        state.collapsedSections = sidebar.collapsedSections
+        state.collapsedRemotes = sidebar.collapsedRemotes
+        state.columns = columns.columns
+        viewStates.set(state, for: repository)
     }
 
     private func show(_ titleBar: RepositoryTitleBar) {

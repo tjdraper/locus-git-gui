@@ -137,12 +137,21 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 5. **The three-column window and the sidebar**
 
    - `NSSplitViewController` with three columns: sidebar, history, detail. The sidebar collapses with the standard shortcut (⌃⌘S).
+     - Done, as View > Show Sidebar, with Show Toolbar (⌥⌘T) and Customize Toolbar… beside it. The sidebar runs the full height of the window. The history and detail columns are empty until slices 7 and 8 fill them.
    - Each repository remembers its own view state after its window closes: sidebar selection, collapsed sections, column widths. Reopening it next week puts it back the way it was. Moved from slice 4, which had no state to keep yet.
+     - Done, along with which remotes are collapsed, whether the sidebar is hidden, and the window's size and place. The window opens where it was last closed, unless it joins another window's tabs, or that place is no longer on any screen. A frame in full screen isn't kept. Kept in `UserDefaults` for the 1,000 repositories changed most recently, saved a second after it stops changing and at quit. A selection that's gone, such as a deleted branch or a dropped stash, is cleared.
    - The sidebar lists local branches, remotes and their branches, tags and stashes, in collapsible sections
+     - Done. Branches sort as Finder sorts names; tags list the highest version first. Each remote collapses on its own. A remote shows before anything has been fetched from it, and branches of a remote removed from the config still show under its name until they're pruned. A section with nothing in it is left out. Stashes show Git's own description. The sidebar is read on every refresh, and a failure to read it gets the same toolbar warning as a failed status.
    - Ahead and behind counts next to branches that track an upstream
+     - Done, shown only when the branch isn't level with its upstream. A branch whose upstream is gone from the remote gets a warning symbol, with a tooltip naming the upstream.
+   - A filter field at the top of the sidebar
+     - Done. It keeps anything with the typed text anywhere in its name, ignoring case and accents, and shows every match whatever is collapsed. A remote branch matches with its remote's name in front (`origin/main`). View > Filter Sidebar (⌥⌘F) shows the sidebar if it's hidden and puts the cursor in the field; Down Arrow or Return moves to the list, and Esc clears it. The filter isn't remembered.
    - The checked-out branch is marked
+     - Done, with a checkmark in place of the branch symbol
    - Keyboard: Tab and Shift-Tab move focus between the columns, and every column is driven with the arrow keys. Type-to-select in the sidebar jumps to a branch by name.
+     - The sidebar has focus when the window opens and is driven with the arrow keys: Right and Left expand and collapse a remote. Type-to-select is the app's own, since a SwiftUI list doesn't offer it: it matches the start of any visible row's name, ignoring case and accents, and a pause of a second starts a new search. Tab and Shift-Tab between the columns wait for slice 7, when the history column has something to take focus.
    - A toolbar, customizable the usual way. It starts nearly empty and gains Fetch, Pull, Push and the rest as later slices add them.
+     - Done, with the sidebar button over the sidebar. The title and the Git problem warning can't be moved or removed.
    - A long path is cut from the left, so its last folders stay visible as toolbar items take up room. Done in slice 4, along with the proxy icon. Toolbar items added here have to leave the title room to shrink before it overflows.
 
 6. **Command catalog and command palette**

@@ -39,8 +39,14 @@ enum MainMenu {
             NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
         ]))
 
-        // AppKit adds the tab bar and full screen items.
+        // AppKit adds the tab bar and full screen items, and retitles the sidebar and toolbar items
+        // to Show or Hide as they change.
         main.addItem(submenu(named: "View", items: [
+            showSidebarItem(),
+            filterSidebarItem(),
+            showToolbarItem(),
+            NSMenuItem(title: "Customize Toolbar…", action: #selector(NSWindow.runToolbarCustomizationPalette(_:)), keyEquivalent: ""),
+            .separator(),
             NSMenuItem(title: "Show Git Log", action: #selector(RepositoryWindowController.showGitLog(_:)), keyEquivalent: ""),
         ] + dashboardViewItems))
 
@@ -83,6 +89,24 @@ enum MainMenu {
         item.keyEquivalentModifierMask = [.command, .shift, .option]
         item.isHidden = true
         item.allowsKeyEquivalentWhenHidden = true
+        return item
+    }
+
+    private static func showSidebarItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Show Sidebar", action: #selector(NSSplitViewController.toggleSidebar(_:)), keyEquivalent: "s")
+        item.keyEquivalentModifierMask = [.command, .control]
+        return item
+    }
+
+    private static func filterSidebarItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Filter Sidebar", action: #selector(RepositoryWindowController.filterSidebar(_:)), keyEquivalent: "f")
+        item.keyEquivalentModifierMask = [.command, .option]
+        return item
+    }
+
+    private static func showToolbarItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Show Toolbar", action: #selector(NSWindow.toggleToolbarShown(_:)), keyEquivalent: "t")
+        item.keyEquivalentModifierMask = [.command, .option]
         return item
     }
 

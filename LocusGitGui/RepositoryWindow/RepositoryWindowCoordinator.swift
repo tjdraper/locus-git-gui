@@ -9,6 +9,7 @@ final class RepositoryWindowCoordinator {
     private let gitChoice: GitChoiceStore
     private let logs: GitCommandLogs
     private let recents: RecentRepositoryStore
+    private let viewStates: RepositoryViewStateStore
     private let checkForMissingGit: () -> Void
     private let lastWindowClosed: () -> Void
     private var controllers: [String: RepositoryWindowController] = [:]
@@ -17,12 +18,14 @@ final class RepositoryWindowCoordinator {
         gitChoice: GitChoiceStore,
         logs: GitCommandLogs,
         recents: RecentRepositoryStore,
+        viewStates: RepositoryViewStateStore,
         checkForMissingGit: @escaping () -> Void,
         lastWindowClosed: @escaping () -> Void
     ) {
         self.gitChoice = gitChoice
         self.logs = logs
         self.recents = recents
+        self.viewStates = viewStates
         self.checkForMissingGit = checkForMissingGit
         self.lastWindowClosed = lastWindowClosed
     }
@@ -49,11 +52,13 @@ final class RepositoryWindowCoordinator {
             // After the last tab rather than the one in front, so several opened at once keep the
             // order they were chosen in.
             (host.tabGroup?.windows.last ?? host).addTabbedWindow(window, ordered: .above)
-        } else if let front = NSApp.orderedWindows.first(where: isRepositoryWindow) {
-            let topLeft = window.cascadeTopLeft(from: NSPoint(x: front.frame.minX, y: front.frame.maxY))
-            window.cascadeTopLeft(from: topLeft)
-        } else {
-            window.center()
+        } else if !controller.moveToRememberedFrame() {
+            if let front = NSApp.orderedWindows.first(where: isRepositoryWindow) {
+                let topLeft = window.cascadeTopLeft(from: NSPoint(x: front.frame.minX, y: front.frame.maxY))
+                window.cascadeTopLeft(from: topLeft)
+            } else {
+                window.center()
+            }
         }
         controller.showWindow(nil)
     }
@@ -80,7 +85,8 @@ final class RepositoryWindowCoordinator {
                 gitChoice: gitChoice,
                 checkForMissingGit: checkForMissingGit
             ),
-            displayName: recents.entries.first { $0.id == repository.id }?.displayName
+            displayName: recents.entries.first { $0.id == repository.id }?.displayName,
+            viewStates: viewStates
         )
         controller.onDisplayNameRead = { [weak self] displayName in
             self?.recents.setDisplayName(displayName, for: repository)

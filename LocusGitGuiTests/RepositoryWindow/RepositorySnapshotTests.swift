@@ -30,7 +30,7 @@ struct RepositorySnapshotTests {
         let notARepository = Repository(workTree: folder, gitDirectory: folder.appending(path: ".git"))
 
         // Act & Assert
-        let failure = await #expect(throws: RepositorySnapshot.ReadFailure.self) {
+        let failure = await #expect(throws: GitReadFailure.self) {
             try await RepositorySnapshot.read(notARepository) { try await runner.run($0, in: folder) }
         }
         #expect(failure?.result.status == 128)

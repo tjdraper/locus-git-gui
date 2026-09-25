@@ -14,10 +14,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hasAskedForRepository = false
     private let logs = GitCommandLogs()
     private let recents = RecentRepositoryStore()
+    private let viewStates = RepositoryViewStateStore()
     private lazy var repositoryWindows: RepositoryWindowCoordinator = RepositoryWindowCoordinator(
         gitChoice: gitChoice,
         logs: logs,
         recents: recents,
+        viewStates: viewStates,
         checkForMissingGit: { [weak self] in self?.checkForMissingGit() },
         lastWindowClosed: { [weak self] in self?.showDashboardWhenGitWorks(isLaunching: false) }
     )
@@ -76,6 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if isFirstRun || GitChoice().executableURL == nil {
             firstRunWindow.show()
         }
+    }
+
+    func applicationWillTerminate(_: Notification) {
+        viewStates.saveNow()
     }
 
     /// Catches a Git uninstalled or moved while the app was in the background.
