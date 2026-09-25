@@ -3,6 +3,8 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates = UpdateController()
     private let emptyWindow = EmptyWindowPresenter()
+    /// Started before anything needs Git, since shell startup files can take seconds to run.
+    private let loginShellEnvironment = Task { await LoginShellEnvironment.capture() }
 
     func applicationDidFinishLaunching(_: Notification) {
         MainMenu.install(appName: "Locus Git Gui", checkForUpdatesItem: updates.makeMenuItem())
