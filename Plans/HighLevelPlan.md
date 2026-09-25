@@ -112,25 +112,38 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 4. **Window session and tabs**
 
+   Done.
+
    - Repository windows use native macOS tabs. Window > Merge All Windows, dragging tabs between windows, and the tab bar all come from AppKit.
+     - Done. Other ways of opening a repository follow "Prefer tabs when opening documents" in System Settings. Repository windows tab only with each other; the dashboard, checklist and Git log windows never tab.
    - ⌘T opens the dashboard; the repository picked from it opens as a tab in the window that was in front
+     - Done as File > New Tab, which the tab bar's + button also reaches. The new tab goes after the last one, so several picked at once keep their order, and it joins the tabs whatever the system's tab setting is.
    - A tab is titled with the repository's folder name, not the window's full path, which a tab cuts off before the part that tells repositories apart. When two open repositories share a folder name, each tab adds parent folders until they differ (`client/app`, `server/app`). The full path is the tab's tooltip, set through `NSWindow.tab`, which has its own title separate from the window's.
-     - Slice 3's `DistinctFolderNames` already does this for the dashboard and Open Recent. It moves to `Shared/` once tabs use it.
-     - Decide here whether a repository's display name (slice 3) titles its tab and window in place of the folder name
+     - Done. `DistinctFolderNames` moved to `Shared/`.
+     - A display name titles the tab in place of the folder name. Only repositories without one are compared by folder name.
+     - The window reads the display name on every refresh, so a name set on the dashboard or pulled from another Mac shows within a moment, and the recent list's copy stays current.
+   - The title bar shows the display name with the path after it, smaller and in parentheses, and the branch and state under both. Without a display name it shows the path. This is the toolbar title planned for slice 5, brought forward to show the name:
+     - AppKit's own title is one string in one font and only cuts from the right, so the window hides it and draws its own in a toolbar item. The path is cut from the left and the name stays whole. `window.title` keeps the full path for the Window menu, Mission Control and VoiceOver.
+     - The proxy icon goes with AppKit's title, so a folder icon of our own stands in: drag it to Finder or Terminal, or ⌘-click the title for the path menu. Dragging the title moves the window and double-clicking it zooms, as before.
+     - The item shrinks down to 120 points before the toolbar moves it into the overflow menu. There it's the repository's name with the path menu as a submenu.
    - Quitting and relaunching restores every repository window, its frame, its screen, its tab group and tab order, and which tab was selected, following the system's "Close windows when quitting an application" setting (see Decisions)
+     - Done with `NSWindowRestoration`. Each window saves only its repository's paths. A repository that's gone since the last quit is left closed, and the dashboard doesn't show at launch when any window came back.
+   - Closing the last repository window shows the dashboard, under the same condition as a Dock click: only when the chosen Git works, and otherwise the checklist
    - With that setting on, Quit and Keep Windows (⌥⌘Q) still keeps them, as in any Mac app
-   - Each repository also remembers its own view state after its window closes: sidebar selection, collapsed sections, column widths. Reopening it next week puts it back the way it was.
+     - AppKit adds this alternate to Quit itself, and the opposite one (Quit and Close All Windows) when the setting is off
    - Every other window centers on the primary display the first time and remembers where it was put. Port `RememberedWindowPlacement` from locus-sound-control, which has the `fittingSize` fix locus-launcher lacks. The dashboard is the first to need it; it centers at every launch until then.
+     - Done for the dashboard, the checklist and the Git log, in `Shared/`. A second Git log open at the same time cascades from the first rather than covering it.
 
 5. **The three-column window and the sidebar**
 
    - `NSSplitViewController` with three columns: sidebar, history, detail. The sidebar collapses with the standard shortcut (⌃⌘S).
+   - Each repository remembers its own view state after its window closes: sidebar selection, collapsed sections, column widths. Reopening it next week puts it back the way it was. Moved from slice 4, which had no state to keep yet.
    - The sidebar lists local branches, remotes and their branches, tags and stashes, in collapsible sections
    - Ahead and behind counts next to branches that track an upstream
    - The checked-out branch is marked
    - Keyboard: Tab and Shift-Tab move focus between the columns, and every column is driven with the arrow keys. Type-to-select in the sidebar jumps to a branch by name.
    - A toolbar, customizable the usual way. It starts nearly empty and gains Fetch, Pull, Push and the rest as later slices add them.
-   - A long path is cut from the left, so its last folders stay visible as toolbar items take up room. AppKit's own title only cuts from the right, so the window hides it and draws the path and subtitle in a toolbar item that truncates from the head. `window.title` keeps the full path for the Window menu, Mission Control, VoiceOver and tabs. That also removes the proxy icon, which belongs to AppKit's title, so it comes back as a view of our own: drag the folder out, ⌘-click for the path.
+   - A long path is cut from the left, so its last folders stay visible as toolbar items take up room. Done in slice 4, along with the proxy icon. Toolbar items added here have to leave the title room to shrink before it overflows.
 
 6. **Command catalog and command palette**
 
