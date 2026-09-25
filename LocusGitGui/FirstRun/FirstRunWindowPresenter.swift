@@ -4,11 +4,13 @@ import SwiftUI
 /// Shows the setup checklist on a first run, and again whenever the user asks for it.
 final class FirstRunWindowPresenter: NSObject, NSWindowDelegate {
     private let gitChoice: GitChoiceStore
+    private let onDone: () -> Void
     private let screenFit = ScreenFit()
     private var window: NSWindow?
 
-    init(gitChoice: GitChoiceStore) {
+    init(gitChoice: GitChoiceStore, onDone: @escaping () -> Void) {
         self.gitChoice = gitChoice
+        self.onDone = onDone
     }
 
     var isVisible: Bool {
@@ -43,6 +45,7 @@ final class FirstRunWindowPresenter: NSObject, NSWindowDelegate {
                 onDone: { [weak self] in
                     FirstRunStatus().markCompleted()
                     self?.window?.close()
+                    self?.onDone()
                 }
             )
         ))

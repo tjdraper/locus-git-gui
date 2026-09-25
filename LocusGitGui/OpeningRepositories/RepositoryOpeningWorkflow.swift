@@ -1,7 +1,7 @@
 import AppKit
 
-/// Opens folders as repositories, from File > Open, the Dock, Finder or `open -a`, and explains
-/// the ones that aren't.
+/// Opens folders as repositories, from File > Open, the recent list, the Dock, Finder or `open -a`,
+/// and explains the ones that aren't. Each repository it opens goes to the top of the recent list.
 final class RepositoryOpeningWorkflow {
     private enum Outcome {
         case resolved(RepositoryResolution)
@@ -10,6 +10,8 @@ final class RepositoryOpeningWorkflow {
 
     private let gitChoice: GitChoiceStore
     private let windows: RepositoryWindowCoordinator
+    private let recents: RecentRepositoryStore
+    private let didOpenRepository: () -> Void
     private let showChecklist: () -> Void
     private let checkForMissingGit: () -> Void
     /// Folders asked for before a usable Git was chosen, opened once one is.
@@ -19,11 +21,15 @@ final class RepositoryOpeningWorkflow {
     init(
         gitChoice: GitChoiceStore,
         windows: RepositoryWindowCoordinator,
+        recents: RecentRepositoryStore,
+        didOpenRepository: @escaping () -> Void,
         showChecklist: @escaping () -> Void,
         checkForMissingGit: @escaping () -> Void
     ) {
         self.gitChoice = gitChoice
         self.windows = windows
+        self.recents = recents
+        self.didOpenRepository = didOpenRepository
         self.showChecklist = showChecklist
         self.checkForMissingGit = checkForMissingGit
     }
@@ -48,9 +54,10 @@ final class RepositoryOpeningWorkflow {
         }
     }
 
-    func open(_ folders: [URL]) {
+    /// A repository found in place of a missing one on the recent list takes its place there.
+    func open(_ folders: [URL], replacing missing: Repository? = nil) {
         Task {
-            await openNow(folders)
+            await openNow(folders, replacing: missing)
         }
     }
 
@@ -62,7 +69,7 @@ final class RepositoryOpeningWorkflow {
         }
     }
 
-    private func openNow(_ folders: [URL]) async {
+    private func openNow(_ folders: [URL], replacing missing: Repository?) async {
         guard let runner = await gitChoice.runner() else {
             waitingForGit += folders
             showChecklist()
@@ -74,10 +81,7 @@ final class RepositoryOpeningWorkflow {
         for (folder, outcome) in await resolveAll(folders, with: runner) {
             switch outcome {
             case let .resolved(.repository(repository)):
-                // A repository that arrived another way, such as a drop on the Dock icon, answers
-                // what the panel was asking.
-                openPanel?.cancel(nil)
-                windows.show(repository)
+                show(repository, replacing: missing)
             case .resolved(.bare):
                 problems.append(.init(url: folder, problem: .bare))
             case .resolved(.notRepository):
@@ -98,6 +102,18 @@ final class RepositoryOpeningWorkflow {
         if let report = OpeningReport(folders: problems) {
             present(report)
         }
+    }
+
+    private func show(_ repository: Repository, replacing missing: Repository?) {
+        // A repository that arrived another way, such as a drop on the Dock icon, answers what the
+        // panel was asking.
+        openPanel?.cancel(nil)
+        if let missing {
+            recents.remove(missing)
+        }
+        recents.note(repository)
+        didOpenRepository()
+        windows.show(repository)
     }
 
     /// Resolved side by side, and reported in the order they were given.

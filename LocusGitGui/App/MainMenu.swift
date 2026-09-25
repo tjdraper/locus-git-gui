@@ -2,7 +2,7 @@ import AppKit
 
 /// The menu bar, built in code because the app has no SwiftUI `App` or storyboard to build it.
 enum MainMenu {
-    static func install(appName: String, checkForUpdatesItem: NSMenuItem) {
+    static func install(appName: String, checkForUpdatesItem: NSMenuItem, openRecentItem: NSMenuItem) {
         let main = NSMenu()
 
         let services = submenu(named: "Services", items: [])
@@ -23,6 +23,10 @@ enum MainMenu {
 
         main.addItem(submenu(named: "File", items: [
             NSMenuItem(title: "Open…", action: #selector(AppDelegate.openRepository(_:)), keyEquivalent: "o"),
+            openRecentItem,
+            .separator(),
+            NSMenuItem(title: "Show Dashboard", action: #selector(AppDelegate.showDashboard(_:)), keyEquivalent: "O"),
+            alternateShowDashboardItem(),
             .separator(),
             NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
         ]))
@@ -59,6 +63,15 @@ enum MainMenu {
         NSApp.mainMenu = main
         NSApp.windowsMenu = windowMenu.submenu
         NSApp.helpMenu = help.submenu
+    }
+
+    /// A second shortcut for the same command. A menu item has only one, so this one stays hidden.
+    private static func alternateShowDashboardItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Show Dashboard", action: #selector(AppDelegate.showDashboard(_:)), keyEquivalent: "O")
+        item.keyEquivalentModifierMask = [.command, .shift, .option]
+        item.isHidden = true
+        item.allowsKeyEquivalentWhenHidden = true
+        return item
     }
 
     private static func hideOthersItem() -> NSMenuItem {

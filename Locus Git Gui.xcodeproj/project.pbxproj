@@ -38,6 +38,9 @@
 		6C1B7289305F81D100DDFE7D /* Exceptions for "LocusGitGui" folder in "Locus Git Gui Tests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Dashboard/DashboardSearch.swift,
+				Dashboard/FuzzyMatcher.swift,
+				Dashboard/RecentRepositoryState.swift,
 				FirstRun/FirstRunStatus.swift,
 				GitChoice/CommandLineTools.swift,
 				GitChoice/GitChoice.swift,
@@ -52,6 +55,7 @@
 				GitFailures/RecognizedGitFailure.swift,
 				GitLog/GitLogEntry.swift,
 				GitReading/Commit.swift,
+				GitReading/InProgressOperation.swift,
 				GitReading/Ref.swift,
 				GitReading/RepositoryStatus.swift,
 				GitReading/UnreadableGitOutput.swift,
@@ -63,7 +67,8 @@
 				OpeningRepositories/OpeningReport.swift,
 				OpeningRepositories/Repository.swift,
 				OpeningRepositories/RepositoryResolver.swift,
-				RepositoryWindow/InProgressOperation.swift,
+				RecentRepositories/DistinctFolderNames.swift,
+				RecentRepositories/RecentRepositoryList.swift,
 				RepositoryWindow/RepositorySnapshot.swift,
 				RepositoryWindow/RepositoryTitleBar.swift,
 				Updates/UpdateChannelPreference.swift,

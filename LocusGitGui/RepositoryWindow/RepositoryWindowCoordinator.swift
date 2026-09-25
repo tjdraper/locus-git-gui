@@ -4,30 +4,31 @@ import AppKit
 /// forward instead of opening a second.
 final class RepositoryWindowCoordinator {
     private let gitChoice: GitChoiceStore
+    private let logs: GitCommandLogs
     private let checkForMissingGit: () -> Void
     private var controllers: [String: RepositoryWindowController] = [:]
-    /// Kept after a window closes, so reopening the repository later in the session still shows
-    /// what ran before.
-    private var logs: [String: GitCommandLog] = [:]
     private var cascadePoint = NSPoint.zero
 
-    init(gitChoice: GitChoiceStore, checkForMissingGit: @escaping () -> Void) {
+    init(gitChoice: GitChoiceStore, logs: GitCommandLogs, checkForMissingGit: @escaping () -> Void) {
         self.gitChoice = gitChoice
+        self.logs = logs
         self.checkForMissingGit = checkForMissingGit
     }
 
+    var hasOpenWindows: Bool {
+        !controllers.isEmpty
+    }
+
     func show(_ repository: Repository) {
-        let key = repository.workTree.standardizedFileURL.path
+        let key = repository.id
         if let existing = controllers[key] {
             existing.showWindow(nil)
             return
         }
 
-        let log = logs[key] ?? GitCommandLog()
-        logs[key] = log
         let controller = RepositoryWindowController(commands: RepositoryCommandRunner(
             repository: repository,
-            log: log,
+            log: logs.log(for: repository),
             gitChoice: gitChoice,
             checkForMissingGit: checkForMissingGit
         ))

@@ -5,22 +5,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Started before anything needs Git, since shell startup files can take seconds to run.
     private let loginShellEnvironment = Task { await LoginShellEnvironment.capture() }
     private lazy var gitChoice = GitChoiceStore(loginShell: loginShellEnvironment)
-    private lazy var firstRunWindow = FirstRunWindowPresenter(gitChoice: gitChoice)
+    /// Finishing the checklist leads to the dashboard, which it kept from showing at launch.
+    private lazy var firstRunWindow: FirstRunWindowPresenter = FirstRunWindowPresenter(gitChoice: gitChoice) { [weak self] in
+        guard let self, !repositoryWindows.hasOpenWindows else { return }
+        dashboard.show()
+    }
     private let gitMissingNotice = GitMissingNotice()
     private var hasAskedForRepository = false
-    private lazy var repositoryWindows = RepositoryWindowCoordinator(
+    private let logs = GitCommandLogs()
+    private let recents = RecentRepositoryStore()
+    private lazy var repositoryWindows: RepositoryWindowCoordinator = RepositoryWindowCoordinator(
         gitChoice: gitChoice,
+        logs: logs,
         checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
     )
-    private lazy var repositoryOpening = RepositoryOpeningWorkflow(
+    private lazy var repositoryOpening: RepositoryOpeningWorkflow = RepositoryOpeningWorkflow(
         gitChoice: gitChoice,
         windows: repositoryWindows,
+        recents: recents,
+        didOpenRepository: { [weak self] in self?.dashboard.close() },
         showChecklist: { [weak self] in self?.firstRunWindow.show() },
         checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
     )
+    private lazy var recentOpener: RecentRepositoryOpener = RecentRepositoryOpener(recents: recents, opening: repositoryOpening)
+    private lazy var recentMenus: RecentRepositoryMenus = RecentRepositoryMenus(recents: recents) { [weak self] repository in
+        self?.recentOpener.open(repository)
+    }
+    private lazy var dashboard: DashboardWindowPresenter = DashboardWindowPresenter(
+        recents: recents,
+        checker: RecentRepositoryChecker(
+            gitChoice: gitChoice,
+            logs: logs,
+            checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
+        ),
+        opener: recentOpener,
+        showOpenPanel: { [weak self] in self?.repositoryOpening.showOpenPanel() }
+    )
 
     func applicationDidFinishLaunching(_: Notification) {
-        MainMenu.install(appName: "Locus Git Gui", checkForUpdatesItem: updates.makeMenuItem())
+        MainMenu.install(
+            appName: "Locus Git Gui",
+            checkForUpdatesItem: updates.makeMenuItem(),
+            openRecentItem: recentMenus.openRecentItem
+        )
         // Settled before Sparkle starts, which marks every install as launched before.
         let isFirstRun = FirstRunStatus().settleAtLaunch() == .pending
         // Before the updater starts, since accepting the move relaunches from the new location.
@@ -57,8 +84,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// There is nothing untitled to make, so this asks for a repository instead, but only when
-    /// there is a Git to open one with. At launch the checklist or the missing-Git alert already
+    /// There is nothing untitled to make, so this shows the dashboard instead, but only when there
+    /// is a Git to open a repository with. At launch the checklist or the missing-Git alert already
     /// covers the alternative; later, the checklist does.
     func applicationOpenUntitledFile(_: NSApplication) -> Bool {
         let isLaunching = !hasAskedForRepository
@@ -71,10 +98,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             if !firstRunWindow.isVisible {
-                repositoryOpening.showOpenPanel()
+                dashboard.show()
             }
         }
         return true
+    }
+
+    func applicationDockMenu(_: NSApplication) -> NSMenu? {
+        recentMenus.dockMenu()
     }
 
     /// Reached through the responder chain from the main menu's About item.
@@ -85,6 +116,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Reached through the responder chain from File > Open.
     @objc func openRepository(_: Any?) {
         repositoryOpening.showOpenPanel()
+    }
+
+    /// Reached through the responder chain from File > Show Dashboard, whatever window is in front.
+    @objc func showDashboard(_: Any?) {
+        dashboard.show()
     }
 
     /// Reached through the responder chain from the Help menu.
