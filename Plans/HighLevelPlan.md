@@ -54,7 +54,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - A `nonisolated` Git runner: runs a command in a repository, streams output, reports exit status and stderr, and can be cancelled. Read-only commands run with `GIT_OPTIONAL_LOCKS=0` so a background refresh never holds `index.lock` while the user runs Git in Terminal.
    - Parsers for `status --porcelain=v2 -z`, `for-each-ref`, and `log` with a NUL-separated `--format`. Never parse output meant for people. The parsers are pure and go in the test target, tested against fixture repositories the tests build with the real `git`.
    - File > Open (⌘O) picks a folder. A folder inside a repository opens the repository at its top level; a folder that isn't one says so.
-     - Until slice 3's dashboard, the Open panel stands in for it: it shows at launch and on a Dock click with no windows open, but only when the chosen Git works. Otherwise the checklist or the missing-Git alert comes first. It closes when a repository arrives another way, such as a drop on the Dock icon.
+     - The Open panel stood in for slice 3's dashboard until it existed, and still closes when a repository arrives another way, such as a drop on the Dock icon. The dashboard now shows at launch and on a Dock click with no windows open, under the same condition: only when the chosen Git works. Otherwise the checklist or the missing-Git alert comes first.
    - Dropping folders on the app's icon in the Dock or in Finder opens them the same way, and so does `open -a "Locus Git Gui" <folder>` from Terminal. The app declares that it can open folders (`CFBundleDocumentTypes` with `public.folder`, role Viewer, rank None, so it never becomes anyone's default for folders), and `application(_:open:)` hands each folder to the same code as ⌘O.
    - The Dock can't be told which folders to accept. It highlights the icon for any folder dragged over it, so the check happens after the drop: a folder that isn't in a repository gets an alert naming it and saying it isn't a Git repository, and nothing opens. Once slice 10 exists, that alert offers Create Repository Here…
    - A bare repository (one with no working tree) is refused with its own message, since the working area has nothing to show
@@ -82,14 +82,32 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 3. **Dashboard and recent repositories**
 
+   Done. The privacy prompt and a refusal are left to come up in everyday use, since the dashboard is the first thing that reads repositories the user didn't just hand the app. Git's own wording for a refusal gets captured then (see slice 2).
+
    - A dashboard window listing every repository opened before, most recent first, with its path and current branch
+     - Done. The list keeps the 1,000 most recent. Each time the dashboard comes to the front, every repository gets a quick look at the file system, which is enough to tell whether it's still there. Git reads the branch only for the rows on screen, and what it runs shows in that repository's Git log.
+     - A long path is cut from the left, so the repository's own folder stays visible
    - The search field has focus every time the dashboard opens. Typing filters, arrow keys move, Return opens, Esc closes.
+     - Done, with locus-launcher's fuzzy matcher and its ranking by past picks: a repository opened after typing a search comes first for that search next time. Picks fade over a couple of weeks, and the history stays on this Mac.
+     - Several repositories can be selected, as in a Finder list: Shift with the arrows or a click selects a range, ⌘-click adds or removes one row
+     - The search field takes focus again when a sheet over the dashboard closes
    - Open from the file system (⌘O works here too)
+     - Done, as an Open… button at the bottom right
    - Shown at launch when no windows are restored, and when the Dock icon is clicked with no windows open
+     - Done, and also when the setup checklist's Done is clicked with no repository window open
    - Always available from the menu, with ⌘⇧O and ⌘⇧⌥O both opening it, whatever window is in front
+     - Done as File > Show Dashboard. ⌘⇧⌥O is a hidden second menu item, since a menu item has only one shortcut.
    - Transient: opening a repository from it closes it
+     - Done: any repository opening closes it, however it arrived
    - A repository that has moved or been deleted stays in the list, marked missing, with Remove from List and Locate…
+     - Done. Opening a missing repository asks, as Finder does for an alias whose original is gone. A located repository takes the missing one's place on the list. A folder that is no longer the top of a repository counts as missing too.
+     - A repository on a drive that isn't connected is marked Drive Not Connected rather than missing, so removing the missing ones never drops it
+     - When any are missing, the bottom bar shows how many as a toggle that shows only those (also View > Show Only Missing Repositories, ⇧⌘M), and Remove All Missing (⌥⌘⌫)
+   - Commands on the selection, in the File menu while the dashboard is in front and in a row's context menu, titled with how many repositories they act on: Open (↩), Remove from List (⌘⌫), Show in Finder (⌘↩) and Set Display Name…, the last two for one repository at a time
+     - ⌘Z puts removed repositories back where they were. Undo for typing in the search field is off, since it shares the window's undo stack and Undo took back the typing instead of a removal.
+   - A repository can be given a display name (see Decisions), shown on the dashboard, in Open Recent and the Dock menu, and matched by the search. The path still shows under it. Window titles and tabs keep the folder path until slice 4 decides.
    - File > Open Recent and the Dock menu list the same repositories
+     - Done: the ten most recent, named as on the dashboard, with Clear Menu, which empties the dashboard's list too since it's the same list
    - Clone and Create arrive here in slice 10, once credentials work. The dashboard leaves room for them.
 
 4. **Window session and tabs**
@@ -97,10 +115,12 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - Repository windows use native macOS tabs. Window > Merge All Windows, dragging tabs between windows, and the tab bar all come from AppKit.
    - ⌘T opens the dashboard; the repository picked from it opens as a tab in the window that was in front
    - A tab is titled with the repository's folder name, not the window's full path, which a tab cuts off before the part that tells repositories apart. When two open repositories share a folder name, each tab adds parent folders until they differ (`client/app`, `server/app`). The full path is the tab's tooltip, set through `NSWindow.tab`, which has its own title separate from the window's.
+     - Slice 3's `DistinctFolderNames` already does this for the dashboard and Open Recent. It moves to `Shared/` once tabs use it.
+     - Decide here whether a repository's display name (slice 3) titles its tab and window in place of the folder name
    - Quitting and relaunching restores every repository window, its frame, its screen, its tab group and tab order, and which tab was selected, following the system's "Close windows when quitting an application" setting (see Decisions)
    - With that setting on, Quit and Keep Windows (⌥⌘Q) still keeps them, as in any Mac app
    - Each repository also remembers its own view state after its window closes: sidebar selection, collapsed sections, column widths. Reopening it next week puts it back the way it was.
-   - Every other window centers on the primary display the first time and remembers where it was put. Port `RememberedWindowPlacement` from locus-sound-control, which has the `fittingSize` fix locus-launcher lacks.
+   - Every other window centers on the primary display the first time and remembers where it was put. Port `RememberedWindowPlacement` from locus-sound-control, which has the `fittingSize` fix locus-launcher lacks. The dashboard is the first to need it; it centers at every launch until then.
 
 5. **The three-column window and the sidebar**
 
@@ -122,6 +142,8 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - Commands that need an argument ask for it in the palette's next step: Check Out Branch… lists branches, Apply Stash… lists stashes. The palette also jumps to things: a branch, tag or stash selects it in the sidebar.
    - The rule from here on: every action is a menu item, and every menu item is in the palette. That is what makes "drive everything from the keyboard" true, rather than mostly true.
    - Remove File > Print. Nothing here prints, and ⌘P is worth more for the palette.
+   - The palette's fuzzy matching and "recently used first" are slice 3's `FuzzyMatcher` and `DashboardOpenHistory`, which move to `Shared/` then
+   - The dashboard's commands join the catalog. They show in the File menu only while the dashboard is in front, since they act on its selection. Decide whether that is the rule for every command that belongs to one kind of window. Set Display Name… has no shortcut yet.
 
 7. **Commit history and commit detail**
 
@@ -188,6 +210,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
       - Credentials prompt through the same askpass sheets as fetch and push, and failures use the error sheet from slice 2
       - The new repository opens in its own window and joins the recent list, and the dashboard closes if it was open
     - Create Repository… (`git init` in a chosen folder), in the same places. The new repository opens the same way.
+    - On the dashboard, Clone… and Create… go in the bottom bar beside Open…
 
 11. **Branches, stashes and history operations**
 
@@ -235,6 +258,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Countdown: nothing for most of the trial, a quiet notice in the last week, a persistent one in the last two days, then the locked state. Port locus-todo's staged banner and its expiry timer, so a trial that ends while the app is open locks then, not at the next click.
     - `--expire-trial` and `--reset-trial` launch arguments in Debug. They override the clock and never touch the stored date, which syncs through iCloud; locus-todo's plan explains how that goes wrong.
     - Settings gains a License pane: days left in the trial, or what the license is and when it renews
+    - Decide whether Set Display Name… stays available while locked. It writes into the repository's working tree, though it isn't Git.
 
 15. **License server and Paddle**
 
@@ -306,7 +330,9 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 - **Refresh follows the file system, quietly.** FSEvents on the working tree and the Git directory, debounced, plus a refresh when the window becomes key. Read-only commands never take optional locks, so the app can't cause an `index.lock` error in someone's terminal.
 
-- **Storage is `UserDefaults` and a JSON file in Application Support.** Recent repositories, the session and per-repository view state are small and read at launch. SwiftData would be overhead with no benefit.
+- **Storage is `UserDefaults` and a JSON file in Application Support.** Recent repositories, the dashboard's search history, the session and per-repository view state are small and read at launch. SwiftData would be overhead with no benefit.
+
+- **A repository's display name lives in the repository.** It's kept in `.locus/.name` at the top of the working tree, so it's the same whichever Mac or clone opens it. This is the only place the app writes into a working tree other than through Git, and only when the user sets a name. Shared through Git is the default: the folder is left for the user to commit, and the name travels with the repository. Not shared, the folder holds a `.gitignore` of `*`, which ignores everything in it, itself included, so nothing shows in `git status`. Once Git tracks `.locus`, the sheet says so rather than offering to stop sharing, since only a commit can undo that. The recent list keeps a copy of each name so the menus can show it without reading every repository.
 
 - **Updates:** Sparkle, release zips on GitHub Releases, appcast on GitHub Pages. Betas ride the same feed on a Sparkle channel. Versions are `YYYY.N` for a release and `YYYY.N.B` for a beta, same as the other Locus Mac apps.
 
