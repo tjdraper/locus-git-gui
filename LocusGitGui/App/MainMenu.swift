@@ -37,8 +37,10 @@ enum MainMenu {
             NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
         ]))
 
-        // AppKit fills this with the tab bar and full screen items.
-        main.addItem(submenu(named: "View", items: []))
+        // AppKit adds the tab bar and full screen items.
+        main.addItem(submenu(named: "View", items: [
+            NSMenuItem(title: "Show Git Log", action: #selector(RepositoryWindowController.showGitLog(_:)), keyEquivalent: ""),
+        ]))
 
         let windowMenu = submenu(named: "Window", items: [
             NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),

@@ -49,11 +49,11 @@ struct ApplicationsFolderMoveWorkflow {
         alert.messageText = "Move Locus Git Gui to your Applications folder?"
         alert.informativeText = location.isTranslocated
             ? """
-            macOS is running Locus Git Gui from a temporary read-only copy, so it can't update \
+            macOS is running Locus Git Gui from a temporary read-only copy, so it can’t update \
             itself. Moving it to Applications fixes that.
             """
             : """
-            Locus Git Gui can't update itself reliably from its current location. Moving it to \
+            Locus Git Gui can’t update itself reliably from its current location. Moving it to \
             Applications fixes that.
             """
         alert.addButton(withTitle: "Move to Applications")
@@ -63,7 +63,7 @@ struct ApplicationsFolderMoveWorkflow {
 
     private func reportFailure(_ error: any Error) {
         let alert = NSAlert()
-        alert.messageText = "Locus Git Gui couldn't move itself."
+        alert.messageText = "Locus Git Gui couldn’t move itself."
         alert.informativeText = """
         \(error.localizedDescription)
 

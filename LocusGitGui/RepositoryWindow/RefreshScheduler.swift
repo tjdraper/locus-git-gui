@@ -7,6 +7,7 @@ final class RefreshScheduler {
         case windowOpened
         case filesChanged
         case windowBecameKey
+        case retried
     }
 
     private static let quietPeriod: Duration = .milliseconds(400)

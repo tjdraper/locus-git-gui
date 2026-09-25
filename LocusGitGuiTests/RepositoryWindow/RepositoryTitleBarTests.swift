@@ -84,4 +84,17 @@ struct RepositoryTitleBarTests {
         // Assert
         #expect(titleBar.subtitle == "main · Merging")
     }
+
+    @Test
+    func anUnavailableStatusSaysSoWithoutADot() {
+        // Arrange
+        let titleBar = RepositoryTitleBar.unavailable
+
+        // Act
+        let subtitle = titleBar.subtitle
+
+        // Assert
+        #expect(subtitle == "Status unavailable")
+        #expect(!titleBar.isEdited)
+    }
 }

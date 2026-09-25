@@ -16,7 +16,7 @@ struct BetaTrackExitWorkflow {
         let alert = NSAlert()
         alert.messageText = "Keep getting beta updates?"
         alert.informativeText = """
-        You're now on a full release of Locus Git Gui. Betas arrive more often and may break \
+        You’re now on a full release of Locus Git Gui. Betas arrive more often and may break \
         things. You can change this later in Settings.
         """
         alert.addButton(withTitle: "Stop Beta Updates")

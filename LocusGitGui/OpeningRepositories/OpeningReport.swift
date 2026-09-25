@@ -31,7 +31,7 @@ nonisolated struct OpeningReport: Equatable {
         if folders.count == 1 {
             (messageText, informativeText) = Self.describe(first)
         } else {
-            messageText = "\(folders.count) folders couldn't be opened"
+            messageText = "\(folders.count) folders couldn’t be opened"
             var lines = folders.map(Self.summarize)
             if offersPrivacySettings {
                 lines.append("")
@@ -45,7 +45,7 @@ nonisolated struct OpeningReport: Equatable {
         let path = (folder.url.path as NSString).abbreviatingWithTildeInPath
         switch folder.problem {
         case .notRepository:
-            return ("“\(folder.name)” isn't a Git repository", path)
+            return ("“\(folder.name)” isn’t a Git repository", path)
         case .bare:
             return (
                 "“\(folder.name)” is a bare repository",
@@ -53,27 +53,27 @@ nonisolated struct OpeningReport: Equatable {
             )
         case .accessDenied:
             return (
-                "Locus Git Gui isn't allowed to read “\(folder.name)”",
+                "Locus Git Gui isn’t allowed to read “\(folder.name)”",
                 """
                 macOS is keeping the app out of this folder. Allow access under Files & Folders in \
                 Privacy & Security settings, then open it again.
                 """
             )
         case let .failed(output):
-            return ("Git couldn't open “\(folder.name)”", output)
+            return ("Git couldn’t open “\(folder.name)”", output)
         }
     }
 
     private static func summarize(_ folder: Folder) -> String {
         switch folder.problem {
         case .notRepository:
-            "“\(folder.name)” isn't a Git repository."
+            "“\(folder.name)” isn’t a Git repository."
         case .bare:
             "“\(folder.name)” is a bare repository, with no working files to show."
         case .accessDenied:
-            "Locus Git Gui isn't allowed to read “\(folder.name)”."
+            "Locus Git Gui isn’t allowed to read “\(folder.name)”."
         case let .failed(output):
-            "Git couldn't open “\(folder.name)”: \(output)"
+            "Git couldn’t open “\(folder.name)”: \(output)"
         }
     }
 }

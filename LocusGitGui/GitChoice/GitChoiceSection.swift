@@ -19,8 +19,8 @@ struct GitChoiceSection: View {
             Text("Git")
         } footer: {
             Text("""
-            Locus Git Gui runs the Git you already have, so your hooks, signing and settings work \
-            the same as in Terminal.
+            Locus Git Gui runs your chosen Git executable and Git environment so your hooks, signing, \
+            and settings all continue to work as you expect.
             """)
             .foregroundStyle(.secondary)
         }
@@ -51,7 +51,7 @@ struct GitChoiceSection: View {
             }
         case let .missing(url):
             Label {
-                Text("The Git this app was using is gone")
+                Text("The previously selected Git executable is missing")
                 Text("\(displayPath(url)) was moved or uninstalled. Choose another below.")
             } icon: {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -99,10 +99,10 @@ struct GitChoiceSection: View {
                     startedInstallingTools = true
                 }
             } label: {
-                Text("Git isn't installed")
+                Text("Git isn’t installed")
                 Text(startedInstallingTools
                     ? "Finish installing in the window that opened, then come back here."
-                    : "Apple's Command Line Tools include Git. Installing them takes a few minutes.")
+                    : "Apple’s Command Line Tools include Git. Installing them takes a few minutes.")
             }
         } else {
             LabeledContent("No Git was found") {
@@ -115,7 +115,7 @@ struct GitChoiceSection: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Another Git")
             HStack {
-                TextField("Path to git", text: $typedPath, prompt: Text(verbatim: "/path/to/git"))
+                TextField("Path to Git", text: $typedPath, prompt: Text(verbatim: "/path/to/git"))
                     .labelsHidden()
                     // A grouped form draws fields without a border, which reads as plain text.
                     .textFieldStyle(.roundedBorder)
@@ -130,7 +130,7 @@ struct GitChoiceSection: View {
                     Text(explanation(of: rejection))
                         .foregroundStyle(.red)
                 } else {
-                    Text("Type or paste the path to a git executable, or choose the file.")
+                    Text("Type or paste the path to a Git executable, or choose the file.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -150,7 +150,7 @@ struct GitChoiceSection: View {
 
     private func chooseFile() {
         let panel = NSOpenPanel()
-        panel.message = "Choose a git executable."
+        panel.message = "Choose a Git executable."
         panel.prompt = "Use This Git"
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -173,15 +173,15 @@ struct GitChoiceSection: View {
         case .notAFullPath:
             "Enter the full path, starting with / or ~."
         case .probeFailed(.folder):
-            "That's a folder. Enter the path to the git file inside it."
+            "That’s a folder. Enter the path to the Git executable inside it."
         case .probeFailed(.notExecutable):
-            "There's no program at that path."
+            "There’s no program at that path."
         case .probeFailed(.commandLineToolsMissing):
-            "That's Apple's stand-in for Git, which needs the Command Line Tools installed first."
+            "That’s Apple’s stand-in for Git, which needs the Command Line Tools installed first."
         case .probeFailed(.couldNotRun):
-            "That program couldn't be run."
+            "That program couldn’t be run."
         case .probeFailed(.notGit):
-            "That program didn't answer the way Git does."
+            "That program didn’t answer the way Git does."
         }
     }
 

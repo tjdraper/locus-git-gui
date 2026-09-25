@@ -59,8 +59,7 @@ nonisolated enum RepositoryResolver {
         if answers.count == 2, answers[0] == "false" {
             return .insideGitDirectory(URL(filePath: answers[1], directoryHint: .isDirectory))
         }
-        // The system's own wording for EPERM, which is how a privacy denial reaches Git.
-        if explanation.contains("Operation not permitted") {
+        if RecognizedGitFailure.recognize(result) == .accessDenied {
             return .resolved(.accessDenied)
         }
         if explanation.contains("not a git repository") {

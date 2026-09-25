@@ -4,11 +4,16 @@ import AppKit
 /// forward instead of opening a second.
 final class RepositoryWindowCoordinator {
     private let gitChoice: GitChoiceStore
+    private let checkForMissingGit: () -> Void
     private var controllers: [String: RepositoryWindowController] = [:]
+    /// Kept after a window closes, so reopening the repository later in the session still shows
+    /// what ran before.
+    private var logs: [String: GitCommandLog] = [:]
     private var cascadePoint = NSPoint.zero
 
-    init(gitChoice: GitChoiceStore) {
+    init(gitChoice: GitChoiceStore, checkForMissingGit: @escaping () -> Void) {
         self.gitChoice = gitChoice
+        self.checkForMissingGit = checkForMissingGit
     }
 
     func show(_ repository: Repository) {
@@ -18,7 +23,14 @@ final class RepositoryWindowCoordinator {
             return
         }
 
-        let controller = RepositoryWindowController(repository: repository, gitChoice: gitChoice)
+        let log = logs[key] ?? GitCommandLog()
+        logs[key] = log
+        let controller = RepositoryWindowController(commands: RepositoryCommandRunner(
+            repository: repository,
+            log: log,
+            gitChoice: gitChoice,
+            checkForMissingGit: checkForMissingGit
+        ))
         guard let window = controller.window else { return }
         if controllers.isEmpty {
             window.center()

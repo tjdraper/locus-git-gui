@@ -22,12 +22,12 @@ final class GitMissingNotice {
 
     private func askToChooseAnother(missing url: URL) -> Bool {
         let alert = NSAlert()
-        alert.messageText = "Locus Git Gui can't find Git"
+        alert.messageText = "Locus Git Gui can’t find Git"
         alert.informativeText = """
-        The Git it was set up to use has been moved or uninstalled. Choose another Git to keep \
+        The selected Git executable has been moved or uninstalled. Choose another Git executable to keep \
         working.
 
-        \((url.path as NSString).abbreviatingWithTildeInPath)
+        Missing path: \((url.path as NSString).abbreviatingWithTildeInPath)
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Choose Git…")

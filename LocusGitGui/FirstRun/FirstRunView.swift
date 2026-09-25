@@ -63,7 +63,7 @@ struct FirstRunView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Welcome to Locus Git Gui")
                     .font(.title2.bold())
-                Text("Set up Locus Git Gui here. You can open this again from the Help menu.")
+                Text("Let’s get Locus Git Gui set up. You can open this setup screen again any time from the “Help” menu.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

@@ -2,22 +2,30 @@ import Foundation
 
 /// Everything the window shows about a repository, read in one go.
 nonisolated struct RepositorySnapshot: Equatable, Sendable {
-    /// `git status` failed. Git's output is kept whole, since it is the part people can search for.
+    /// `git status` failed, or wrote something that couldn't be read. Git's output is kept whole,
+    /// since it is the part people can search for.
     struct ReadFailure: Error, Equatable {
         let result: ChildProcess.Result
+        let outputWasUnreadable: Bool
     }
 
     let status: RepositoryStatus
     let operation: InProgressOperation?
 
-    static func read(_ repository: Repository, with runner: GitRunner) async throws -> RepositorySnapshot {
-        let result = try await runner.run(RepositoryStatus.command, in: repository.workTree)
+    static func read(
+        _ repository: Repository,
+        running run: (GitCommand) async throws -> ChildProcess.Result
+    ) async throws -> RepositorySnapshot {
+        let result = try await run(RepositoryStatus.command)
         guard result.status == 0 else {
-            throw ReadFailure(result: result)
+            throw ReadFailure(result: result, outputWasUnreadable: false)
         }
-        return RepositorySnapshot(
-            status: try RepositoryStatus(parsing: result.standardOutput),
-            operation: InProgressOperation.read(gitDirectory: repository.gitDirectory)
-        )
+        let status: RepositoryStatus
+        do {
+            status = try RepositoryStatus(parsing: result.standardOutput)
+        } catch {
+            throw ReadFailure(result: result, outputWasUnreadable: true)
+        }
+        return RepositorySnapshot(status: status, operation: InProgressOperation.read(gitDirectory: repository.gitDirectory))
     }
 }

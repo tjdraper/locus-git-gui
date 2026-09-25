@@ -7,7 +7,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var gitChoice = GitChoiceStore(loginShell: loginShellEnvironment)
     private lazy var firstRunWindow = FirstRunWindowPresenter(gitChoice: gitChoice)
     private let gitMissingNotice = GitMissingNotice()
-    private lazy var repositoryWindows = RepositoryWindowCoordinator(gitChoice: gitChoice)
+    private var hasAskedForRepository = false
+    private lazy var repositoryWindows = RepositoryWindowCoordinator(
+        gitChoice: gitChoice,
+        checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
+    )
     private lazy var repositoryOpening = RepositoryOpeningWorkflow(
         gitChoice: gitChoice,
         windows: repositoryWindows,
@@ -53,11 +57,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// There is nothing untitled to make, so this asks for a repository instead. The checklist
-    /// comes first while there is no Git to open one with.
+    /// There is nothing untitled to make, so this asks for a repository instead, but only when
+    /// there is a Git to open one with. At launch the checklist or the missing-Git alert already
+    /// covers the alternative; later, the checklist does.
     func applicationOpenUntitledFile(_: NSApplication) -> Bool {
-        if !firstRunWindow.isVisible {
-            repositoryOpening.showOpenPanel()
+        let isLaunching = !hasAskedForRepository
+        hasAskedForRepository = true
+        Task {
+            guard case .available = await gitChoice.checkAvailability() else {
+                if !isLaunching {
+                    firstRunWindow.show()
+                }
+                return
+            }
+            if !firstRunWindow.isVisible {
+                repositoryOpening.showOpenPanel()
+            }
         }
         return true
     }

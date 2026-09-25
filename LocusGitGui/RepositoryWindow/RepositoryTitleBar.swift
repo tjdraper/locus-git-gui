@@ -5,6 +5,15 @@ nonisolated struct RepositoryTitleBar: Equatable {
     /// The dot is information, not a warning: everything it covers is already on disk.
     let isEdited: Bool
 
+    /// Shown while the latest refresh failed, so the title bar never repeats a state that may no
+    /// longer be true. Without a status, whether anything changed is unknown, so there is no dot.
+    static let unavailable = RepositoryTitleBar(subtitle: "Status unavailable", isEdited: false)
+
+    private init(subtitle: String, isEdited: Bool) {
+        self.subtitle = subtitle
+        self.isEdited = isEdited
+    }
+
     init(status: RepositoryStatus, operation: InProgressOperation?) {
         let files = status.files.filter { $0.state != .ignored }
         isEdited = !files.isEmpty || operation != nil

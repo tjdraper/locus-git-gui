@@ -8,8 +8,6 @@ final class RepositoryOpeningWorkflow {
         case gitCouldNotStart
     }
 
-    private static let privacySettingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders")
-
     private let gitChoice: GitChoiceStore
     private let windows: RepositoryWindowCoordinator
     private let showChecklist: () -> Void
@@ -37,8 +35,7 @@ final class RepositoryOpeningWorkflow {
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "Open Repository"
-        panel.message = "Choose a folder in a Git repository."
+        panel.message = "Choose a Git repository folder"
         panel.prompt = "Open"
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
@@ -159,8 +156,8 @@ final class RepositoryOpeningWorkflow {
         }
         NSApp.activate()
         let response = alert.runModal()
-        if report.offersPrivacySettings, response == .alertFirstButtonReturn, let url = Self.privacySettingsURL {
-            NSWorkspace.shared.open(url)
+        if report.offersPrivacySettings, response == .alertFirstButtonReturn {
+            PrivacySettings.openFilesAndFolders()
         }
     }
 }

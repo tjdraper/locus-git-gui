@@ -25,7 +25,7 @@ struct OpeningReportTests {
         let report = try #require(OpeningReport(folders: [folder]))
 
         // Assert
-        #expect(report.messageText == "“Notes” isn't a Git repository")
+        #expect(report.messageText == "“Notes” isn’t a Git repository")
         #expect(report.informativeText == "~/Projects/Notes")
         #expect(!report.offersPrivacySettings)
     }
@@ -43,11 +43,11 @@ struct OpeningReportTests {
         let report = try #require(OpeningReport(folders: folders))
 
         // Assert
-        #expect(report.messageText == "3 folders couldn't be opened")
+        #expect(report.messageText == "3 folders couldn’t be opened")
         #expect(report.informativeText.hasPrefix("""
-        “Notes” isn't a Git repository.
+        “Notes” isn’t a Git repository.
         “Server.git” is a bare repository, with no working files to show.
-        Locus Git Gui isn't allowed to read “Site”.
+        Locus Git Gui isn’t allowed to read “Site”.
         """))
         #expect(report.offersPrivacySettings)
     }

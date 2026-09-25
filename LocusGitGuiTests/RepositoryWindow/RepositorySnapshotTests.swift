@@ -14,7 +14,7 @@ struct RepositorySnapshotTests {
         let opened = Repository(workTree: repository.folder, gitDirectory: repository.folder.appending(path: ".git"))
 
         // Act
-        let snapshot = try await RepositorySnapshot.read(opened, with: runner)
+        let snapshot = try await RepositorySnapshot.read(opened) { try await runner.run($0, in: repository.folder) }
 
         // Assert
         #expect(snapshot.status.branch.name == "main")
@@ -31,7 +31,7 @@ struct RepositorySnapshotTests {
 
         // Act & Assert
         let failure = await #expect(throws: RepositorySnapshot.ReadFailure.self) {
-            try await RepositorySnapshot.read(notARepository, with: runner)
+            try await RepositorySnapshot.read(notARepository) { try await runner.run($0, in: folder) }
         }
         #expect(failure?.result.status == 128)
         #expect(String(bytes: failure?.result.standardError ?? Data(), encoding: .utf8)?.contains("not a git repository") == true)
