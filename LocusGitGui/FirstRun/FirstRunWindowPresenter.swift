@@ -51,10 +51,11 @@ final class FirstRunWindowPresenter: NSObject, NSWindowDelegate {
         ))
         window.title = "Set Up Locus Git Gui"
         window.styleMask = [.titled, .closable]
+        window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
         window.delegate = self
         screenFit.update(for: window)
-        window.center()
+        RememberedWindowPlacement(autosaveName: "Setup").apply(to: window)
         return window
     }
 }

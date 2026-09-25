@@ -26,9 +26,9 @@ final class GitLogWindowPresenter {
         let window = NSWindow(contentViewController: NSHostingController(rootView: GitLogView(log: log)))
         window.title = "Git Log – \(repository.workTree.lastPathComponent)"
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 760, height: 480))
-        window.center()
+        RememberedWindowPlacement(autosaveName: "GitLog").apply(to: window, initialContentSize: NSSize(width: 760, height: 480))
         return window
     }
 }

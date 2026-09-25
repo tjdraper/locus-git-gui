@@ -1,15 +1,17 @@
 import AppKit
 
-/// The repository window's toolbar. For now it only holds the quiet warning for a failure the user
-/// didn't ask for, such as a background refresh, which never interrupts with a sheet.
+/// The repository window's toolbar. For now it holds the title and the quiet warning for a failure
+/// the user didn't ask for, such as a background refresh, which never interrupts with a sheet.
 final class RepositoryToolbar: NSObject, NSToolbarDelegate {
     private static let warningIdentifier = NSToolbarItem.Identifier("GitFailureWarning")
 
     let toolbar = NSToolbar(identifier: "RepositoryWindow")
+    private let title: RepositoryTitleItem
     private let showDetails: () -> Void
     private var warningItem: NSToolbarItem?
 
-    init(showDetails: @escaping () -> Void) {
+    init(title: RepositoryTitleItem, showDetails: @escaping () -> Void) {
+        self.title = title
         self.showDetails = showDetails
         super.init()
         toolbar.delegate = self
@@ -26,11 +28,11 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
     }
 
     func toolbarDefaultItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, Self.warningIdentifier]
+        [RepositoryTitleItem.identifier, .flexibleSpace, Self.warningIdentifier]
     }
 
     func toolbarAllowedItemIdentifiers(_: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.flexibleSpace, Self.warningIdentifier]
+        [RepositoryTitleItem.identifier, .flexibleSpace, Self.warningIdentifier]
     }
 
     func toolbar(
@@ -38,6 +40,9 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
         itemForItemIdentifier identifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar _: Bool
     ) -> NSToolbarItem? {
+        if identifier == RepositoryTitleItem.identifier {
+            return title.makeItem()
+        }
         guard identifier == Self.warningIdentifier else { return nil }
         let item = NSToolbarItem(itemIdentifier: identifier)
         item.label = "Git Problem"

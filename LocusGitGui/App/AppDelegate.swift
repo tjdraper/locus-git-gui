@@ -17,7 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var repositoryWindows: RepositoryWindowCoordinator = RepositoryWindowCoordinator(
         gitChoice: gitChoice,
         logs: logs,
-        checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
+        recents: recents,
+        checkForMissingGit: { [weak self] in self?.checkForMissingGit() },
+        lastWindowClosed: { [weak self] in self?.showDashboardWhenGitWorks(isLaunching: false) }
     )
     private lazy var repositoryOpening: RepositoryOpeningWorkflow = RepositoryOpeningWorkflow(
         gitChoice: gitChoice,
@@ -92,12 +94,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// There is nothing untitled to make, so this shows the dashboard instead, but only when there
-    /// is a Git to open a repository with. At launch the checklist or the missing-Git alert already
-    /// covers the alternative; later, the checklist does.
+    /// There is nothing untitled to make, so this shows the dashboard instead.
     func applicationOpenUntitledFile(_: NSApplication) -> Bool {
         let isLaunching = !hasAskedForRepository
         hasAskedForRepository = true
+        showDashboardWhenGitWorks(isLaunching: isLaunching)
+        return true
+    }
+
+    /// Only when there is a Git to open a repository with. At launch the checklist or the missing-Git
+    /// alert already covers the alternative; later, the checklist does.
+    private func showDashboardWhenGitWorks(isLaunching: Bool) {
         Task {
             guard case .available = await gitChoice.checkAvailability() else {
                 if !isLaunching {
@@ -109,7 +116,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 dashboard.show()
             }
         }
-        return true
+    }
+
+    /// Repository windows' state holds only folder paths, which decode as strings.
+    func applicationSupportsSecureRestorableState(_: NSApplication) -> Bool {
+        true
     }
 
     func applicationDockMenu(_: NSApplication) -> NSMenu? {
@@ -129,6 +140,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Reached through the responder chain from File > Show Dashboard, whatever window is in front.
     @objc func showDashboard(_: Any?) {
         dashboard.show()
+    }
+
+    /// Reached through the responder chain from File > New Tab and the tab bar's add button. The
+    /// repository chosen joins the tabs of the window in front.
+    @objc func newWindowForTab(_: Any?) {
+        dashboard.showForNewTab(joining: NSApp.keyWindow.flatMap { repositoryWindows.isRepositoryWindow($0) ? $0 : nil })
+    }
+
+    /// Called by `RepositoryWindowRestoration`, which macOS creates itself and so can't be handed
+    /// the windows it restores into.
+    func restoreWindow(for repository: Repository, completionHandler: @escaping (NSWindow?, (any Error)?) -> Void) {
+        repositoryWindows.restore(repository, completionHandler: completionHandler)
     }
 
     /// Reached through the responder chain from the Help menu.

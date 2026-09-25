@@ -65,6 +65,7 @@ enum MainMenu {
 
     private static func fileMenu(openRecentItem: NSMenuItem, dashboardItems: [NSMenuItem]) -> NSMenuItem {
         submenu(named: "File", items: [
+            NSMenuItem(title: "New Tab", action: #selector(AppDelegate.newWindowForTab(_:)), keyEquivalent: "t"),
             NSMenuItem(title: "Open…", action: #selector(AppDelegate.openRepository(_:)), keyEquivalent: "o"),
             openRecentItem,
             .separator(),

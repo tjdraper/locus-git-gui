@@ -13,7 +13,7 @@ final class RecentRepositoryOpener {
 
     /// The dashboard knows a repository is missing when its folder is no longer a repository, which
     /// the file system alone can't tell. The ones that are there open while the rest are asked about.
-    func open(_ repositories: [Repository], knownMissing: Set<String> = [], over window: NSWindow? = nil) {
+    func open(_ repositories: [Repository], knownMissing: Set<String> = [], over window: NSWindow? = nil, inTabsOf host: NSWindow? = nil) {
         Task {
             var present: [Repository] = []
             var unavailable: [(repository: Repository, presence: RepositoryPresence)] = []
@@ -28,14 +28,18 @@ final class RecentRepositoryOpener {
                 }
             }
             if !present.isEmpty {
-                opening.open(present.map(\.workTree))
+                opening.open(present.map(\.workTree), inTabsOf: host)
             }
             // Opening closes the dashboard, so the question can't be a sheet on it.
-            ask(about: unavailable, over: present.isEmpty ? window : nil)
+            ask(about: unavailable, over: present.isEmpty ? window : nil, inTabsOf: host)
         }
     }
 
-    private func ask(about unavailable: [(repository: Repository, presence: RepositoryPresence)], over window: NSWindow?) {
+    private func ask(
+        about unavailable: [(repository: Repository, presence: RepositoryPresence)],
+        over window: NSWindow?,
+        inTabsOf host: NSWindow?
+    ) {
         guard let first = unavailable.first else { return }
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -68,7 +72,7 @@ final class RecentRepositoryOpener {
         let removeButton: NSApplication.ModalResponse = offersLocate ? .alertSecondButtonReturn : .alertFirstButtonReturn
         let respond = { [weak self] (response: NSApplication.ModalResponse) in
             if offersLocate, response == .alertFirstButtonReturn {
-                self?.locate(first.repository, over: window)
+                self?.locate(first.repository, over: window, inTabsOf: host)
             } else if response == removeButton {
                 self?.recents.remove(unavailable.map(\.repository))
             }
@@ -82,7 +86,7 @@ final class RecentRepositoryOpener {
     }
 
     /// The repository found takes the missing one's place on the list.
-    private func locate(_ repository: Repository, over window: NSWindow?) {
+    private func locate(_ repository: Repository, over window: NSWindow?, inTabsOf host: NSWindow?) {
         let panel = NSOpenPanel()
         panel.message = "Locate “\(repository.workTree.lastPathComponent)”"
         panel.prompt = "Open"
@@ -92,7 +96,7 @@ final class RecentRepositoryOpener {
         panel.directoryURL = Self.nearestExistingFolder(to: repository.workTree)
         let respond = { [weak self] (response: NSApplication.ModalResponse) in
             guard response == .OK, let url = panel.url else { return }
-            self?.opening.open([url], replacing: repository)
+            self?.opening.open([url], replacing: repository, inTabsOf: host)
         }
         if let window {
             panel.beginSheetModal(for: window, completionHandler: respond)

@@ -70,11 +70,11 @@
 				OpeningRepositories/OpeningReport.swift,
 				OpeningRepositories/Repository.swift,
 				OpeningRepositories/RepositoryResolver.swift,
-				RecentRepositories/DistinctFolderNames.swift,
 				RecentRepositories/RecentRepositoryList.swift,
 				RecentRepositories/RepositoryPresence.swift,
 				RepositoryWindow/RepositorySnapshot.swift,
 				RepositoryWindow/RepositoryTitleBar.swift,
+				Shared/DistinctFolderNames.swift,
 				Updates/UpdateChannelPreference.swift,
 			);
 			target = 6C1B724A305F81D100DDFE7D /* Locus Git Gui Tests */;

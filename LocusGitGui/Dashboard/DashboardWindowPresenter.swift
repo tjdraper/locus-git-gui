@@ -18,6 +18,8 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
     private let displayNames: DisplayNameWorkflow
     private let showOpenPanel: () -> Void
     private var window: DashboardWindow?
+    /// The window in front when File > New Tab opened the dashboard.
+    private weak var tabHost: NSWindow?
 
     init(
         recents: RecentRepositoryStore,
@@ -54,6 +56,20 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
     }
 
     func show() {
+        tabHost = nil
+        present()
+    }
+
+    /// What opens from the dashboard joins the tabs of `window`. Asked again with no window, such
+    /// as while the dashboard itself is in front, it keeps the one it had.
+    func showForNewTab(joining window: NSWindow?) {
+        if let window {
+            tabHost = window
+        }
+        present()
+    }
+
+    private func present() {
         let window = window ?? makeWindow()
         self.window = window
         session.opened(clearingSearch: !window.isVisible)
@@ -82,6 +98,7 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
 
     /// What Undo would bring back can't be seen once the window is gone.
     func windowWillClose(_: Notification) {
+        tabHost = nil
         checker.stop()
         window?.undoManager?.removeAllActions()
     }
@@ -146,6 +163,7 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
             defer: false
         )
         window.title = "Locus Git Gui Dashboard"
+        window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentViewController = NSHostingController(rootView: DashboardView(
@@ -161,9 +179,8 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
                 rowDisappeared: { [checker] row in checker.rowDisappeared(row.repository) }
             )
         ))
-        window.setContentSize(NSSize(width: 600, height: 480))
         window.onKeyCommand = { [weak self] command in self?.perform(command) }
-        window.center()
+        RememberedWindowPlacement(autosaveName: "Dashboard").apply(to: window, initialContentSize: NSSize(width: 600, height: 480))
         return window
     }
 
@@ -184,7 +201,7 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         guard !rows.isEmpty else { return }
         session.noteOpened(rows)
         let knownMissing = Set(rows.filter { session.state(of: $0.id) == .missing }.map(\.id))
-        opener.open(rows.map(\.repository), knownMissing: knownMissing, over: window)
+        opener.open(rows.map(\.repository), knownMissing: knownMissing, over: window, inTabsOf: tabHost)
     }
 
     private func showInFinder(_ row: DashboardRow) {

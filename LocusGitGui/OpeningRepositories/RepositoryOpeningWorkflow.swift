@@ -55,9 +55,9 @@ final class RepositoryOpeningWorkflow {
     }
 
     /// A repository found in place of a missing one on the recent list takes its place there.
-    func open(_ folders: [URL], replacing missing: Repository? = nil) {
+    func open(_ folders: [URL], replacing missing: Repository? = nil, inTabsOf host: NSWindow? = nil) {
         Task {
-            await openNow(folders, replacing: missing)
+            await openNow(folders, replacing: missing, inTabsOf: host)
         }
     }
 
@@ -69,7 +69,7 @@ final class RepositoryOpeningWorkflow {
         }
     }
 
-    private func openNow(_ folders: [URL], replacing missing: Repository?) async {
+    private func openNow(_ folders: [URL], replacing missing: Repository?, inTabsOf host: NSWindow?) async {
         guard let runner = await gitChoice.runner() else {
             waitingForGit += folders
             showChecklist()
@@ -81,7 +81,7 @@ final class RepositoryOpeningWorkflow {
         for (folder, outcome) in await resolveAll(folders, with: runner) {
             switch outcome {
             case let .resolved(.repository(repository)):
-                show(repository, replacing: missing)
+                show(repository, replacing: missing, inTabsOf: host)
             case .resolved(.bare):
                 problems.append(.init(url: folder, problem: .bare))
             case .resolved(.notRepository):
@@ -104,7 +104,7 @@ final class RepositoryOpeningWorkflow {
         }
     }
 
-    private func show(_ repository: Repository, replacing missing: Repository?) {
+    private func show(_ repository: Repository, replacing missing: Repository?, inTabsOf host: NSWindow?) {
         // A repository that arrived another way, such as a drop on the Dock icon, answers what the
         // panel was asking.
         openPanel?.cancel(nil)
@@ -113,7 +113,7 @@ final class RepositoryOpeningWorkflow {
         }
         recents.note(repository)
         didOpenRepository()
-        windows.show(repository)
+        windows.show(repository, inTabsOf: host)
     }
 
     /// Resolved side by side, and reported in the order they were given.
