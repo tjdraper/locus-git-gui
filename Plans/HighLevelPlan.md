@@ -136,20 +136,25 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 5. **The three-column window and the sidebar**
 
+   Done, except Tab and Shift-Tab between the columns, which moved to slice 7. Seen only in light mode so far; slice 17's appearance pass covers dark.
+
    - `NSSplitViewController` with three columns: sidebar, history, detail. The sidebar collapses with the standard shortcut (⌃⌘S).
      - Done, as View > Show Sidebar, with Show Toolbar (⌥⌘T) and Customize Toolbar… beside it. The sidebar runs the full height of the window. The history and detail columns are empty until slices 7 and 8 fill them.
    - Each repository remembers its own view state after its window closes: sidebar selection, collapsed sections, column widths. Reopening it next week puts it back the way it was. Moved from slice 4, which had no state to keep yet.
      - Done, along with which remotes are collapsed, whether the sidebar is hidden, and the window's size and place. The window opens where it was last closed, unless it joins another window's tabs, or that place is no longer on any screen. A frame in full screen isn't kept. Kept in `UserDefaults` for the 1,000 repositories changed most recently, saved a second after it stops changing and at quit. A selection that's gone, such as a deleted branch or a dropped stash, is cleared.
    - The sidebar lists local branches, remotes and their branches, tags and stashes, in collapsible sections
-     - Done. Branches sort as Finder sorts names; tags list the highest version first. Each remote collapses on its own. A remote shows before anything has been fetched from it, and branches of a remote removed from the config still show under its name until they're pruned. A section with nothing in it is left out. Stashes show Git's own description. The sidebar is read on every refresh, and a failure to read it gets the same toolbar warning as a failed status.
+     - Done. Branches sort as Finder sorts names; tags list the highest version first. Each remote collapses on its own. A remote shows before anything has been fetched from it, and branches of a remote removed from the config still show under its name until they're pruned. A section with nothing in it is left out. Stashes show Git's own description ("On main: …"), which fills a narrow sidebar quickly. The sidebar is read on every refresh, and a failure to read it gets the same toolbar warning as a failed status.
+     - A refresh now runs four commands where it ran one: status, `for-each-ref` (which works out ahead and behind for every branch with an upstream), `remote` and `stash list`. It runs after every change to the working tree, not only to the Git directory. Slice 17's performance pass measures it on a repository with thousands of branches and tags.
+     - The sidebar has no context menus yet. They arrive with the commands they hold, in slice 11.
    - Ahead and behind counts next to branches that track an upstream
-     - Done, shown only when the branch isn't level with its upstream. A branch whose upstream is gone from the remote gets a warning symbol, with a tooltip naming the upstream.
+     - Done, shown only when the branch isn't level with its upstream. A branch whose upstream is gone from the remote gets a gray warning symbol, with a tooltip naming the upstream. It's a quiet cue on purpose; slice 11 decides whether it should say more once there's a way to act on it.
    - A filter field at the top of the sidebar
      - Done. It keeps anything with the typed text anywhere in its name, ignoring case and accents, and shows every match whatever is collapsed. A remote branch matches with its remote's name in front (`origin/main`). View > Filter Sidebar (⌥⌘F) shows the sidebar if it's hidden and puts the cursor in the field; Down Arrow or Return moves to the list, and Esc clears it. The filter isn't remembered.
    - The checked-out branch is marked
      - Done, with a checkmark in place of the branch symbol
-   - Keyboard: Tab and Shift-Tab move focus between the columns, and every column is driven with the arrow keys. Type-to-select in the sidebar jumps to a branch by name.
-     - The sidebar has focus when the window opens and is driven with the arrow keys: Right and Left expand and collapse a remote. Type-to-select is the app's own, since a SwiftUI list doesn't offer it: it matches the start of any visible row's name, ignoring case and accents, and a pause of a second starts a new search. Tab and Shift-Tab between the columns wait for slice 7, when the history column has something to take focus.
+   - Keyboard: every column is driven with the arrow keys. Type-to-select in the sidebar jumps to a branch by name. Tab and Shift-Tab between the columns moved to slice 7, since nothing in the history or detail column can take focus yet.
+     - Done for the sidebar. It has focus when the window opens, and Right and Left expand and collapse a remote. Type-to-select is the app's own, since a SwiftUI list doesn't offer it: it matches the start of any visible row's name, ignoring case and accents, and a pause of a second starts a new search.
+     - A click outside a text field that's being edited ends the editing, and focus goes to what was clicked when it can take it. AppKit on its own leaves the field editing after a click on an empty column or the toolbar, and a SwiftUI list clicked from a field doesn't take focus, so its selection draws gray. `RepositoryWindow` handles this for every field in the window, so slice 7's Find and slice 9's message field get it too.
    - A toolbar, customizable the usual way. It starts nearly empty and gains Fetch, Pull, Push and the rest as later slices add them.
      - Done, with the sidebar button over the sidebar. The title and the Git problem warning can't be moved or removed.
    - A long path is cut from the left, so its last folders stay visible as toolbar items take up room. Done in slice 4, along with the proxy icon. Toolbar items added here have to leave the title room to shrink before it overflows.
@@ -165,11 +170,15 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - The rule from here on: every action is a menu item, and every menu item is in the palette. That is what makes "drive everything from the keyboard" true, rather than mostly true.
    - Remove File > Print. Nothing here prints, and ⌘P is worth more for the palette.
    - The palette's fuzzy matching and "recently used first" are slice 3's `FuzzyMatcher` and `DashboardOpenHistory`, which move to `Shared/` then
+   - Slice 5's View menu items join the catalog: Show Sidebar (⌃⌘S), Filter Sidebar (⌥⌘F), Show Toolbar (⌥⌘T) and Customize Toolbar…. Jumping to a branch, tag or stash sets the sidebar's selection (`SidebarModel.selection`), expanding its section and remote first if they're collapsed.
    - The dashboard's commands join the catalog. They show in the File menu only while the dashboard is in front, since they act on its selection. Decide whether that is the rule for every command that belongs to one kind of window. Set Display Name… has no shortcut yet.
 
 7. **Commit history and commit detail**
 
    - The middle column shows the history of whatever is selected in the sidebar: a branch, a remote branch, a tag, a stash. With nothing selected it shows the checked-out branch, or HEAD when detached. Selecting a remote shows the history of all its branches.
+     - The selection is `SidebarModel.selection`, a `SidebarItemID`: a full ref name, a remote's name, or a stash's commit. It's remembered per repository, and cleared when what it names is gone.
+   - Tab and Shift-Tab move focus between the columns. Moved from slice 5, which had nothing in the history or detail column to take focus. The sidebar's list, the history's table and the detail column each need to be in the window's key view loop, and the sidebar's filter field too.
+   - The history and detail columns replace `ColumnPlaceholderController`. Their widths are already remembered per repository.
    - Each row shows the subject, author, relative date and short hash, with branch and tag labels on the commits they point at
    - A commit graph beside the rows. Lane layout is a pure function of parent links, so it goes in the test target.
    - Load history lazily as the list scrolls. A repository with a million commits opens as fast as one with ten.
@@ -319,7 +328,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Keyboard audit: walk every feature with the mouse unplugged. Anything that can't be reached is a bug.
     - VoiceOver pass on all three columns, the palette and the conflict window
     - Performance pass against a large repository (the Linux kernel is the usual test), on history, status and diff
-    - Light and dark mode checked on every window
+    - Light and dark mode checked on every window. The repository window's sidebar hasn't been seen in dark mode yet.
     - Website download page, built outside this repository
 
 ## Decisions
