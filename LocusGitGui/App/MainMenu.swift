@@ -9,11 +9,7 @@ enum MainMenu {
         NSApp.servicesMenu = services.submenu
 
         main.addItem(submenu(named: appName, items: [
-            NSMenuItem(
-                title: "About \(appName)",
-                action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
-                keyEquivalent: ""
-            ),
+            NSMenuItem(title: "About \(appName)", action: #selector(AppDelegate.showAboutPanel(_:)), keyEquivalent: ""),
             checkForUpdatesItem,
             .separator(),
             services,

@@ -1,6 +1,6 @@
 # Release Setup Checklist
 
-Work through this once before the first release. Keep it afterwards as the record of what was set up and where, and as the list to work through again if it ever has to be rebuilt on another machine.
+Done, as of 2026.0.2, apart from testing the CLA check, which waits for the first outside pull request. Kept as the record of what was set up and where, and as the list to work through again if it ever has to be rebuilt on another machine.
 
 `Scripts/release.sh <version>` handles every release from here.
 
@@ -46,14 +46,14 @@ This app shares the Locus apps' key. Sparkle's own guidance is one key per publi
 ## Contributor license agreement
 
 - [x] Create the branch the signatures are stored on, since the action won't create it: `git push origin main:cla-signatures`.
-- [ ] Confirm the **CLA Assistant** workflow runs: open a throwaway pull request from another account or a fork, check it fails the CLA check, sign with the comment, and check it passes. The workflow uses the built-in `GITHUB_TOKEN`, so there is no secret to add while signatures are stored in this repository.
+- [ ] Confirm the **CLA Assistant** workflow runs on the first outside pull request, or test it sooner: open a throwaway pull request from another account or a fork, check it fails the CLA check, sign with the comment, and check it passes. The workflow uses the built-in `GITHUB_TOKEN`, so there is no secret to add while signatures are stored in this repository.
 
 ## First release
 
 - [x] `Scripts/release.sh 2026.0.1`
 - [x] Run the commands it prints, in the order it prints them.
 - [x] Download the published zip on a Mac that has never run the app, unzip it in Downloads, and open it. You should get no Gatekeeper warning, and the offer to move it to Applications.
-- [ ] Ship a throwaway `2026.0.2` and let an installed `2026.0.1` update itself. Sparkle problems only show up on the second release, so do this before anyone else is relying on it.
+- [x] Ship a throwaway `2026.0.2` and let an installed `2026.0.1` update itself. Sparkle problems only show up on the second release, so do this before anyone else is relying on it.
 
 ## Not set up on purpose
 

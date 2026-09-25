@@ -20,4 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         emptyWindow.show()
         return false
     }
+
+    /// Reached through the responder chain from the main menu's About item.
+    @objc func showAboutPanel(_: Any?) {
+        AboutPanel.show()
+    }
 }
