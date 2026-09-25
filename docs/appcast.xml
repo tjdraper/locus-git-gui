@@ -3,6 +3,17 @@
     <channel>
         <title>Locus Git Gui</title>
         <item>
+            <title>2026.0.2</title>
+            <pubDate>Thu, 24 Sep 2026 20:07:21 -0500</pubDate>
+            <link>https://github.com/tjdraper/locus-git-gui</link>
+            <sparkle:channel>beta</sparkle:channel>
+            <sparkle:version>2026.0.2</sparkle:version>
+            <sparkle:shortVersionString>2026.0.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://tjdraper.github.io/locus-git-gui/LocusGitGui-2026.0.2.md</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/tjdraper/locus-git-gui/releases/download/v2026.0.2/LocusGitGui-2026.0.2.zip" length="2492415" type="application/octet-stream" sparkle:edSignature="pR9k95tSQpx6PY5GbxOwDpeNqt8yT9jlRwdfSIdBjcdwL6F1hs8AJuznDKV+oBPmGRqUk3qjpC+1pG4Sqvs5BQ=="/>
+        </item>
+        <item>
             <title>2026.0.1</title>
             <pubDate>Thu, 24 Sep 2026 20:02:06 -0500</pubDate>
             <link>https://github.com/tjdraper/locus-git-gui</link>
