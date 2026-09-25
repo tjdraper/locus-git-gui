@@ -2,8 +2,8 @@ import Foundation
 
 /// What a folder turns out to be when asked to open it.
 nonisolated enum RepositoryResolution: Equatable, Sendable {
-    /// The top level of the working tree the folder is in.
-    case workTree(URL)
+    /// The repository whose working tree the folder is in.
+    case repository(Repository)
     case bare
     case notRepository
     /// macOS privacy protection kept Git out of the folder.
@@ -48,7 +48,10 @@ nonisolated enum RepositoryResolver {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         if result.status == 0, answers.count == 3 {
-            return .resolved(.workTree(URL(filePath: answers[2], directoryHint: .isDirectory)))
+            return .resolved(.repository(Repository(
+                workTree: URL(filePath: answers[2], directoryHint: .isDirectory),
+                gitDirectory: URL(filePath: answers[1], directoryHint: .isDirectory)
+            )))
         }
         if answers.first == "true" {
             return .resolved(.bare)

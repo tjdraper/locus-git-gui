@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var gitChoice = GitChoiceStore(loginShell: loginShellEnvironment)
     private lazy var firstRunWindow = FirstRunWindowPresenter(gitChoice: gitChoice)
     private let gitMissingNotice = GitMissingNotice()
-    private let repositoryWindows = RepositoryWindowCoordinator()
+    private lazy var repositoryWindows = RepositoryWindowCoordinator(gitChoice: gitChoice)
     private lazy var repositoryOpening = RepositoryOpeningWorkflow(
         gitChoice: gitChoice,
         windows: repositoryWindows,

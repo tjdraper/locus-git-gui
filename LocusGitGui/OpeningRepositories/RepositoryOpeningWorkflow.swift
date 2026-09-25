@@ -76,7 +76,7 @@ final class RepositoryOpeningWorkflow {
         var gitWentMissing = false
         for (folder, outcome) in await resolveAll(folders, with: runner) {
             switch outcome {
-            case let .resolved(.workTree(repository)):
+            case let .resolved(.repository(repository)):
                 // A repository that arrived another way, such as a drop on the Dock icon, answers
                 // what the panel was asking.
                 openPanel?.cancel(nil)

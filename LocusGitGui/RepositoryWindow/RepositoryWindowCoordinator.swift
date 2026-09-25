@@ -3,17 +3,22 @@ import AppKit
 /// Keeps one window per repository. Opening a repository that is already open brings its window
 /// forward instead of opening a second.
 final class RepositoryWindowCoordinator {
+    private let gitChoice: GitChoiceStore
     private var controllers: [String: RepositoryWindowController] = [:]
     private var cascadePoint = NSPoint.zero
 
-    func show(_ repository: URL) {
-        let key = repository.standardizedFileURL.path
+    init(gitChoice: GitChoiceStore) {
+        self.gitChoice = gitChoice
+    }
+
+    func show(_ repository: Repository) {
+        let key = repository.workTree.standardizedFileURL.path
         if let existing = controllers[key] {
             existing.showWindow(nil)
             return
         }
 
-        let controller = RepositoryWindowController(repository: repository)
+        let controller = RepositoryWindowController(repository: repository, gitChoice: gitChoice)
         guard let window = controller.window else { return }
         if controllers.isEmpty {
             window.center()

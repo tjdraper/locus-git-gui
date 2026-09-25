@@ -4,6 +4,13 @@ import Testing
 struct RepositoryResolverTests {
     private let runner = GitRunner(executableURL: TestGit.executableURL, environment: FixtureRepository.environment)
 
+    private func expected(for repository: FixtureRepository) -> Repository {
+        Repository(
+            workTree: URL(filePath: repository.folder.path, directoryHint: .isDirectory),
+            gitDirectory: URL(filePath: repository.folder.path + "/.git", directoryHint: .isDirectory)
+        )
+    }
+
     @Test
     func aSubfolderResolvesToTheTopLevel() async throws {
         // Arrange
@@ -17,7 +24,7 @@ struct RepositoryResolverTests {
         let fromSubfolder = try await RepositoryResolver.resolve(subfolder, with: runner)
 
         // Assert
-        #expect(fromTop == .workTree(URL(filePath: repository.folder.path, directoryHint: .isDirectory)))
+        #expect(fromTop == .repository(expected(for: repository)))
         #expect(fromSubfolder == fromTop)
     }
 
@@ -32,7 +39,7 @@ struct RepositoryResolverTests {
         let resolution = try await RepositoryResolver.resolve(objects, with: runner)
 
         // Assert
-        #expect(resolution == .workTree(URL(filePath: repository.folder.path, directoryHint: .isDirectory)))
+        #expect(resolution == .repository(expected(for: repository)))
     }
 
     @Test
