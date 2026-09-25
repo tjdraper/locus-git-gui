@@ -38,6 +38,10 @@
 		6C1B7289305F81D100DDFE7D /* Exceptions for "LocusGitGui" folder in "Locus Git Gui Tests" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				GitReading/Commit.swift,
+				GitReading/Ref.swift,
+				GitReading/RepositoryStatus.swift,
+				GitReading/UnreadableGitOutput.swift,
 				GitRunner/ChildProcess.swift,
 				GitRunner/GitCommand.swift,
 				GitRunner/GitEnvironment.swift,
