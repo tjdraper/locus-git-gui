@@ -18,14 +18,6 @@ enum TestGit {
         let folder = FileManager.default.temporaryDirectory
             .appending(path: "LocusGitGuiTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        return canonical(folder)
-    }
-
-    /// The path Git reports, with `/var` resolved to `/private/var`. `resolvingSymlinksInPath()`
-    /// deliberately keeps `/var`.
-    private static func canonical(_ folder: URL) -> URL {
-        guard let resolved = realpath(folder.path, nil) else { return folder }
-        defer { free(resolved) }
-        return URL(filePath: String(cString: resolved), directoryHint: .isDirectory)
+        return ResolvedPath.of(folder)
     }
 }
