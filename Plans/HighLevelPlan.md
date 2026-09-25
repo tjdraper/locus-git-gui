@@ -84,6 +84,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
    - Repository windows use native macOS tabs. Window > Merge All Windows, dragging tabs between windows, and the tab bar all come from AppKit.
    - ⌘T opens the dashboard; the repository picked from it opens as a tab in the window that was in front
+   - A tab is titled with the repository's folder name, not the window's full path, which a tab cuts off before the part that tells repositories apart. When two open repositories share a folder name, each tab adds parent folders until they differ (`client/app`, `server/app`). The full path is the tab's tooltip, set through `NSWindow.tab`, which has its own title separate from the window's.
    - Quitting and relaunching restores every repository window, its frame, its screen, its tab group and tab order, and which tab was selected, following the system's "Close windows when quitting an application" setting (see Decisions)
    - With that setting on, Quit and Keep Windows (⌥⌘Q) still keeps them, as in any Mac app
    - Each repository also remembers its own view state after its window closes: sidebar selection, collapsed sections, column widths. Reopening it next week puts it back the way it was.
@@ -165,7 +166,8 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
       - Host unreachable or DNS failure: say it's the network, not the repository
     - Add, rename and remove remotes. Push and delete tags on a remote.
     - Optional automatic fetch on an interval, off by default. It only ever updates remote-tracking refs.
-    - Clone Repository… in the File menu, the palette and the dashboard:
+    - With automatic fetch, the app can fail at two things on its own at once. The toolbar warning keeps one failure per source (refresh, fetch), each cleared when that source next succeeds, shows a count when there's more than one, and its sheet lists them.
+    - Clone Repository… in the File menu, the palette and the dashboard, and as a Clone from Remote… button in the Open panel (an accessory view), which closes the panel and starts a clone:
       - A URL field, filled in from the clipboard when the clipboard holds something that looks like a Git URL
       - Where to put it: a parent folder, remembered from the last clone, and a folder name taken from the URL and editable
       - Include submodules, on by default, since a checkout missing its submodules usually doesn't build
