@@ -34,18 +34,14 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         self.opener = opener
         self.displayNames = displayNames
         self.showOpenPanel = showOpenPanel
-        fileMenuItems = [
-            .separator(),
-            Self.menuItem(DashboardCommandTitle.open(1), #selector(openSelection(_:)), "\r", []),
-            Self.menuItem(DashboardCommandTitle.remove(1), #selector(removeSelection(_:)), "\u{8}", .command),
-            Self.menuItem(DashboardCommandTitle.removeAllMissing, #selector(removeAllMissing(_:)), "\u{8}", [.command, .option]),
-            Self.menuItem(DashboardCommandTitle.showInFinder, #selector(showSelectionInFinder(_:)), "\r", .command),
-            Self.menuItem(DashboardCommandTitle.setDisplayName, #selector(setDisplayNameOfSelection(_:)), "", []),
-        ]
-        viewMenuItems = [
-            .separator(),
-            Self.menuItem(DashboardCommandTitle.showOnlyMissing, #selector(toggleShowOnlyMissing(_:)), "m", [.command, .shift]),
-        ]
+        fileMenuItems = [.separator()] + [
+            AppCommand.openSelectedRepositories,
+            .removeSelectedRepositories,
+            .removeAllMissingRepositories,
+            .showRepositoryInFinder,
+            .setDisplayName,
+        ].map { $0.makeMenuItem() }
+        viewMenuItems = [.separator(), AppCommand.showOnlyMissingRepositories.makeMenuItem()]
         super.init()
         for item in fileMenuItems + viewMenuItems {
             item.target = self
@@ -107,11 +103,11 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         let selected = session.selectedRows
         switch menuItem.action {
         case #selector(openSelection(_:)):
-            menuItem.title = DashboardCommandTitle.open(selected.count)
+            menuItem.title = AppCommand.openSelectedRepositories.title(count: selected.count)
             // While an input method is composing text, Return commits it.
             return !selected.isEmpty && (window?.firstResponder as? NSTextView)?.hasMarkedText() != true
         case #selector(removeSelection(_:)):
-            menuItem.title = DashboardCommandTitle.remove(selected.count)
+            menuItem.title = AppCommand.removeSelectedRepositories.title(count: selected.count)
             return !selected.isEmpty
         case #selector(removeAllMissing(_:)):
             return !session.missingRepositories.isEmpty
@@ -127,31 +123,31 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         }
     }
 
-    @objc private func openSelection(_: Any?) {
+    @objc func openSelection(_: Any?) {
         open(session.selectedRows)
     }
 
-    @objc private func removeSelection(_: Any?) {
+    @objc func removeSelection(_: Any?) {
         remove(session.selectedRows.map(\.repository))
     }
 
-    @objc private func removeAllMissing(_: Any?) {
+    @objc func removeAllMissing(_: Any?) {
         remove(session.missingRepositories)
     }
 
-    @objc private func showSelectionInFinder(_: Any?) {
+    @objc func showSelectionInFinder(_: Any?) {
         if let row = session.selectedRows.first {
             showInFinder(row)
         }
     }
 
-    @objc private func setDisplayNameOfSelection(_: Any?) {
+    @objc func setDisplayNameOfSelection(_: Any?) {
         if let row = session.selectedRows.first {
             setDisplayName(of: row)
         }
     }
 
-    @objc private func toggleShowOnlyMissing(_: Any?) {
+    @objc func toggleShowOnlyMissing(_: Any?) {
         session.showsOnlyMissing.toggle()
     }
 
@@ -235,16 +231,5 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         for item in fileMenuItems + viewMenuItems {
             item.isHidden = isHidden
         }
-    }
-
-    private static func menuItem(
-        _ title: String,
-        _ action: Selector,
-        _ keyEquivalent: String,
-        _ modifiers: NSEvent.ModifierFlags
-    ) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
-        item.keyEquivalentModifierMask = modifiers
-        return item
     }
 }

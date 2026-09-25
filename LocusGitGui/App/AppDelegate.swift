@@ -2,6 +2,7 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates = UpdateController()
+    private let commandPalette = CommandPalettePresenter()
     /// Started before anything needs Git, since shell startup files can take seconds to run.
     private let loginShellEnvironment = Task { await LoginShellEnvironment.capture() }
     private lazy var gitChoice = GitChoiceStore(loginShell: loginShellEnvironment)
@@ -53,13 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     func applicationDidFinishLaunching(_: Notification) {
-        MainMenu.install(
-            appName: "Locus Git Gui",
-            checkForUpdatesItem: updates.makeMenuItem(),
-            openRecentItem: recentMenus.openRecentItem,
-            dashboardFileItems: dashboard.fileMenuItems,
-            dashboardViewItems: dashboard.viewMenuItems
-        )
+        MainMenu.install(appName: "Locus Git Gui", items: MainMenu.OwnedItems(
+            checkForUpdates: updates.makeMenuItem(),
+            openRecent: recentMenus.openRecentItem,
+            dashboardFile: dashboard.fileMenuItems,
+            dashboardView: dashboard.viewMenuItems,
+            commandPalette: commandPalette.paletteMenuItems,
+            goTo: commandPalette.goToMenuItems
+        ))
         // Settled before Sparkle starts, which marks every install as launched before.
         let isFirstRun = FirstRunStatus().settleAtLaunch() == .pending
         // Before the updater starts, since accepting the move relaunches from the new location.

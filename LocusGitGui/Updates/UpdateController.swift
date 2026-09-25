@@ -20,13 +20,7 @@ final class UpdateController {
 
     /// Sparkle's controller validates the item itself, disabling it while a check is running.
     func makeMenuItem() -> NSMenuItem {
-        let item = NSMenuItem(
-            title: "Check for Updates…",
-            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
-            keyEquivalent: ""
-        )
-        item.target = updaterController
-        return item
+        AppCommand.checkForUpdates.makeMenuItem(target: updaterController)
     }
 }
 

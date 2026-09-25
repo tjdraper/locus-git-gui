@@ -23,6 +23,8 @@ final class SidebarModel {
     /// Asks for the list to take focus, counted so every request is seen as a change.
     private(set) var focusRequests = 0
     private(set) var filterFocusRequests = 0
+    /// Asks for the list to scroll to the selection.
+    private(set) var revealRequests = 0
 
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored private var typeSelect = SidebarTypeSelect()
@@ -57,6 +59,22 @@ final class SidebarModel {
 
     func requestFilterFocus() {
         filterFocusRequests += 1
+    }
+
+    /// Selects it with the list focused, first clearing a filter that hides it and expanding the
+    /// section and remote it's in.
+    func reveal(_ id: SidebarItemID) {
+        guard let contents, let section = contents.section(containing: id) else { return }
+        if isFiltering, visibleContents?.contains(id) != true {
+            filter = ""
+        }
+        collapsedSections.remove(section)
+        if let remote = contents.remote(containing: id) {
+            collapsedRemotes.remove(remote)
+        }
+        selection = id
+        revealRequests += 1
+        requestFocus()
     }
 
     /// Everything is expanded while filtering, so no match is hidden in a collapsed section.

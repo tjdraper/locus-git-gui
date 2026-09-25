@@ -237,4 +237,27 @@ struct SidebarContentsTests {
         #expect(failure?.command == Ref.listCommand)
         #expect(failure?.outputWasUnreadable == false)
     }
+
+    @Test
+    func findsTheSectionAndRemoteThatListAnItem() {
+        // Arrange
+        let contents = contents(
+            refs: ["refs/heads/main", "refs/tags/v1", "refs/remotes/origin/main"],
+            remotes: ["origin"]
+        )
+
+        // Act
+        let sections = [
+            SidebarItemID.ref("refs/heads/main"),
+            .ref("refs/tags/v1"),
+            .ref("refs/remotes/origin/main"),
+            .remote("origin"),
+            .ref("refs/heads/gone"),
+        ].map(contents.section(containing:))
+
+        // Assert
+        #expect(sections == [.branches, .tags, .remotes, .remotes, nil])
+        #expect(contents.remote(containing: .ref("refs/remotes/origin/main")) == "origin")
+        #expect(contents.remote(containing: .ref("refs/heads/main")) == nil)
+    }
 }

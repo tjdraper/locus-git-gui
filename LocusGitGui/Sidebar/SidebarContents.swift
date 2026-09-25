@@ -125,6 +125,27 @@ nonisolated struct SidebarContents: Equatable, Sendable {
         }
     }
 
+    /// Which section lists it, or nil when nothing here is it.
+    func section(containing id: SidebarItemID) -> SidebarSection? {
+        guard contains(id) else { return nil }
+        switch id {
+        case .ref:
+            if branches.contains(where: { $0.id == id }) {
+                return .branches
+            }
+            return tags.contains { $0.id == id } ? .tags : .remotes
+        case .remote:
+            return .remotes
+        case .stash:
+            return .stashes
+        }
+    }
+
+    /// The remote a remote branch is listed under.
+    func remote(containing id: SidebarItemID) -> String? {
+        remotes.first { $0.branches.contains { $0.id == id } }?.name
+    }
+
     /// Only the rows that can be seen: none from a collapsed section or under a collapsed remote.
     func visibleRows(collapsedSections: Set<SidebarSection>, collapsedRemotes: Set<String>) -> [Row] {
         var rows: [Row] = []

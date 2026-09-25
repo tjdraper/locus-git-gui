@@ -89,6 +89,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         sidebar.requestFilterFocus()
     }
 
+    /// Shows the sidebar first if it's hidden.
+    private func revealInSidebar(_ id: SidebarItemID) {
+        columns.showSidebar()
+        sidebar.reveal(id)
+    }
+
     /// As last read from the repository's `.locus` folder.
     var displayName: String? {
         titleItem.title.displayName
@@ -230,5 +236,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         failureSheet.present(backgroundFailure, repository: repository, on: window, wasOpenedByUser: true) { [weak self] in
             self?.scheduler.requestNow(because: .retried)
         }
+    }
+}
+
+extension RepositoryWindowController: CommandPaletteDestinationSource {
+    var paletteDestinations: [CommandPaletteDestination] {
+        guard let contents = sidebar.contents else { return [] }
+        return SidebarPaletteDestinations.make(from: contents) { [weak self] id in self?.revealInSidebar(id) }
     }
 }

@@ -4,6 +4,8 @@ import Foundation
 /// selected rows, and what each repository's latest check found.
 @Observable
 final class DashboardSession {
+    private static let historyKey = "DashboardOpenHistory"
+
     var query = "" {
         didSet { selection = DashboardSelection() }
     }
@@ -23,13 +25,13 @@ final class DashboardSession {
 
     @ObservationIgnored private let recents: RecentRepositoryStore
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private var history: DashboardOpenHistory
+    @ObservationIgnored private var history: SearchPickHistory
     @ObservationIgnored private var search = DashboardSearch(entries: [])
 
     init(recents: RecentRepositoryStore, defaults: UserDefaults = .standard) {
         self.recents = recents
         self.defaults = defaults
-        history = DashboardOpenHistory(defaults: defaults)
+        history = SearchPickHistory(defaults: defaults, key: Self.historyKey)
     }
 
     var hasRecentRepositories: Bool {
@@ -110,9 +112,9 @@ final class DashboardSession {
         let term = FuzzyMatcher.fold(query)
         guard !term.isEmpty else { return }
         for row in rows {
-            history.record(term: term, repository: row.id, at: .now)
+            history.record(term: term, item: row.id, at: .now)
         }
-        history.save(to: defaults)
+        history.save(to: defaults, key: Self.historyKey)
     }
 
     func remove(_ repositories: [Repository]) -> [RecentRepositoryList.Removal] {

@@ -7,6 +7,20 @@ struct SidebarView: View {
     @FocusState private var isFocused: Bool
 
     var body: some View {
+        ScrollViewReader { proxy in
+            list
+                .onChange(of: model.revealRequests) {
+                    // After the section or remote it's in has expanded.
+                    DispatchQueue.main.async {
+                        if let selection = model.selection {
+                            proxy.scrollTo(selection)
+                        }
+                    }
+                }
+        }
+    }
+
+    private var list: some View {
         List(selection: $model.selection) {
             if let contents = model.visibleContents {
                 if !contents.branches.isEmpty {

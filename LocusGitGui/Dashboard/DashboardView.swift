@@ -98,7 +98,7 @@ struct DashboardView: View {
                     Label("\(missingCount) Missing", systemImage: "exclamationmark.triangle")
                 }
                 .toggleStyle(.button)
-                .help(DashboardCommandTitle.showOnlyMissing)
+                .help(AppCommand.showOnlyMissingRepositories.title)
             }
             Spacer()
             if missingCount > 0 {
@@ -118,15 +118,12 @@ struct DashboardView: View {
 
     @ViewBuilder
     private func contextMenu(for rows: [DashboardRow]) -> some View {
-        Button(DashboardCommandTitle.open(rows.count)) { actions.open(rows) }
-            .keyboardShortcut(.return, modifiers: [])
+        CommandButton(command: .openSelectedRepositories, count: rows.count) { actions.open(rows) }
         if let row = rows.first, rows.count == 1, session.canShowInFinder(row) {
-            Button(DashboardCommandTitle.showInFinder) { actions.showInFinder(row) }
-                .keyboardShortcut(.return, modifiers: .command)
-            Button(DashboardCommandTitle.setDisplayName) { actions.setDisplayName(row) }
+            CommandButton(command: .showRepositoryInFinder) { actions.showInFinder(row) }
+            CommandButton(command: .setDisplayName) { actions.setDisplayName(row) }
         }
         Divider()
-        Button(DashboardCommandTitle.remove(rows.count)) { actions.remove(rows) }
-            .keyboardShortcut(.delete, modifiers: .command)
+        CommandButton(command: .removeSelectedRepositories, count: rows.count) { actions.remove(rows) }
     }
 }
