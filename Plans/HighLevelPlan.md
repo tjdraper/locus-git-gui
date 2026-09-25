@@ -38,7 +38,10 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
    The layer everything else stands on, plus just enough window to prove it.
 
+   Done. Three parts are built but can only be proven once a later slice reaches them: the privacy prompt and a refusal, the recognizer's wording for a refusal, and the sheet for a command the user ran. Each has a note below.
+
    - Capture the user's login shell environment once at launch, so hooks, GPG signing and `git lfs` find what they find in Terminal (see Decisions)
+     - Done: `$SHELL -l -i` with a 10-second timeout. It stops reading as soon as the environment has been printed, since a background job started by `.zshrc` can hold the shell's output open.
    - The setup checklist starts here, because nothing works without Git. It shows on first launch and reopens from the Help menu. Its first step is Git, with three ways to get there (see Decisions):
      - Find it: look on the PATH from the login shell, then in the usual places
      - Show what was found, its path and version, and let the user confirm it
@@ -47,9 +50,11 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - If the chosen `git` goes missing later (Homebrew moved it, the Command Line Tools were removed), the app says so the moment it notices, at launch, when it becomes active, or when a command can't start, and offers the checklist's Git step to pick another. It never quietly switches to a different Git.
    - Later slices add their own steps to the checklist: moving to `/Applications`, automatic update checks. Only fresh installs see it at launch; earlier installs are recognized by Sparkle's launched-before flag, as in the other Locus apps.
      - Once the checklist asks about automatic update checks, Sparkle's own second-launch prompt has to stay quiet for fresh installs, or they're asked twice. locus-sound-control's `updaterShouldPromptForPermissionToCheck` does this, keyed off `FirstRunStatus`.
+     - Done, with moving to `/Applications` as the second step. An earlier install that has never chosen a Git sees the checklist at launch too.
    - A `nonisolated` Git runner: runs a command in a repository, streams output, reports exit status and stderr, and can be cancelled. Read-only commands run with `GIT_OPTIONAL_LOCKS=0` so a background refresh never holds `index.lock` while the user runs Git in Terminal.
    - Parsers for `status --porcelain=v2 -z`, `for-each-ref`, and `log` with a NUL-separated `--format`. Never parse output meant for people. The parsers are pure and go in the test target, tested against fixture repositories the tests build with the real `git`.
    - File > Open (⌘O) picks a folder. A folder inside a repository opens the repository at its top level; a folder that isn't one says so.
+     - Until slice 3's dashboard, the Open panel stands in for it: it shows at launch and on a Dock click with no windows open, but only when the chosen Git works. Otherwise the checklist or the missing-Git alert comes first. It closes when a repository arrives another way, such as a drop on the Dock icon.
    - Dropping folders on the app's icon in the Dock or in Finder opens them the same way, and so does `open -a "Locus Git Gui" <folder>` from Terminal. The app declares that it can open folders (`CFBundleDocumentTypes` with `public.folder`, role Viewer, rank None, so it never becomes anyone's default for folders), and `application(_:open:)` hands each folder to the same code as ⌘O.
    - The Dock can't be told which folders to accept. It highlights the icon for any folder dragged over it, so the check happens after the drop: a folder that isn't in a repository gets an alert naming it and saying it isn't a Git repository, and nothing opens. Once slice 10 exists, that alert offers Create Repository Here…
    - A bare repository (one with no working tree) is refused with its own message, since the working area has nothing to show
@@ -58,15 +63,22 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - Several folders dropped at once open each repository, and report the ones that aren't in a single alert rather than one per folder
    - One window per repository. Opening a repository that is already open brings its window forward.
    - The title bar: the repository's full path as the title (home abbreviated to `~`), the checked-out branch and its state as the subtitle — clean, uncommitted changes, staged changes, merging, rebasing 2 of 5, detached HEAD. A dot in the close button whenever it isn't clean (`isDocumentEdited`). A proxy icon (`representedURL`), so ⌘-clicking the title shows the path and the folder can be dragged out.
+     - Done. The window has a unified toolbar so the subtitle sits under the title, where a long path can't push it out of sight. On current macOS that shows the proxy icon only while the pointer is over the title, as in Finder and Xcode.
+     - While a refresh is failing, the subtitle says Status unavailable and the dot is hidden, rather than repeating a state that may no longer be true.
    - Closing a window never asks about unsaved changes. They are on disk, and the dot is information, not a warning.
    - Watch the working tree and the Git directory with FSEvents, debounced, and refresh when the window becomes key. A build writing thousands of files should cost one refresh, not thousands.
+     - Done: a refresh waits for 0.4 seconds without changes, and never longer than 3 seconds. 3,000 files written at once cost one refresh, and an idle window costs none.
    - How Git's failures are shown, built here so every later slice uses it (see Decisions):
      - A command the user ran that fails shows a sheet on its window: a plain sentence saying what failed, Git's own output below it, and Copy
+       - Built, but no command the user runs exists until slice 9, so this sheet has only been seen through a temporary build. It is the same sheet the toolbar warning opens. Opened from the warning it closes with Done; raised by a failed command it closes with OK.
      - A failure the user didn't ask for, such as a background refresh or automatic fetch, never raises a sheet. It shows as a quiet warning in the toolbar that opens the same details when clicked.
      - A failure the app recognizes gets an explanation and a button for the likely next step. Git's output is still shown in full, never replaced.
      - The recognizer is pure (exit status and output in, kind of failure out) and goes in the test target, with each case's output captured from a real Git
+       - Done for the lock cases. The wording for a privacy refusal is written by hand, since a test can't make macOS refuse; it gets captured from Git once slice 3 or 4 can cause one.
      - A command log for each repository (View > Show Git Log): every command the app ran, when, how long it took, its exit status and output. It's how someone checks what the app did, and what they paste into a bug report.
+       - Done: kept in memory for the session, and still there when a repository's window is closed and reopened. It holds the last 1,000 commands per repository, with up to 4 KB of output for a success and 64 KB for a failure.
    - Recognized from this slice: another Git process holding `index.lock`. The sheet says which lock and offers to remove it only when no Git process is running in that repository.
+     - Done for any lock Git names, including ref locks such as `refs/heads/main.lock`. A Git process counts as running in the repository when its working folder is inside it, found through libproc.
 
 3. **Dashboard and recent repositories**
 
