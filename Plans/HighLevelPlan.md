@@ -161,17 +161,34 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 6. **Command catalog and command palette**
 
+   Done. Seen only in light mode so far; slice 17's appearance pass covers dark.
+
    Early, so every slice after this one adds its commands to the palette as a matter of course rather than in a sweep at the end.
 
-   - One command catalog, the same pattern as locus-sound-control's `DeviceCommand`: each command has a title, an SF Symbol, a key equivalent and an action. The main menu, context menus, the toolbar and the palette are all built from it, so they can't disagree about what a command is called or which shortcut it has (see Decisions).
+   - One command catalog, the same pattern as locus-sound-control's `DeviceCommand`: each command has a title, a key equivalent and an action. The main menu, context menus, the toolbar and the palette are all built from it, so they can't disagree about what a command is called or which shortcut it has (see Decisions).
+     - Done as `AppCommand`, with the actions in `AppCommandAction`. The menu bar, the dashboard's context menu and the palette take their titles and shortcuts from it. A test fails when two commands share a shortcut.
+     - The toolbar has nothing from it yet, since its only button is AppKit's own sidebar button. Fetch, Pull and Push come from the catalog when slice 10 adds them.
+     - No symbols, in the menus or the palette (see Decisions).
    - ⌘P and ⌘⇧P both open the same palette: a floating panel over the window, with a search field, fuzzy matching, each command's shortcut shown on its row, and recently used commands first
+     - Done as View > Command Palette… (⌘P, with ⌘⇧P on a hidden second item). It lists every menu item that's enabled and shown, read from the menu bar as it opens, so no menu item can be missing from it. AppKit's own items come along too, such as Enter Full Screen and Quit and Close All Windows. Submenus (Open Recent, Services) and the Window menu's list of windows are left out.
+     - Each row shows the menu it's in. Before anything is typed, the commands used most recently and often come first; once something is typed, the ones picked for that search before.
+     - It opens below the window's toolbar and grows downward with its results. Up, Down, Return and Esc work from the search field, a row can be clicked, and a click anywhere else or ⌘P again closes it.
+     - The menus are read before the palette takes focus, and the window it opened over has focus again before the chosen command runs, so every command acts on that window.
    - A command that is disabled in the menu is left out of the palette
+     - Done, from the menus' own validation. Hidden items are left out too: the dashboard's commands while it isn't in front, and second shortcuts.
    - Commands that need an argument ask for it in the palette's next step: Check Out Branch… lists branches, Apply Stash… lists stashes. The palette also jumps to things: a branch, tag or stash selects it in the sidebar.
+     - Done with View > Go to Branch…, Go to Tag… and Go to Stash…, the first commands to use the next step. From the menu they open the palette at that step; chosen in the palette, they move to it. Esc, or Delete in an empty field, goes back a step and puts back what was typed. Go to Branch… lists remote branches too, named as Git names them (`origin/main`). Check Out Branch… and Apply Stash… use the same step once slice 11 adds them.
+     - Branches, tags and stashes also show in the palette's first step, but only once something is typed, so they don't bury the commands.
+     - A jump clears a sidebar filter that hides what it jumps to, shows the sidebar if it's hidden, expands the section and remote, selects the row, scrolls to it and focuses the list.
    - The rule from here on: every action is a menu item, and every menu item is in the palette. That is what makes "drive everything from the keyboard" true, rather than mostly true.
    - Remove File > Print. Nothing here prints, and ⌘P is worth more for the palette.
+     - Done: the menu built in code never had it.
    - The palette's fuzzy matching and "recently used first" are slice 3's `FuzzyMatcher` and `DashboardOpenHistory`, which move to `Shared/` then
+     - Done, with `DashboardOpenHistory` renamed `SearchPickHistory`. The palette keeps its own history, on this Mac. The dashboard's picks saved before the rename are no longer read, which only touches builds from before any release that had the dashboard.
    - Slice 5's View menu items join the catalog: Show Sidebar (⌃⌘S), Filter Sidebar (⌥⌘F), Show Toolbar (⌥⌘T) and Customize Toolbar…. Jumping to a branch, tag or stash sets the sidebar's selection (`SidebarModel.selection`), expanding its section and remote first if they're collapsed.
+     - Done
    - The dashboard's commands join the catalog. They show in the File menu only while the dashboard is in front, since they act on its selection. Decide whether that is the rule for every command that belongs to one kind of window. Set Display Name… has no shortcut yet.
+     - Done. Decided: a command that acts on a secondary window's contents, such as the dashboard's, shows only while that window is in front. A repository window's commands always show, and are disabled when no repository window is in front, since that's the app's main window and its commands are the menu bar's map of the app. Set Display Name… still has no shortcut.
 
 7. **Commit history and commit detail**
 
@@ -347,7 +364,9 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
   AppKit isn't going away. Apple still adds to it every year, including the macOS 26 design, and SwiftUI on the Mac runs on top of it. Keeping views in SwiftUI is still the forward-looking choice, since that's where Apple's new view work lands first. If SwiftUI later gains what the shell needs, the shell can move without the views changing.
 
-- **One command catalog feeds every surface.** Menus, context menus, the toolbar and the palette read their titles, symbols and shortcuts from the same place, and enabling follows the responder chain, so a command is available in the palette exactly when it is in the menu. locus-sound-control's `DeviceCommand` is the small version of this. Each command carries its own SF Symbol, which the menu shows (macOS 26 puts symbols on menu items; this app chooses its own rather than taking the automatic ones or refusing them) and the palette reuses.
+- **One command catalog feeds every surface.** Menus, context menus, the toolbar and the palette read their titles and shortcuts from the same place, and enabling follows the responder chain, so a command is available in the palette exactly when it is in the menu. locus-sound-control's `DeviceCommand` is the small version of this.
+
+- **No symbols on menu items or palette rows.** macOS 26 puts SF Symbols beside menu items, and a menu full of them is noisy. Commands carry none, and the palette's rows have none either. macOS 27 hides menu item images unless an app asks for them (`preferredImageVisibility`). macOS 26 has no setting for refusing the symbols AppKit adds to standard items by itself, such as Cut, Copy and Paste, so whether it adds them here gets checked on a Mac running 26.
 
 - **The menu bar is the map of the app.** Every action is a menu item, with a shortcut where a good one exists. Menus follow the Mac's layout: File for repositories and windows, Edit, View, then Git-specific menus (Repository, Branch, Commit, Stash, Remote), then Window and Help. Help's search field finds any menu item, which is a second, free command palette.
 
