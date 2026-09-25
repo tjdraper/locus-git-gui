@@ -2,12 +2,18 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let updates = UpdateController()
-    private let emptyWindow = EmptyWindowPresenter()
     /// Started before anything needs Git, since shell startup files can take seconds to run.
     private let loginShellEnvironment = Task { await LoginShellEnvironment.capture() }
     private lazy var gitChoice = GitChoiceStore(loginShell: loginShellEnvironment)
     private lazy var firstRunWindow = FirstRunWindowPresenter(gitChoice: gitChoice)
     private let gitMissingNotice = GitMissingNotice()
+    private let repositoryWindows = RepositoryWindowCoordinator()
+    private lazy var repositoryOpening = RepositoryOpeningWorkflow(
+        gitChoice: gitChoice,
+        windows: repositoryWindows,
+        showChecklist: { [weak self] in self?.firstRunWindow.show() },
+        checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
+    )
 
     func applicationDidFinishLaunching(_: Notification) {
         MainMenu.install(appName: "Locus Git Gui", checkForUpdatesItem: updates.makeMenuItem())
@@ -21,34 +27,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Answered before Sparkle's first check, which would otherwise still look for betas.
         BetaTrackExitWorkflow().offerIfNeeded()
         updates.start()
-        emptyWindow.show()
 
-        if isFirstRun {
-            firstRunWindow.show()
+        gitChoice.onGitChosen = { [weak self] in
+            self?.repositoryOpening.openFoldersWaitingForGit()
         }
-        Task {
-            // An install from before the checklist existed has never chosen a Git either.
-            if await gitChoice.checkAvailability() == .notChosen {
-                firstRunWindow.show()
-            }
+        // An install from before the checklist existed has never chosen a Git either.
+        if isFirstRun || GitChoice().executableURL == nil {
+            firstRunWindow.show()
         }
     }
 
     /// Catches a Git uninstalled or moved while the app was in the background.
     func applicationDidBecomeActive(_: Notification) {
-        Task {
-            let availability = await gitChoice.checkAvailability()
-            gitMissingNotice.update(for: availability, checklistIsVisible: firstRunWindow.isVisible) {
-                firstRunWindow.show()
-            }
-        }
+        checkForMissingGit()
     }
 
-    /// Clicking the Dock icon, or opening the app again from Finder while it runs, is a request
-    /// to see the window, whether it is minimized, buried behind other apps or closed.
-    func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
-        emptyWindow.show()
-        return false
+    /// Folders dropped on the Dock icon or on the app in Finder, and `open -a` from Terminal.
+    func application(_: NSApplication, open urls: [URL]) {
+        repositoryOpening.open(urls)
+    }
+
+    /// Asked at launch when the app wasn't opened with folders, and when the Dock icon is clicked
+    /// with no windows open.
+    func applicationShouldOpenUntitledFile(_: NSApplication) -> Bool {
+        true
+    }
+
+    /// There is nothing untitled to make, so this asks for a repository instead. The checklist
+    /// comes first while there is no Git to open one with.
+    func applicationOpenUntitledFile(_: NSApplication) -> Bool {
+        if !firstRunWindow.isVisible {
+            repositoryOpening.showOpenPanel()
+        }
+        return true
     }
 
     /// Reached through the responder chain from the main menu's About item.
@@ -56,8 +67,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AboutPanel.show()
     }
 
+    /// Reached through the responder chain from File > Open.
+    @objc func openRepository(_: Any?) {
+        repositoryOpening.showOpenPanel()
+    }
+
     /// Reached through the responder chain from the Help menu.
     @objc func showSetupChecklist(_: Any?) {
         firstRunWindow.show()
+    }
+
+    private func checkForMissingGit() {
+        Task {
+            let availability = await gitChoice.checkAvailability()
+            gitMissingNotice.update(for: availability, checklistIsVisible: firstRunWindow.isVisible) {
+                firstRunWindow.show()
+            }
+        }
     }
 }

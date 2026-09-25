@@ -2,6 +2,31 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Folder</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>None</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.folder</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Locus Git Gui reads the Git repositories you open on your Desktop.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Locus Git Gui reads the Git repositories you open in your Documents folder.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Locus Git Gui reads the Git repositories you open in your Downloads folder.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Locus Git Gui reads the Git repositories you open on network volumes.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Locus Git Gui reads the Git repositories you open on external drives.</string>
 	<key>SUFeedURL</key>
 	<string>https://tjdraper.github.io/locus-git-gui/appcast.xml</string>
 	<key>SUPublicEDKey</key>

@@ -54,6 +54,8 @@
 				GitRunner/GitEnvironment.swift,
 				GitRunner/GitRunner.swift,
 				GitRunner/LoginShellEnvironment.swift,
+				OpeningRepositories/OpeningReport.swift,
+				OpeningRepositories/RepositoryResolver.swift,
 				Updates/UpdateChannelPreference.swift,
 			);
 			target = 6C1B724A305F81D100DDFE7D /* Locus Git Gui Tests */;

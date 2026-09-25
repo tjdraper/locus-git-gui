@@ -17,6 +17,9 @@ final class GitChoiceStore {
     private(set) var searchResult: GitFinder.Result?
     private(set) var rejectedChoice: Rejection?
 
+    /// Lets folders the user asked to open before choosing a Git open once they have.
+    @ObservationIgnored var onGitChosen: (() -> Void)?
+
     private let loginShell: Task<LoginShellEnvironment, Never>
     private let choice = GitChoice()
 
@@ -30,6 +33,15 @@ final class GitChoiceStore {
         let availability = await choice.availability { await GitInstallation.isUsable($0, environment: environment) }
         self.availability = availability
         return availability
+    }
+
+    /// Nil when there is no usable Git to run.
+    func runner() async -> GitRunner? {
+        let environment = await loginShell.value.variables
+        guard case let .available(url) = await checkAvailability() else {
+            return nil
+        }
+        return GitRunner(executableURL: url, environment: environment)
     }
 
     /// Checks the chosen Git and searches again, since either can change while the checklist is
@@ -49,6 +61,7 @@ final class GitChoiceStore {
         availability = .available(installation.executableURL)
         chosenInstallation = installation
         rejectedChoice = nil
+        onGitChosen?()
     }
 
     /// Returns whether the file turned out to be Git and is now the one in use.

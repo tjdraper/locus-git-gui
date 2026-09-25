@@ -22,6 +22,8 @@ enum MainMenu {
         ]))
 
         main.addItem(submenu(named: "File", items: [
+            NSMenuItem(title: "Open…", action: #selector(AppDelegate.openRepository(_:)), keyEquivalent: "o"),
+            .separator(),
             NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
         ]))
 
