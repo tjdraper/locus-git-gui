@@ -20,10 +20,11 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - SwiftLint before any feature code, running on every build with zero violations. Build tool plugin from `SimplyDanny/SwiftLintPlugins`; copy `.swiftlint.yml` from locus-sound-control and repoint its `included` paths.
    - A regular Dock app, not `LSUIElement`. AppKit entry point with the main menu built in code (see Decisions), ported from locus-sound-control's `MainMenu`, and an empty window.
    - Developer ID signing and hardened runtime from day one. No App Sandbox (see Decisions).
+     - The iCloud key-value storage entitlement the license needs is in from the start, as in locus-sound-control, so the Developer ID provisioning profile is part of the release chain before the first release rather than a surprise in slice 16.
    - `Scripts/` ported from locus-sound-control: `release.sh`, `install-test-build.sh`, `sparkle-tools.sh`, `ExportOptions.plist`, and a rewritten `Scripts/README.md`. Change the app name, bundle identifier, artifact name, GitHub repo, feed URL and notary profile.
    - Sparkle, sharing the Locus signing key, with the feed at `https://tjdraper.github.io/locus-git-gui/appcast.xml`. The beta channel works from here, as it does in locus-sound-control.
    - On first launch outside `/Applications`, offer to move there. Slice 2's setup checklist takes this over as a step.
-   - `LICENSE` with the PolyForm Strict License 1.0.0 (see Decisions), `.gitignore`, and `Plans/ReleaseSetupChecklist.md`
+   - `LICENSE` with the PolyForm Strict License 1.0.0 for the source, `EULA.md` for the app (see Decisions), `.gitignore`, and `Plans/ReleaseSetupChecklist.md`
    - `CONTRIBUTING.md` with the contributor license agreement and the permission to change the code for a pull request, and the CLA Assistant Lite GitHub Action checking every pull request for a signature (see Decisions)
    - Ship a first version, then a throwaway second one, and let the first update itself. Verify the download on a Mac that has never run the app.
    - The app is named Locus Git Gui, with the bundle identifier `com.buzzingpixel.LocusGitGui` to match the other Locus apps. It and the Sparkle feed URL can never change after the first release.
@@ -316,7 +317,9 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
   Third-party packages keep their own licenses (Sparkle is MIT), and their notices ship in the app's About window.
 
-- **Outside contributions come with a contributor license agreement.** Two things are needed. First, PolyForm Strict forbids changing the code, which is exactly what a pull request does, so `CONTRIBUTING.md` grants an extra permission: changing the code only to prepare a contribution to this repository. Second, a contribution would otherwise arrive under the same strict terms, which don't allow selling it. The agreement is adapted from the Apache Individual Contributor License Agreement. Contributors keep their copyright and grant a perpetual, irrevocable license to use, change, sublicense and distribute their work, commercially included, and under other licenses later, plus a patent license. It's a license, not a transfer of copyright, which contributors accept more readily. Have a lawyer read the adapted text before the first outside pull request is merged.
+- **The app has its own license agreement.** PolyForm Strict covers the source and allows only noncommercial use, but the app is sold to people who use it at work. `EULA.md` licenses the built, signed app for any purpose, personal or commercial, and `LICENSE` says it covers the source only. The agreement also covers what a paid license is (one person, on every Mac they use), that Paddle's buyer terms govern payment and refunds, that the app never sends repository data, and the usual warranty and liability limits. It doubles as the terms page Paddle's domain approval looks for. Tennessee law governs it, and disputes go to courts in Tennessee, except where consumer law gives someone the right to their own courts.
+
+- **Outside contributions come with a contributor license agreement.** Two things are needed. First, PolyForm Strict forbids changing the code, which is exactly what a pull request does, so `CONTRIBUTING.md` grants an extra permission: changing the code only to prepare a contribution to this repository. Second, a contribution would otherwise arrive under the same strict terms, which don't allow selling it. The agreement is adapted from the Apache Individual Contributor License Agreement. Contributors keep their copyright and grant a perpetual, irrevocable license to use, change, sublicense and distribute their work, commercially included, and under other licenses later, plus a patent license. It's a license, not a transfer of copyright, which contributors accept more readily.
 
   CLA Assistant Lite runs as a GitHub Action. A contributor signs once by posting a set sentence as a comment on their pull request, and the signature is recorded in the repository with their GitHub username. Unsigned pull requests fail its check. The token it needs is a GitHub Actions secret, never committed.
 
@@ -347,7 +350,7 @@ The GitHub repo will be public, and it will host the release zips and the Sparkl
 - Never commit secrets: signing certificates, notarization credentials, or the Sparkle private key. The release script reads them from the Keychain or environment variables.
 - The license signing key, Paddle's API key and the webhook secret live only on the server, which has its own repository. The license public key is built into the app and is safe to publish.
 - Write everything in the repo — code, comments, commit messages, plans, docs — as if the public will read it.
-- The source is public under the PolyForm Strict License, which doesn't allow modification or redistribution (see Decisions). The README says so and points contributors to `CONTRIBUTING.md` and the contributor license agreement.
+- The source is public under the PolyForm Strict License, which doesn't allow modification or redistribution (see Decisions). The app itself is licensed under `EULA.md`. The README says both and points contributors to `CONTRIBUTING.md` and the contributor license agreement.
 - `.gitignore` covers `.DS_Store`, `xcuserdata`, build output and local config from the start.
 - The Sparkle feed URL is baked into every build and can never change. Moving hosting later means adding a custom domain to the same GitHub Pages site rather than picking a new URL.
 
