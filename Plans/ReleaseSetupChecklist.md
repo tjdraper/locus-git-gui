@@ -38,14 +38,14 @@ This app shares the Locus apps' key. Sparkle's own guidance is one key per publi
 ## Hosting
 
 - [x] The repo is public at `tjdraper/locus-git-gui`.
-- [ ] Enable GitHub Pages: repo Settings → Pages → Source **Deploy from a branch**, branch `main`, folder `/docs`.
-- [ ] Commit and push `docs/` so Pages has something to serve. The seeded `appcast.xml` is an empty channel, which is what Sparkle should see before the first release.
-- [ ] Confirm `https://tjdraper.github.io/locus-git-gui/appcast.xml` loads. That URL is the `SUFeedURL` baked into every build, so it has to work before the first release ships.
-- [ ] Run the app and pick **Check for Updates…**. Against the empty feed it should say you are up to date. An error here means the feed URL is wrong, and it is much cheaper to find out now.
+- [x] Enable GitHub Pages: repo Settings → Pages → Source **Deploy from a branch**, branch `main`, folder `/docs`.
+- [x] Commit and push `docs/` so Pages has something to serve. The seeded `appcast.xml` is an empty channel, which is what Sparkle should see before the first release.
+- [x] Confirm `https://tjdraper.github.io/locus-git-gui/appcast.xml` loads. That URL is the `SUFeedURL` baked into every build, so it has to work before the first release ships.
+- [x] Run the app and pick **Check for Updates…**. Against the empty feed it should say you are up to date. An error here means the feed URL is wrong, and it is much cheaper to find out now.
 
 ## Contributor license agreement
 
-- [ ] Create the branch the signatures are stored on, since the action won't create it: `git push origin main:cla-signatures`.
+- [x] Create the branch the signatures are stored on, since the action won't create it: `git push origin main:cla-signatures`.
 - [ ] Confirm the **CLA Assistant** workflow runs: open a throwaway pull request from another account or a fork, check it fails the CLA check, sign with the comment, and check it passes. The workflow uses the built-in `GITHUB_TOKEN`, so there is no secret to add while signatures are stored in this repository.
 
 ## First release
