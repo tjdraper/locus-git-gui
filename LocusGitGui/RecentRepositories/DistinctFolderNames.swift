@@ -5,11 +5,14 @@ import Foundation
 nonisolated enum DistinctFolderNames {
     static func make(for folders: [URL]) -> [String] {
         let paths = folders.map { $0.standardizedFileURL.pathComponents.filter { $0 != "/" } }
+        // Only folders with the same name need comparing, which keeps a long list quick to name.
+        let sameName = Dictionary(grouping: paths.indices) { paths[$0].last ?? "" }
         return paths.indices.map { index in
             let components = paths[index]
+            let others = (sameName[components.last ?? ""] ?? []).filter { $0 != index }
             for depth in components.indices.map({ $0 + 1 }) {
                 let suffix = components.suffix(depth)
-                let isShared = paths.indices.contains { $0 != index && paths[$0].suffix(depth) == suffix }
+                let isShared = others.contains { paths[$0].suffix(depth) == suffix }
                 if !isShared {
                     return suffix.joined(separator: "/")
                 }

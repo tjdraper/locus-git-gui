@@ -109,7 +109,7 @@ final class RepositoryOpeningWorkflow {
         // panel was asking.
         openPanel?.cancel(nil)
         if let missing {
-            recents.remove(missing)
+            recents.remove([missing])
         }
         recents.note(repository)
         didOpenRepository()

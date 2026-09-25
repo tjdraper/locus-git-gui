@@ -6,6 +6,7 @@ nonisolated enum RecentRepositoryState: Equatable, Sendable {
     case detached(commit: String)
     /// Moved or deleted, or its folder is no longer the top of a repository.
     case missing
+    case driveNotConnected
     /// macOS privacy protection kept Git out of the folder.
     case accessDenied
     /// Git's own explanation of anything else.
@@ -20,8 +21,13 @@ nonisolated enum RecentRepositoryState: Equatable, Sendable {
         _ repository: Repository,
         running run: (GitCommand) async throws -> ChildProcess.Result
     ) async throws -> RecentRepositoryState {
-        guard FileManager.default.fileExists(atPath: repository.workTree.path) else {
+        switch await RepositoryPresence.checkInBackground(repository) {
+        case .missing:
             return .missing
+        case .driveNotConnected:
+            return .driveNotConnected
+        case .present:
+            break
         }
         do {
             let resolution = RepositoryResolver.interpret(try await run(RepositoryResolver.command))

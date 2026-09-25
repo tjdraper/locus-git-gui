@@ -14,19 +14,30 @@ final class RecentRepositoryStore {
         list = RecentRepositoryList(defaults: defaults)
     }
 
-    var repositories: [Repository] {
-        list.repositories
+    var entries: [RecentRepository] {
+        list.entries
     }
 
     func note(_ repository: Repository) {
         list.note(repository)
     }
 
-    func remove(_ repository: Repository) {
-        list.remove(repository)
+    @discardableResult
+    func remove(_ repositories: [Repository]) -> [RecentRepositoryList.Removal] {
+        list.remove(repositories)
+    }
+
+    func restore(_ removed: [RecentRepositoryList.Removal]) {
+        list.restore(removed)
     }
 
     func removeAll() {
         list.removeAll()
+    }
+
+    /// Only changes the list when the name did, since every change saves it.
+    func setDisplayName(_ displayName: String?, for repository: Repository) {
+        guard list.entries.first(where: { $0.id == repository.id })?.displayName != displayName else { return }
+        list.setDisplayName(displayName, for: repository)
     }
 }

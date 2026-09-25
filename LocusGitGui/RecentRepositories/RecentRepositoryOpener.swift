@@ -1,6 +1,6 @@
 import AppKit
 
-/// Opens a repository chosen from the recent list. One that has moved or been deleted offers to
+/// Opens repositories chosen from the recent list. One that has moved or been deleted offers to
 /// find it or take it off the list, as Finder does for an alias whose original is gone.
 final class RecentRepositoryOpener {
     private let recents: RecentRepositoryStore
@@ -12,31 +12,65 @@ final class RecentRepositoryOpener {
     }
 
     /// The dashboard knows a repository is missing when its folder is no longer a repository, which
-    /// the menus can't tell without running Git.
-    func open(_ repository: Repository, isMissing: Bool = false, over window: NSWindow? = nil) {
-        if !isMissing, FileManager.default.fileExists(atPath: repository.workTree.path) {
-            opening.open([repository.workTree])
-            return
+    /// the file system alone can't tell. The ones that are there open while the rest are asked about.
+    func open(_ repositories: [Repository], knownMissing: Set<String> = [], over window: NSWindow? = nil) {
+        Task {
+            var present: [Repository] = []
+            var unavailable: [(repository: Repository, presence: RepositoryPresence)] = []
+            for repository in repositories {
+                let presence = knownMissing.contains(repository.id)
+                    ? .missing
+                    : await RepositoryPresence.checkInBackground(repository)
+                if presence == .present {
+                    present.append(repository)
+                } else {
+                    unavailable.append((repository, presence))
+                }
+            }
+            if !present.isEmpty {
+                opening.open(present.map(\.workTree))
+            }
+            // Opening closes the dashboard, so the question can't be a sheet on it.
+            ask(about: unavailable, over: present.isEmpty ? window : nil)
         }
+    }
 
+    private func ask(about unavailable: [(repository: Repository, presence: RepositoryPresence)], over window: NSWindow?) {
+        guard let first = unavailable.first else { return }
         let alert = NSAlert()
-        alert.messageText = "“\(repository.workTree.lastPathComponent)” can’t be found"
-        alert.informativeText = """
-        It may have been moved, renamed or deleted. It was at \
-        \((repository.workTree.path as NSString).abbreviatingWithTildeInPath).
-        """
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Locate…")
+        let offersLocate = unavailable.count == 1 && first.presence == .missing
+        if unavailable.count == 1 {
+            let name = first.repository.workTree.lastPathComponent
+            let path = (first.repository.workTree.path as NSString).abbreviatingWithTildeInPath
+            if first.presence == .driveNotConnected {
+                alert.messageText = "“\(name)” is on a drive that isn’t connected"
+                alert.informativeText = "Connect the drive and open it again. It was at \(path)."
+            } else {
+                alert.messageText = "“\(name)” can’t be found"
+                alert.informativeText = "It may have been moved, renamed or deleted. It was at \(path)."
+            }
+        } else {
+            alert.messageText = "\(unavailable.count) repositories can’t be opened"
+            alert.informativeText = unavailable.map { repository, presence in
+                let name = repository.workTree.lastPathComponent
+                return presence == .driveNotConnected
+                    ? "“\(name)” is on a drive that isn’t connected."
+                    : "“\(name)” may have been moved, renamed or deleted."
+            }.joined(separator: "\n")
+        }
+        if offersLocate {
+            alert.addButton(withTitle: "Locate…")
+        }
         alert.addButton(withTitle: "Remove from List")
         alert.addButton(withTitle: "Cancel")
+
+        let removeButton: NSApplication.ModalResponse = offersLocate ? .alertSecondButtonReturn : .alertFirstButtonReturn
         let respond = { [weak self] (response: NSApplication.ModalResponse) in
-            switch response {
-            case .alertFirstButtonReturn:
-                self?.locate(repository, over: window)
-            case .alertSecondButtonReturn:
-                self?.recents.remove(repository)
-            default:
-                break
+            if offersLocate, response == .alertFirstButtonReturn {
+                self?.locate(first.repository, over: window)
+            } else if response == removeButton {
+                self?.recents.remove(unavailable.map(\.repository))
             }
         }
         if let window {

@@ -2,7 +2,13 @@ import AppKit
 
 /// The menu bar, built in code because the app has no SwiftUI `App` or storyboard to build it.
 enum MainMenu {
-    static func install(appName: String, checkForUpdatesItem: NSMenuItem, openRecentItem: NSMenuItem) {
+    static func install(
+        appName: String,
+        checkForUpdatesItem: NSMenuItem,
+        openRecentItem: NSMenuItem,
+        dashboardFileItems: [NSMenuItem],
+        dashboardViewItems: [NSMenuItem]
+    ) {
         let main = NSMenu()
 
         let services = submenu(named: "Services", items: [])
@@ -21,15 +27,7 @@ enum MainMenu {
             NSMenuItem(title: "Quit \(appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"),
         ]))
 
-        main.addItem(submenu(named: "File", items: [
-            NSMenuItem(title: "Open…", action: #selector(AppDelegate.openRepository(_:)), keyEquivalent: "o"),
-            openRecentItem,
-            .separator(),
-            NSMenuItem(title: "Show Dashboard", action: #selector(AppDelegate.showDashboard(_:)), keyEquivalent: "O"),
-            alternateShowDashboardItem(),
-            .separator(),
-            NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
-        ]))
+        main.addItem(fileMenu(openRecentItem: openRecentItem, dashboardItems: dashboardFileItems))
 
         main.addItem(submenu(named: "Edit", items: [
             NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"),
@@ -44,7 +42,7 @@ enum MainMenu {
         // AppKit adds the tab bar and full screen items.
         main.addItem(submenu(named: "View", items: [
             NSMenuItem(title: "Show Git Log", action: #selector(RepositoryWindowController.showGitLog(_:)), keyEquivalent: ""),
-        ]))
+        ] + dashboardViewItems))
 
         let windowMenu = submenu(named: "Window", items: [
             NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),
@@ -63,6 +61,19 @@ enum MainMenu {
         NSApp.mainMenu = main
         NSApp.windowsMenu = windowMenu.submenu
         NSApp.helpMenu = help.submenu
+    }
+
+    private static func fileMenu(openRecentItem: NSMenuItem, dashboardItems: [NSMenuItem]) -> NSMenuItem {
+        submenu(named: "File", items: [
+            NSMenuItem(title: "Open…", action: #selector(AppDelegate.openRepository(_:)), keyEquivalent: "o"),
+            openRecentItem,
+            .separator(),
+            NSMenuItem(title: "Show Dashboard", action: #selector(AppDelegate.showDashboard(_:)), keyEquivalent: "O"),
+            alternateShowDashboardItem(),
+        ] + dashboardItems + [
+            .separator(),
+            NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
+        ])
     }
 
     /// A second shortcut for the same command. A menu item has only one, so this one stays hidden.

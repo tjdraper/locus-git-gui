@@ -1,66 +1,146 @@
 import Foundation
 
-/// What the dashboard shows: the recent list filtered by the search, the selected row, and what
-/// each repository's latest check found.
+/// What the dashboard shows: the recent list filtered by the search and the missing filter, the
+/// selected rows, and what each repository's latest check found.
 @Observable
 final class DashboardSession {
     var query = "" {
-        didSet { selectedID = nil }
+        didSet { selection = DashboardSelection() }
     }
 
-    /// Changes each time the dashboard is asked to open, which is when the search field takes focus.
-    private(set) var openCount = 0
-    private(set) var states: [String: RecentRepositoryState] = [:]
-    /// Nil selects the first row, so the best match stays selected as the user types.
-    private var selectedID: String?
+    var showsOnlyMissing = false {
+        didSet { selection = DashboardSelection() }
+    }
+
+    /// Changes each time the search field should take focus: whenever the dashboard is asked to
+    /// open, and when a sheet over it closes.
+    private(set) var searchFocusRequests = 0
+    /// From the file system, for every repository.
+    private var presences: [String: RepositoryPresence] = [:]
+    /// From Git, for the repositories whose rows have been on screen.
+    private var checkedStates: [String: RecentRepositoryState] = [:]
+    private var selection = DashboardSelection()
 
     @ObservationIgnored private let recents: RecentRepositoryStore
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private var history: DashboardOpenHistory
+    @ObservationIgnored private var search = DashboardSearch(entries: [])
 
-    init(recents: RecentRepositoryStore) {
+    init(recents: RecentRepositoryStore, defaults: UserDefaults = .standard) {
         self.recents = recents
+        self.defaults = defaults
+        history = DashboardOpenHistory(defaults: defaults)
     }
 
     var hasRecentRepositories: Bool {
-        !recents.repositories.isEmpty
+        !recents.entries.isEmpty
     }
 
     var rows: [DashboardRow] {
-        DashboardSearch.filter(DashboardRow.rows(for: recents.repositories), by: query)
+        let entries = recents.entries
+        if search.entries != entries {
+            search = DashboardSearch(entries: entries)
+        }
+        let missing = showsOnlyMissing ? Set(missingRepositories.map(\.id)) : []
+        return search.filter(
+            query,
+            among: { missing.isEmpty || missing.contains($0.id) },
+            boosts: history.boosts(for: FuzzyMatcher.fold(query), at: .now)
+        )
     }
 
-    var selectedRow: DashboardRow? {
+    /// In the order they're shown.
+    var selectedRows: [DashboardRow] {
         let rows = rows
-        return rows.first { $0.id == selectedID } ?? rows.first
+        let selected = Set(selection.selected(in: rows.map(\.id)))
+        return rows.filter { selected.contains($0.id) }
+    }
+
+    var cursorID: String? {
+        selection.currentCursor(in: rows.map(\.id))
+    }
+
+    var missingRepositories: [Repository] {
+        recents.entries.filter { state(of: $0.id) == .missing }.map(\.repository)
+    }
+
+    /// Nil until something is known about it.
+    func state(of id: String) -> RecentRepositoryState? {
+        switch presences[id] {
+        case .missing:
+            .missing
+        case .driveNotConnected:
+            .driveNotConnected
+        case .present, nil:
+            checkedStates[id]
+        }
+    }
+
+    /// Both need the repository's folder to be there.
+    func canSetDisplayName(of row: DashboardRow) -> Bool {
+        canShowInFinder(row)
+    }
+
+    func canShowInFinder(_ row: DashboardRow) -> Bool {
+        state(of: row.id) != .missing && state(of: row.id) != .driveNotConnected
     }
 
     func opened(clearingSearch: Bool) {
         if clearingSearch {
             query = ""
+            showsOnlyMissing = false
         }
-        openCount += 1
+        focusSearch()
     }
 
-    func select(_ row: DashboardRow) {
-        selectedID = row.id
+    func focusSearch() {
+        searchFocusRequests += 1
     }
 
-    func moveSelection(by offset: Int) {
-        let rows = rows
-        guard let selectedRow, let index = rows.firstIndex(of: selectedRow) else { return }
-        selectedID = rows[min(max(index + offset, 0), rows.count - 1)].id
+    func click(_ row: DashboardRow, extending: Bool, toggling: Bool) {
+        selection.click(row.id, in: rows.map(\.id), extending: extending, toggling: toggling)
     }
 
-    /// The row that takes its place is selected, so pressing the shortcut again keeps removing.
-    func remove(_ row: DashboardRow) {
-        let index = rows.firstIndex(of: row)
-        recents.remove(row.repository)
-        let remaining = rows
-        if let index, !remaining.isEmpty {
-            selectedID = remaining[min(index, remaining.count - 1)].id
+    func moveSelection(by offset: Int, extending: Bool) {
+        selection.move(by: offset, in: rows.map(\.id), extending: extending)
+    }
+
+    /// Repositories opened after typing a search come first for that search next time.
+    func noteOpened(_ rows: [DashboardRow]) {
+        let term = FuzzyMatcher.fold(query)
+        guard !term.isEmpty else { return }
+        for row in rows {
+            history.record(term: term, repository: row.id, at: .now)
         }
+        history.save(to: defaults)
+    }
+
+    func remove(_ repositories: [Repository]) -> [RecentRepositoryList.Removal] {
+        selection.selectAfterRemoving(Set(repositories.map(\.id)), from: rows.map(\.id))
+        let removed = recents.remove(repositories)
+        if missingRepositories.isEmpty {
+            showsOnlyMissing = false
+        }
+        return removed
+    }
+
+    func restore(_ removed: [RecentRepositoryList.Removal]) {
+        recents.restore(removed)
     }
 
     func record(_ state: RecentRepositoryState, for repository: Repository) {
-        states[repository.id] = state
+        checkedStates[repository.id] = state
+    }
+
+    func record(_ findings: [RecentRepositoryChecker.Finding]) {
+        for finding in findings {
+            presences[finding.repository.id] = finding.presence
+            if finding.presence == .present {
+                recents.setDisplayName(finding.displayName, for: finding.repository)
+            }
+        }
+        if missingRepositories.isEmpty {
+            showsOnlyMissing = false
+        }
     }
 }

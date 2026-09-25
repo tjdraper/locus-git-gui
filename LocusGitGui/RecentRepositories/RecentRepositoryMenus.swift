@@ -26,7 +26,7 @@ final class RecentRepositoryMenus: NSObject, NSMenuDelegate {
         }
         let clear = NSMenuItem(
             title: "Clear Menu",
-            action: recents.repositories.isEmpty ? nil : #selector(clearMenu(_:)),
+            action: recents.entries.isEmpty ? nil : #selector(clearMenu(_:)),
             keyEquivalent: ""
         )
         clear.target = self
@@ -41,10 +41,11 @@ final class RecentRepositoryMenus: NSObject, NSMenuDelegate {
 
     /// Named against the whole list, so a repository has the same name here as on the dashboard.
     private func repositoryItems() -> [NSMenuItem] {
-        let repositories = recents.repositories
-        let names = DistinctFolderNames.make(for: repositories.map(\.workTree))
-        return zip(repositories, names).prefix(Self.itemLimit).map { repository, name in
-            let item = NSMenuItem(title: name, action: #selector(chooseRepository(_:)), keyEquivalent: "")
+        let entries = recents.entries
+        let folderNames = DistinctFolderNames.make(for: entries.map(\.repository.workTree))
+        return zip(entries, folderNames).prefix(Self.itemLimit).map { entry, folderName in
+            let repository = entry.repository
+            let item = NSMenuItem(title: entry.displayName ?? folderName, action: #selector(chooseRepository(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = repository
             item.image = Self.folderIcon()

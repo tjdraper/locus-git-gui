@@ -29,7 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
     private lazy var recentOpener: RecentRepositoryOpener = RecentRepositoryOpener(recents: recents, opening: repositoryOpening)
     private lazy var recentMenus: RecentRepositoryMenus = RecentRepositoryMenus(recents: recents) { [weak self] repository in
-        self?.recentOpener.open(repository)
+        self?.recentOpener.open([repository])
     }
     private lazy var dashboard: DashboardWindowPresenter = DashboardWindowPresenter(
         recents: recents,
@@ -39,6 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
         ),
         opener: recentOpener,
+        displayNames: DisplayNameWorkflow(
+            recents: recents,
+            gitChoice: gitChoice,
+            logs: logs,
+            checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
+        ),
         showOpenPanel: { [weak self] in self?.repositoryOpening.showOpenPanel() }
     )
 
@@ -46,7 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MainMenu.install(
             appName: "Locus Git Gui",
             checkForUpdatesItem: updates.makeMenuItem(),
-            openRecentItem: recentMenus.openRecentItem
+            openRecentItem: recentMenus.openRecentItem,
+            dashboardFileItems: dashboard.fileMenuItems,
+            dashboardViewItems: dashboard.viewMenuItems
         )
         // Settled before Sparkle starts, which marks every install as launched before.
         let isFirstRun = FirstRunStatus().settleAtLaunch() == .pending

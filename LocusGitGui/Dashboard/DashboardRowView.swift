@@ -34,7 +34,7 @@ struct DashboardRowView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
-        .opacity(state == .missing && !isSelected ? 0.6 : 1)
+        .opacity(isUnavailable && !isSelected ? 0.6 : 1)
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .foregroundStyle(textColor)
@@ -52,6 +52,8 @@ struct DashboardRowView: View {
             Label("Detached HEAD at \(commit)", systemImage: "arrow.triangle.branch")
         case .missing:
             Label("Missing", systemImage: "questionmark.folder")
+        case .driveNotConnected:
+            Label("Drive Not Connected", systemImage: "externaldrive.badge.xmark")
         case .accessDenied:
             Label("No Access", systemImage: "lock")
                 .help("""
@@ -64,6 +66,10 @@ struct DashboardRowView: View {
         case nil:
             EmptyView()
         }
+    }
+
+    private var isUnavailable: Bool {
+        state == .missing || state == .driveNotConnected
     }
 
     private var textColor: Color {
