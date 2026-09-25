@@ -5,6 +5,8 @@ nonisolated enum GitFinder {
     struct Result: Equatable, Sendable {
         /// In the order found, so the first is the one Terminal runs.
         let installations: [GitInstallation]
+        /// The Git that running `git` in Terminal starts, when one is on the search path.
+        let terminalExecutableURL: URL?
         let commandLineToolsAreMissing: Bool
     }
 
@@ -26,7 +28,13 @@ nonisolated enum GitFinder {
                 installations.append(installation)
             }
         }
-        return Result(installations: installations, commandLineToolsAreMissing: !toolsInstalled)
+        let searchDirectories = absoluteDirectories(in: environment["PATH"])
+        let terminalGit = installations.first { searchDirectories.contains($0.executableURL.deletingLastPathComponent().path) }
+        return Result(
+            installations: installations,
+            terminalExecutableURL: terminalGit?.executableURL,
+            commandLineToolsAreMissing: !toolsInstalled
+        )
     }
 
     /// Two paths to the same executable count once, under the first path found. That is usually a
@@ -38,10 +46,8 @@ nonisolated enum GitFinder {
         isExecutable: (String) -> Bool,
         resolve: (URL) -> URL
     ) -> [URL] {
-        // A relative entry such as `.` depends on the folder a command runs in, which for the app
-        // is a repository, so it is never where Git comes from.
-        let searchDirectories = (searchPath ?? "").split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
-        let directories = searchDirectories + usualDirectories + [CommandLineTools.shimmedGit.deletingLastPathComponent().path]
+        let shimDirectory = CommandLineTools.shimmedGit.deletingLastPathComponent().path
+        let directories = absoluteDirectories(in: searchPath) + usualDirectories + [shimDirectory]
 
         var seen: Set<URL> = []
         var candidates: [URL] = []
@@ -57,5 +63,11 @@ nonisolated enum GitFinder {
             }
         }
         return candidates
+    }
+
+    /// A relative entry such as `.` depends on the folder a command runs in, which for the app is
+    /// a repository, so it is never where Git comes from.
+    private static func absoluteDirectories(in searchPath: String?) -> [String] {
+        (searchPath ?? "").split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
     }
 }

@@ -3,6 +3,7 @@ import Foundation
 /// A `git` executable that answered `--version` like Git does.
 nonisolated struct GitInstallation: Equatable, Sendable {
     enum ProbeFailure: Error, Equatable {
+        case folder
         case notExecutable
         case commandLineToolsMissing
         case couldNotRun
@@ -14,6 +15,11 @@ nonisolated struct GitInstallation: Equatable, Sendable {
     let version: String
 
     static func probe(_ url: URL, environment: [String: String]) async throws(ProbeFailure) -> GitInstallation {
+        // A folder counts as executable, since that is the permission that lets it be opened.
+        var isFolder: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue {
+            throw .folder
+        }
         guard FileManager.default.isExecutableFile(atPath: url.path) else {
             throw .notExecutable
         }

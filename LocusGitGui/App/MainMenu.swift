@@ -47,7 +47,9 @@ enum MainMenu {
         main.addItem(windowMenu)
 
         // Being the help menu is what gives it the search field that finds any menu item.
-        let help = submenu(named: "Help", items: [])
+        let help = submenu(named: "Help", items: [
+            NSMenuItem(title: "Setup Checklist", action: #selector(AppDelegate.showSetupChecklist(_:)), keyEquivalent: ""),
+        ])
         main.addItem(help)
 
         NSApp.mainMenu = main

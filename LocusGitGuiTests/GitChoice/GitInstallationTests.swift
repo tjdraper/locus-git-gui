@@ -69,4 +69,15 @@ struct GitInstallationTests {
             try await GitInstallation.probe(folder.appending(path: "missing"), environment: [:])
         }
     }
+
+    @Test
+    func aFolderIsNotGitEvenWhenGitIsInside() async throws {
+        // Arrange
+        let folder = TestGit.executableURL.deletingLastPathComponent()
+
+        // Act & Assert
+        await #expect(throws: GitInstallation.ProbeFailure.folder) {
+            try await GitInstallation.probe(folder, environment: [:])
+        }
+    }
 }
