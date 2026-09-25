@@ -97,6 +97,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - The checked-out branch is marked
    - Keyboard: Tab and Shift-Tab move focus between the columns, and every column is driven with the arrow keys. Type-to-select in the sidebar jumps to a branch by name.
    - A toolbar, customizable the usual way. It starts nearly empty and gains Fetch, Pull, Push and the rest as later slices add them.
+   - A long path is cut from the left, so its last folders stay visible as toolbar items take up room. AppKit's own title only cuts from the right, so the window hides it and draws the path and subtitle in a toolbar item that truncates from the head. `window.title` keeps the full path for the Window menu, Mission Control, VoiceOver and tabs. That also removes the proxy icon, which belongs to AppKit's title, so it comes back as a view of our own: drag the folder out, ⌘-click for the path.
 
 6. **Command catalog and command palette**
 
