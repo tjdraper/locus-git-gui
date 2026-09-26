@@ -2,8 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The subject and body of a commit message in one box, the subject above a hairline and the body
-/// below. Both are in a fixed-width font, as Git and Terminal show a message, with a faint guide at
-/// the length a subject should stay within and the width a body is usually wrapped to.
+/// below. Both are in a fixed-width font, as Git and Terminal show a message.
 final class CommitMessageFields: NSView {
     static let height: CGFloat = 132
     private static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
@@ -18,12 +17,10 @@ final class CommitMessageFields: NSView {
     let subject = NSTextField()
     let body = CommitBodyTextView()
     private let bodyScroll = NSScrollView()
-    private let advance: CGFloat
     private var isEditing = false
     private var firstResponderObservation: NSKeyValueObservation?
 
     override init(frame: NSRect) {
-        advance = ("0" as NSString).size(withAttributes: [.font: Self.font]).width
         super.init(frame: frame)
         subject.font = Self.font
         subject.isBordered = false
@@ -98,15 +95,7 @@ final class CommitMessageFields: NSView {
         if body.frame.width != content.width {
             body.setFrameSize(NSSize(width: content.width, height: max(body.frame.height, content.height)))
         }
-        body.guideX = body.textContainerInset.width + (body.textContainer?.lineFragmentPadding ?? 0)
-            + CGFloat(CommitMessage.bodyGuide) * advance
         needsDisplay = true
-    }
-
-    /// Where the subject's text starts: the field's own inset, then the field editor's padding.
-    private var subjectGuideX: CGFloat {
-        let textStart = subject.cell?.drawingRect(forBounds: subject.bounds).minX ?? 2
-        return subject.frame.minX + textStart + 2 + CGFloat(CommitMessage.subjectGuide) * advance
     }
 
     override func draw(_: NSRect) {
@@ -115,8 +104,6 @@ final class CommitMessageFields: NSView {
         box.fill()
         NSColor.separatorColor.setFill()
         NSRect(x: 0, y: Self.subjectHeight, width: bounds.width, height: 1).fill()
-        NSColor.quaternaryLabelColor.setFill()
-        NSRect(x: subjectGuideX.rounded(), y: 4, width: 1, height: Self.subjectHeight - 8).fill()
         box.lineWidth = isEditing ? 2 : 1
         (isEditing ? NSColor.keyboardFocusIndicatorColor : NSColor.separatorColor).setStroke()
         box.stroke()
@@ -176,12 +163,9 @@ extension CommitMessageFields: NSTextFieldDelegate, NSTextViewDelegate {
     }
 }
 
-/// The body's text view, which draws its placeholder and the guide behind the text.
+/// The body's text view, which draws its placeholder behind the text.
 final class CommitBodyTextView: NSTextView {
     var placeholder = ""
-    var guideX: CGFloat = 0 {
-        didSet { if guideX != oldValue { needsDisplay = true } }
-    }
 
     /// The whole view, since it draws no background of its own: redrawing only the text typed
     /// left the placeholder showing beside it.
@@ -192,8 +176,6 @@ final class CommitBodyTextView: NSTextView {
 
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
-        NSColor.quaternaryLabelColor.setFill()
-        NSRect(x: guideX.rounded(), y: rect.minY, width: 1, height: rect.height).fill()
         guard string.isEmpty else { return }
         let origin = NSPoint(x: textContainerInset.width + (textContainer?.lineFragmentPadding ?? 0), y: textContainerInset.height)
         (placeholder as NSString).draw(at: origin, withAttributes: [

@@ -3,12 +3,6 @@ import Foundation
 /// A commit message as the working area edits it: the subject and the body apart, joined by a blank
 /// line when committed, as Git expects.
 nonisolated struct CommitMessage: Codable, Equatable, Sendable {
-    /// Where the subject's guide sits. Git's one-line views, and the hosts that show them, read
-    /// best with subjects this short.
-    static let subjectGuide = 50
-    /// Where the body's guide sits, the width a message is usually wrapped to.
-    static let bodyGuide = 72
-
     var subject = ""
     var body = ""
 
