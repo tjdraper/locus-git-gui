@@ -10,11 +10,18 @@ final class WorkingAreaWindowCoordinator {
     private let session: WorkingAreaSession
     private var controller: WorkingAreaWindowController?
     private var snapshot: RepositorySnapshot?
+    private weak var repositoryWindow: RepositoryWindowController?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, session: WorkingAreaSession) {
+    init(
+        commands: RepositoryCommandRunner,
+        diffOptions: DiffOptionsStore,
+        session: WorkingAreaSession,
+        repositoryWindow: RepositoryWindowController
+    ) {
         self.commands = commands
         self.diffOptions = diffOptions
         self.session = session
+        self.repositoryWindow = repositoryWindow
     }
 
     var window: NSWindow? {
@@ -29,6 +36,7 @@ final class WorkingAreaWindowCoordinator {
         }
         let workingArea = WorkingAreaViewController(commands: commands, diffOptions: diffOptions, session: session)
         let controller = WorkingAreaWindowController(workingArea: workingArea, repositoryName: repositoryName)
+        controller.repositoryWindow = repositoryWindow
         workingArea.openFileWindow = { [weak self, weak controller] request in self?.openFileWindow?(request, controller?.window) }
         workingArea.showFailure = { [weak self, weak controller] failure, retry in
             guard let window = controller?.window else { return }
@@ -46,6 +54,10 @@ final class WorkingAreaWindowCoordinator {
             controller.window?.center()
         }
         controller.showWindow(nil)
+    }
+
+    func showRepositoryName(_ name: String) {
+        controller?.window?.subtitle = name
     }
 
     /// After every refresh.

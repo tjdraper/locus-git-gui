@@ -12,14 +12,15 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let viewStates: RepositoryViewStateStore
     private let sidebar: SidebarModel
     private let sidebarView: NSView
+    private let pinning: SidebarPinWorkflow
     private let commitColumns: CommitColumnsCoordinator
     private let diffOptions: DiffOptionsStore
-    private lazy var commitWindows = CommitWindowCoordinator(commands: commands, diffOptions: diffOptions)
-    private lazy var fileWindows = FileWindowCoordinator(commands: commands, diffOptions: diffOptions)
-    private lazy var workingAreaWindow = WorkingAreaWindowCoordinator(
+    private lazy var openedWindows = OpenedWindowsCoordinator(
         commands: commands,
         diffOptions: diffOptions,
-        session: commitColumns.workingAreaSession
+        session: commitColumns.workingAreaSession,
+        repositoryName: name,
+        repositoryWindow: self
     )
     private lazy var commitGraph = CommitGraphWriter(repository: repository, run: commands.run)
     private let columns: RepositorySplitViewController
@@ -27,9 +28,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let titleItem: RepositoryTitleItem
     private lazy var toolbar = RepositoryToolbar(
         title: titleItem,
-        activity: ActivityIndicator(log: commands.log) { [weak self] in self?.activityWindow.show() }
+        activity: ActivityIndicator(log: commands.log) { [weak self] in self?.openedWindows.showActivity() }
     ) { [weak self] in self?.showBackgroundFailure() }
-    private lazy var activityWindow = ActivityWindowPresenter(log: commands.log, repository: repository)
     private lazy var scheduler = RefreshScheduler { [weak self] reason in await self?.refresh(because: reason) }
     private lazy var watcher = RepositoryFileWatcher(repository: repository) { [weak self] in
         self?.scheduler.requestSoon(because: .filesChanged)
@@ -39,6 +39,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private var backgroundFailure: GitFailure?
     /// The frame outside full screen, which is the one worth coming back to.
     private var windowFrame: String?
+    /// As the tab shows it, which the coordinator works out with the other open repositories'.
+    private(set) var name: String
     private lazy var focusCycle = ColumnFocusCycle(
         sidebar: sidebar,
         sidebarView: sidebarView,
@@ -52,9 +54,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         self.viewStates = viewStates
         repository = commands.repository
         titleItem = RepositoryTitleItem(repository: repository, displayName: displayName)
+        name = displayName ?? repository.workTree.lastPathComponent
         let viewState = viewStates.state(for: repository)
         windowFrame = viewState.windowFrame
         sidebar = SidebarModel(state: viewState)
+        pinning = SidebarPinWorkflow(sidebar: sidebar, workTree: repository.workTree)
         diffOptions = DiffOptionsStore(options: viewState.diffOptions)
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
         // The split view sets the columns' sizes, not SwiftUI.
@@ -87,11 +91,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         // Setting the content resizes the window to it, so the size is set again after.
         window.contentViewController = columns
         window.setContentSize(NSSize(width: 1200, height: 760))
-        sidebar.onChange = { [weak self] in
-            guard let self else { return }
-            saveViewState()
-            commitColumns.show(selection: sidebar.selection, contents: sidebar.contents)
-        }
+        connectSidebar()
         columns.onColumnsChange = { [weak self] in self?.saveViewState() }
         diffOptions.onChange = { [weak self] _ in self?.saveViewState() }
         connectCommitColumns()
@@ -110,23 +110,13 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         nil
     }
 
-    /// Commands for the history or the commit reach them from whichever column has focus.
+    /// Commands for the history or the commit reach them from whichever column has focus, and
+    /// pinning reaches the sidebar from anywhere in the window.
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
-        commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
-    }
-
-    /// Revealing a label from a commit's window brings this window forward to show it.
-    private func openCommitWindow(_ commit: Commit) {
-        commitWindows.reveal = { [weak self] id in
-            self?.showWindow(nil)
-            self?.revealInSidebar(id)
+        if SidebarPinWorkflow.actions.contains(action) {
+            return pinning
         }
-        commitWindows.openFileWindow = { [weak self] request, window in self?.openFileWindow(request, from: window) }
-        commitWindows.show(commit, from: window, repositoryName: displayName ?? repository.workTree.lastPathComponent)
-    }
-
-    private func openFileWindow(_ request: FileWindowRequest, from sourceWindow: NSWindow?) {
-        fileWindows.show(request, from: sourceWindow, repositoryName: displayName ?? repository.workTree.lastPathComponent)
+        return commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
     }
 
     /// Shows the sidebar first if it's hidden.
@@ -141,10 +131,14 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// The tab has its own title, since the window's full path is cut off before the part that tells
-    /// repositories apart.
-    func showTabTitle(_ title: String) {
-        guard let tab = window?.tab, tab.title != title else { return }
-        tab.title = title
+    /// repositories apart. The windows opened from this one name the repository the same way.
+    func showName(_ name: String) {
+        if name != self.name {
+            self.name = name
+            openedWindows.showRepositoryName(name)
+        }
+        guard let tab = window?.tab, tab.title != name else { return }
+        tab.title = name
         tab.toolTip = (repository.workTree.path as NSString).abbreviatingWithTildeInPath
     }
 
@@ -182,10 +176,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         saveViewState()
         watcher.stop()
         scheduler.cancel()
-        activityWindow.close()
-        commitWindows.closeAll()
-        fileWindows.closeAll()
-        workingAreaWindow.close()
+        openedWindows.closeAll()
     }
 
     private func refresh(because reason: RefreshScheduler.Reason) async {
@@ -194,10 +185,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             let snapshot = try await RepositorySnapshot.read(repository, running: commands.run)
             show(RepositoryTitleBar(status: snapshot.status, operation: snapshot.operation))
             commitColumns.show(snapshot)
-            workingAreaWindow.show(snapshot)
-            if fileWindows.showsWorkingArea {
-                fileWindows.showWorkingArea(commitColumns.workingArea.files(in: Set(WorkingAreaGroup.allCases)))
-            }
+            openedWindows.show(snapshot) { commitColumns.workingArea.files(in: Set(WorkingAreaGroup.allCases)) }
             // Read only once Git has reached the repository, so a folder that's gone or out of
             // reach isn't taken for one whose name was cleared.
             let displayName = await Self.readDisplayName(in: repository.workTree)
@@ -206,9 +194,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
                 onDisplayNameRead?(displayName)
             }
             let refs = try await Ref.readList(running: commands.run)
-            sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run))
+            sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run), pins: await Self.pins(in: repository.workTree))
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
-            commitWindows.showLabels(commitColumns.labels)
+            openedWindows.showLabels(commitColumns.labels)
             // Once Git has reached the repository, so a folder that's gone isn't written to.
             commitGraph.writeIfMissing()
             clearBackgroundFailure()
@@ -247,6 +235,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     @concurrent
     private static func readDisplayName(in workTree: URL) async -> String? {
         RepositoryDisplayName.read(from: workTree).name
+    }
+
+    /// Read after Git's reads, so a pin changed meanwhile is less likely to be put back for a moment.
+    @concurrent
+    private static func pins(in workTree: URL) async -> SidebarPins {
+        SidebarPins.read(from: workTree)
     }
 
     private func rememberFrame() {
@@ -297,18 +291,31 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
 
 /// How the columns and the windows opened from them reach the window.
 extension RepositoryWindowController {
+    fileprivate func connectSidebar() {
+        pinning.window = window
+        sidebar.onChange = { [weak self] in
+            guard let self else { return }
+            saveViewState()
+            commitColumns.show(selection: sidebar.selection, contents: sidebar.contents)
+        }
+    }
+
     fileprivate func connectCommitColumns() {
         commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
         commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
-        commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
-        commitColumns.openFileWindow = { [weak self] request in self?.openFileWindow(request, from: self?.window) }
+        commitColumns.open = { [weak self] commit in self?.openedWindows.openCommit(commit, from: self?.window) }
+        commitColumns.openFileWindow = { [weak self] request in self?.openedWindows.openFile(request, from: self?.window) }
         let session = commitColumns.workingAreaSession
         session.queue.didRun = { [weak self] in self?.scheduler.requestNow(because: .commandRan) }
         session.queue.presentFailure = { [weak self] failure in self?.presentCommandFailure(failure) }
         session.editor.onDraftChange = { [weak self] _ in self?.saveViewState() }
         commitColumns.openWorkingArea = { [weak self] in self?.openWorkingAreaWindow() }
-        workingAreaWindow.openFileWindow = { [weak self] request, window in self?.openFileWindow(request, from: window) }
-        workingAreaWindow.showFailure = { [weak self] failure, window, retry in
+        // Revealing a label from a commit's window brings this window forward to show it.
+        openedWindows.reveal = { [weak self] id in
+            self?.showWindow(nil)
+            self?.revealInSidebar(id)
+        }
+        openedWindows.showFailure = { [weak self] failure, window, retry in
             guard let self else { return }
             failureSheet.present(failure, repository: repository, on: window, wasOpenedByUser: true, retry: retry)
         }
@@ -320,13 +327,13 @@ extension RepositoryWindowController {
     /// A command the user ran, such as a commit, that failed, on the window it was run from. They
     /// acknowledge it with OK.
     fileprivate func presentCommandFailure(_ failure: GitFailure) {
-        let windows = [workingAreaWindow.window, window].compactMap(\.self)
+        let windows = [openedWindows.workingAreaWindow, window].compactMap(\.self)
         guard let target = windows.first(where: \.isKeyWindow) ?? window else { return }
         failureSheet.present(failure, repository: repository, on: target, wasOpenedByUser: false, retry: nil)
     }
 
     fileprivate func openWorkingAreaWindow() {
-        workingAreaWindow.show(from: window, repositoryName: displayName ?? repository.workTree.lastPathComponent)
+        openedWindows.openWorkingArea(from: window)
     }
 
     /// Opened by the user from a warning or a column's Show Details, so it has a Try Again.
@@ -340,7 +347,7 @@ extension RepositoryWindowController {
 extension RepositoryWindowController {
     /// Reached through the responder chain from View > Show Activity.
     @objc func showActivity(_: Any?) {
-        activityWindow.show()
+        openedWindows.showActivity()
     }
     /// Reached through the responder chain from View > Filter Sidebar.
     @objc func filterSidebar(_: Any?) {
@@ -361,6 +368,15 @@ extension RepositoryWindowController {
         commitColumns.history.selectWorkingArea()
         commitColumns.workingArea.focusSubject()
     }
+
+    /// Reached through the responder chain from View > Open Uncommitted Changes in New Window, and
+    /// passed on by the windows opened from this one, so it opens whatever the history shows.
+    @objc func openUncommittedChangesWindow(_: Any?) {
+        openWorkingAreaWindow()
+    }
+
+    /// Commands the commit, file and working area windows pass on to the repository's window.
+    static let repositoryActions: Set<Selector> = [#selector(openUncommittedChangesWindow(_:)), #selector(showActivity(_:))]
 }
 
 extension RepositoryWindowController: CommandPaletteDestinationSource {

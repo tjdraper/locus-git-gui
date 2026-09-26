@@ -7,10 +7,12 @@ final class FileWindowCoordinator {
     private let commands: RepositoryCommandRunner
     private let diffOptions: DiffOptionsStore
     private var controllers: [FileWindowController] = []
+    private weak var repositoryWindow: RepositoryWindowController?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, repositoryWindow: RepositoryWindowController) {
         self.commands = commands
         self.diffOptions = diffOptions
+        self.repositoryWindow = repositoryWindow
     }
 
     /// Cascaded from the window it was opened from.
@@ -28,6 +30,7 @@ final class FileWindowCoordinator {
             commands: commands,
             diffOptions: diffOptions
         )
+        controller.repositoryWindow = repositoryWindow
         controller.onClose = { [weak self, weak controller] in
             self?.controllers.removeAll { $0 === controller }
         }
@@ -41,6 +44,12 @@ final class FileWindowCoordinator {
             }
         }
         controller.showWindow(nil)
+    }
+
+    func showRepositoryName(_ name: String) {
+        for controller in controllers {
+            controller.showRepositoryName(name)
+        }
     }
 
     /// After every refresh, so a working area file's window keeps up with its changes.

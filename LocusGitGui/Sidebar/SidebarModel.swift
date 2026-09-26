@@ -5,6 +5,7 @@ import Foundation
 final class SidebarModel {
     /// Nil until the repository has been read once.
     private(set) var contents: SidebarContents?
+    private(set) var pins = SidebarPins()
     var selection: SidebarItemID? {
         didSet { if selection != oldValue { onChange?() } }
     }
@@ -27,6 +28,8 @@ final class SidebarModel {
     private(set) var revealRequests = 0
 
     @ObservationIgnored var onChange: (() -> Void)?
+    /// For the pins to be written to the repository.
+    @ObservationIgnored var onPinsChange: ((SidebarPins) -> Void)?
     @ObservationIgnored private var typeSelect = SidebarTypeSelect()
 
     init(state: RepositoryViewState) {
@@ -37,11 +40,24 @@ final class SidebarModel {
 
     /// A selection that's gone, such as a deleted branch or a dropped stash, is cleared. Until the
     /// first read, the remembered selection is kept, since nothing is known to be gone yet.
-    func show(_ contents: SidebarContents) {
+    func show(_ contents: SidebarContents, pins: SidebarPins) {
+        self.pins = pins
+        let contents = contents.pinning(pins)
         guard contents != self.contents else { return }
         self.contents = contents
         if let selection, !contents.contains(selection) {
             self.selection = nil
+        }
+    }
+
+    /// Shown at once, ahead of the pins being written and read back.
+    func togglePin(_ id: SidebarItemID) {
+        guard let contents, SidebarPins.canPin(id) else { return }
+        pins.toggle(id)
+        self.contents = contents.pinning(pins)
+        onPinsChange?(pins)
+        if id == selection {
+            revealRequests += 1
         }
     }
 

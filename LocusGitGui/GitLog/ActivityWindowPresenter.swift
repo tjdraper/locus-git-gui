@@ -5,12 +5,12 @@ import SwiftUI
 /// activity indicator.
 final class ActivityWindowPresenter {
     private let log: GitCommandLog
-    private let repository: Repository
+    private var repositoryName: String
     private var window: NSWindow?
 
-    init(log: GitCommandLog, repository: Repository) {
+    init(log: GitCommandLog, repositoryName: String) {
         self.log = log
-        self.repository = repository
+        self.repositoryName = repositoryName
     }
 
     func show() {
@@ -23,10 +23,19 @@ final class ActivityWindowPresenter {
         window?.close()
     }
 
+    func showRepositoryName(_ name: String) {
+        repositoryName = name
+        window?.subtitle = name
+    }
+
     private func makeWindow() -> NSWindow {
         let window = NSWindow(contentViewController: NSHostingController(rootView: ActivityView(log: log)))
-        window.title = "Activity – \(repository.workTree.lastPathComponent)"
+        window.title = "Activity"
+        window.subtitle = repositoryName
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        // Gives the title bar room for the subtitle.
+        window.toolbar = NSToolbar(identifier: "ActivityWindow")
+        window.toolbarStyle = .unified
         window.tabbingMode = .disallowed
         window.isReleasedWhenClosed = false
         // Named when this was the Git log window, and kept so the place it was left still applies.

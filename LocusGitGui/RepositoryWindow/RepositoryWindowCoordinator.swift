@@ -90,17 +90,17 @@ final class RepositoryWindowCoordinator {
         )
         controller.onDisplayNameRead = { [weak self] displayName in
             self?.recents.setDisplayName(displayName, for: repository)
-            self?.retitleTabs()
+            self?.rename()
         }
         controllers[repository.id] = controller
-        retitleTabs()
+        rename()
 
         if let window = controller.window {
             Task { [weak self] in
                 for await _ in NotificationCenter.default.notifications(named: NSWindow.willCloseNotification, object: window) {
                     guard let self else { break }
                     controllers[repository.id] = nil
-                    retitleTabs()
+                    rename()
                     if controllers.isEmpty {
                         lastWindowClosed()
                     }
@@ -111,16 +111,15 @@ final class RepositoryWindowCoordinator {
         return controller
     }
 
-    /// Only repositories without a display name are compared by folder name, since the rest are
-    /// already told apart by the names they were given.
-    private func retitleTabs() {
-        let unnamed = controllers.values.filter { $0.displayName == nil }
-        let folderNames = Dictionary(uniqueKeysWithValues: zip(
-            unnamed.map(\.repository.id),
-            DistinctFolderNames.make(for: unnamed.map(\.repository.workTree))
-        ))
-        for controller in controllers.values {
-            controller.showTabTitle(controller.displayName ?? folderNames[controller.repository.id] ?? "")
+    /// Every open repository's name depends on the others', so a window opening or closing, or a
+    /// display name changing, can rename them all.
+    private func rename() {
+        let open = Array(controllers.values)
+        let names = RepositoryWindowNames.make(for: open.map { controller in
+            RepositoryWindowNames.Repository(workTree: controller.repository.workTree, displayName: controller.displayName)
+        })
+        for (controller, name) in zip(open, names) {
+            controller.showName(name)
         }
     }
 }

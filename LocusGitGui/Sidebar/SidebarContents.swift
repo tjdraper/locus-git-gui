@@ -1,6 +1,8 @@
 import Foundation
 
-/// Everything the sidebar lists, in the order it lists it.
+/// Everything the sidebar lists, in the order it lists it. What's pinned is listed in its own section
+/// at the top rather than in the section it would otherwise be in, but stays in these lists, which
+/// the history and the command palette read.
 nonisolated struct SidebarContents: Equatable, Sendable {
     struct Branch: Equatable, Sendable, Identifiable {
         let id: SidebarItemID
@@ -39,6 +41,32 @@ nonisolated struct SidebarContents: Equatable, Sendable {
         let date: Date
     }
 
+    enum PinnedItem: Equatable, Sendable, Identifiable {
+        case branch(Branch)
+        /// With the remote's name in front, since it isn't listed under its remote.
+        case remoteBranch(RemoteBranch, name: String)
+        case tag(Tag)
+        case stash(StashEntry)
+
+        var id: SidebarItemID {
+            switch self {
+            case let .branch(branch): branch.id
+            case let .remoteBranch(branch, _): branch.id
+            case let .tag(tag): tag.id
+            case let .stash(stash): stash.id
+            }
+        }
+
+        var name: String {
+            switch self {
+            case let .branch(branch): branch.name
+            case let .remoteBranch(_, name): name
+            case let .tag(tag): tag.name
+            case let .stash(stash): stash.message
+            }
+        }
+    }
+
     /// A row as the keyboard reaches it: what it stands for, and the name type-to-select matches.
     struct Row: Equatable {
         let id: SidebarItemID
@@ -49,6 +77,9 @@ nonisolated struct SidebarContents: Equatable, Sendable {
     let remotes: [Remote]
     let tags: [Tag]
     let stashes: [StashEntry]
+    /// In the order they were pinned, leaving out pins for what the repository doesn't have.
+    let pinned: [PinnedItem]
+    private let pinnedIDs: Set<SidebarItemID>
 
     /// With the refs already read, since the history needs them too.
     static func read(refs: [Ref], running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> SidebarContents {
@@ -77,13 +108,60 @@ nonisolated struct SidebarContents: Equatable, Sendable {
             .map { Tag(id: .ref($0.name), name: String($0.name.dropFirst("refs/tags/".count))) }
             .sorted { Self.precedes($1.name, $0.name) }
         self.stashes = stashes.map { StashEntry(id: .stash($0.commit), message: $0.message, date: $0.date) }
+        pinned = []
+        pinnedIDs = []
     }
 
-    private init(branches: [Branch], remotes: [Remote], tags: [Tag], stashes: [StashEntry]) {
+    private init(branches: [Branch], remotes: [Remote], tags: [Tag], stashes: [StashEntry], pinned: [PinnedItem]) {
         self.branches = branches
         self.remotes = remotes
         self.tags = tags
         self.stashes = stashes
+        self.pinned = pinned
+        pinnedIDs = Set(pinned.map(\.id))
+    }
+
+    func pinning(_ pins: SidebarPins) -> SidebarContents {
+        let pinned = pins.items.compactMap { id -> PinnedItem? in
+            if let branch = branches.first(where: { $0.id == id }) {
+                return .branch(branch)
+            }
+            for remote in remotes {
+                if let branch = remote.branches.first(where: { $0.id == id }) {
+                    return .remoteBranch(branch, name: remote.name + "/" + branch.name)
+                }
+            }
+            if let tag = tags.first(where: { $0.id == id }) {
+                return .tag(tag)
+            }
+            return stashes.first { $0.id == id }.map(PinnedItem.stash)
+        }
+        return SidebarContents(branches: branches, remotes: remotes, tags: tags, stashes: stashes, pinned: pinned)
+    }
+
+    func isPinned(_ id: SidebarItemID) -> Bool {
+        pinnedIDs.contains(id)
+    }
+
+    /// The branches listed in their own section, which leaves out the pinned ones. The same goes for
+    /// the rest.
+    var unpinnedBranches: [Branch] {
+        branches.filter { !isPinned($0.id) }
+    }
+
+    var unpinnedRemotes: [Remote] {
+        guard !pinnedIDs.isEmpty else { return remotes }
+        return remotes.map { remote in
+            Remote(name: remote.name, branches: remote.branches.filter { !isPinned($0.id) })
+        }
+    }
+
+    var unpinnedTags: [Tag] {
+        tags.filter { !isPinned($0.id) }
+    }
+
+    var unpinnedStashes: [StashEntry] {
+        stashes.filter { !isPinned($0.id) }
     }
 
     /// Only what has the text anywhere in its name, ignoring case and accents. A remote branch
@@ -105,7 +183,8 @@ nonisolated struct SidebarContents: Equatable, Sendable {
                 return branches.isEmpty ? nil : Remote(name: remote.name, branches: branches)
             },
             tags: tags.filter { matches($0.name) },
-            stashes: stashes.filter { matches($0.message) }
+            stashes: stashes.filter { matches($0.message) },
+            pinned: pinned.filter { matches($0.name) }
         )
     }
 
@@ -128,6 +207,9 @@ nonisolated struct SidebarContents: Equatable, Sendable {
     /// Which section lists it, or nil when nothing here is it.
     func section(containing id: SidebarItemID) -> SidebarSection? {
         guard contains(id) else { return nil }
+        if isPinned(id) {
+            return .pinned
+        }
         switch id {
         case .ref:
             if branches.contains(where: { $0.id == id }) {
@@ -141,19 +223,23 @@ nonisolated struct SidebarContents: Equatable, Sendable {
         }
     }
 
-    /// The remote a remote branch is listed under.
+    /// The remote a remote branch is listed under, which a pinned one isn't.
     func remote(containing id: SidebarItemID) -> String? {
-        remotes.first { $0.branches.contains { $0.id == id } }?.name
+        guard !isPinned(id) else { return nil }
+        return remotes.first { $0.branches.contains { $0.id == id } }?.name
     }
 
     /// Only the rows that can be seen: none from a collapsed section or under a collapsed remote.
     func visibleRows(collapsedSections: Set<SidebarSection>, collapsedRemotes: Set<String>) -> [Row] {
         var rows: [Row] = []
+        if !collapsedSections.contains(.pinned) {
+            rows += pinned.map { Row(id: $0.id, name: $0.name) }
+        }
         if !collapsedSections.contains(.branches) {
-            rows += branches.map { Row(id: $0.id, name: $0.name) }
+            rows += unpinnedBranches.map { Row(id: $0.id, name: $0.name) }
         }
         if !collapsedSections.contains(.remotes) {
-            for remote in remotes {
+            for remote in unpinnedRemotes {
                 rows.append(Row(id: remote.id, name: remote.name))
                 if !collapsedRemotes.contains(remote.name) {
                     rows += remote.branches.map { Row(id: $0.id, name: $0.name) }
@@ -161,10 +247,10 @@ nonisolated struct SidebarContents: Equatable, Sendable {
             }
         }
         if !collapsedSections.contains(.tags) {
-            rows += tags.map { Row(id: $0.id, name: $0.name) }
+            rows += unpinnedTags.map { Row(id: $0.id, name: $0.name) }
         }
         if !collapsedSections.contains(.stashes) {
-            rows += stashes.map { Row(id: $0.id, name: $0.message) }
+            rows += unpinnedStashes.map { Row(id: $0.id, name: $0.message) }
         }
         return rows
     }

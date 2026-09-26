@@ -6,7 +6,8 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
 
     let detail: CommitDetailViewController
     var onClose: (() -> Void)?
-    private let repositoryName: String
+    weak var repositoryWindow: RepositoryWindowController?
+    private var repositoryName: String
     private let failureSheet = GitFailureSheetPresenter()
     private let repository: Repository
 
@@ -50,16 +51,34 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
     func show(_ commit: Commit, labels: [CommitRefLabel]) {
         detail.show(commit, labels: labels)
         window?.title = commit.subject.isEmpty ? "(No message)" : commit.subject
-        window?.subtitle = "\(commit.hash.prefix(7)) · \(repositoryName)"
+        showSubtitle()
+    }
+
+    func showRepositoryName(_ name: String) {
+        repositoryName = name
+        showSubtitle()
+    }
+
+    /// The repository first, so it's the last thing a narrow window cuts.
+    private func showSubtitle() {
+        guard let commit else { return }
+        window?.subtitle = "\(repositoryName) · \(commit.hash.prefix(7))"
     }
 
     func windowWillClose(_: Notification) {
         onClose?()
     }
 
-    /// Diff commands reach the diff wherever focus is in the window.
+    /// Diff commands reach the diff wherever focus is in the window, and commands for the whole
+    /// repository reach its window.
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
-        DiffViewController.windowActions.contains(action) ? detail.diff : super.supplementalTarget(forAction: action, sender: sender)
+        if DiffViewController.windowActions.contains(action) {
+            return detail.diff
+        }
+        if RepositoryWindowController.repositoryActions.contains(action) {
+            return repositoryWindow
+        }
+        return super.supplementalTarget(forAction: action, sender: sender)
     }
 
     @objc func copyCommitHash(_: Any?) {

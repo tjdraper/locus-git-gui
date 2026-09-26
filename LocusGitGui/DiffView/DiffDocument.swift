@@ -66,7 +66,9 @@ nonisolated struct DiffDocument: Equatable, Sendable {
     /// above the next file.
     let fileEnds: [Int]
 
-    init(files: [DiffFile], collapsed: Set<Int>, style: Style) {
+    /// `headsGroups` is false for a diff that doesn't show its files' groups, such as a file window
+    /// showing one of the working area's files.
+    init(files: [DiffFile], collapsed: Set<Int>, style: Style, headsGroups: Bool = true) {
         self.style = style
         fileStyles = files.map { Self.style(of: $0, in: style) }
         var blocks: [Block] = []
@@ -76,7 +78,7 @@ nonisolated struct DiffDocument: Equatable, Sendable {
             if index > 0 {
                 fileEnds.append(blocks.count)
             }
-            if file.group != nil, index == 0 || files[index - 1].group != file.group {
+            if headsGroups, file.group != nil, index == 0 || files[index - 1].group != file.group {
                 blocks.append(.group(file: index))
             } else if index > 0, !collapsed.contains(index - 1) {
                 blocks.append(.gap(file: index))

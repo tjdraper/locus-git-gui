@@ -176,6 +176,7 @@ final class WorkingAreaViewController: NSViewController {
                 guard !Task.isCancelled, let self else { return }
                 Self.log.info("Read the working area's \(files.count) files in \(ContinuousClock.now - started, privacy: .public)")
                 failure = nil
+                diff.collapsedFiles = WorkingAreaCollapse.following(diff.collapsedFiles, from: allFiles, to: files)
                 allFiles = files
                 showFiltered()
                 diff.readImagesAgain()

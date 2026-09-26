@@ -245,4 +245,56 @@ struct SidebarContentsTests {
         #expect(contents.remote(containing: .ref("refs/remotes/origin/main")) == "origin")
         #expect(contents.remote(containing: .ref("refs/heads/main")) == nil)
     }
+
+    @Test
+    func pinnedItemsAreListedInTheOrderPinnedAndLeftOutOfTheirSections() {
+        // Arrange
+        let contents = contents(
+            refs: ["refs/heads/main", "refs/heads/develop", "refs/remotes/origin/main", "refs/tags/v1"],
+            remotes: ["origin"],
+            stashes: [Stash(commit: "def", date: Date(timeIntervalSince1970: 0), message: "wip")]
+        )
+        let pins = SidebarPins([.stash("def"), .ref("refs/remotes/origin/main"), .ref("refs/heads/main"), .ref("refs/heads/deleted")])
+
+        // Act
+        let pinned = contents.pinning(pins)
+
+        // Assert
+        #expect(pinned.pinned.map(\.id) == [.stash("def"), .ref("refs/remotes/origin/main"), .ref("refs/heads/main")])
+        #expect(pinned.pinned.map(\.name) == ["wip", "origin/main", "main"])
+        #expect(pinned.unpinnedBranches.map(\.name) == ["develop"])
+        #expect(pinned.unpinnedRemotes.first?.branches.isEmpty == true)
+        #expect(pinned.unpinnedStashes.isEmpty)
+        #expect(pinned.unpinnedTags.map(\.name) == ["v1"])
+        #expect(pinned.branches.count == 2)
+    }
+
+    @Test
+    func aPinnedItemIsInThePinnedSectionAndItsRowComesFirst() {
+        // Arrange
+        let contents = contents(refs: ["refs/heads/main", "refs/remotes/origin/main"], remotes: ["origin"])
+            .pinning(SidebarPins([.ref("refs/remotes/origin/main")]))
+
+        // Act
+        let rows = contents.visibleRows(collapsedSections: [], collapsedRemotes: [])
+
+        // Assert
+        #expect(contents.section(containing: .ref("refs/remotes/origin/main")) == .pinned)
+        #expect(contents.remote(containing: .ref("refs/remotes/origin/main")) == nil)
+        #expect(rows.map(\.id) == [.ref("refs/remotes/origin/main"), .ref("refs/heads/main"), .remote("origin")])
+    }
+
+    @Test
+    func filteringKeepsPinnedItemsThatMatch() {
+        // Arrange
+        let contents = contents(refs: ["refs/heads/main", "refs/heads/login"])
+            .pinning(SidebarPins([.ref("refs/heads/main"), .ref("refs/heads/login")]))
+
+        // Act
+        let filtered = contents.filtered(by: "log")
+
+        // Assert
+        #expect(filtered.pinned.map(\.name) == ["login"])
+        #expect(filtered.unpinnedBranches.isEmpty)
+    }
 }

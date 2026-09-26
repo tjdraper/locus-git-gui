@@ -7,6 +7,7 @@ final class WorkingAreaWindowController: NSWindowController, NSWindowDelegate {
 
     let workingArea: WorkingAreaViewController
     var onClose: (() -> Void)?
+    weak var repositoryWindow: RepositoryWindowController?
 
     init(workingArea: WorkingAreaViewController, repositoryName: String) {
         self.workingArea = workingArea
@@ -43,13 +44,17 @@ final class WorkingAreaWindowController: NSWindowController, NSWindowDelegate {
         onClose?()
     }
 
-    /// The working area's and the diff's commands reach them wherever focus is in the window.
+    /// The working area's and the diff's commands reach them wherever focus is in the window, and
+    /// commands for the whole repository reach its window.
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
         if WorkingAreaViewController.windowActions.contains(action) {
             return workingArea
         }
         if DiffViewController.windowActions.contains(action) {
             return workingArea.diff
+        }
+        if RepositoryWindowController.repositoryActions.contains(action) {
+            return repositoryWindow
         }
         return super.supplementalTarget(forAction: action, sender: sender)
     }

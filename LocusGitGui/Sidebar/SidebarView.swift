@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Branches, remotes, tags and stashes, each in a section that collapses, under a field that filters
-/// them.
+/// them. What's pinned has a section of its own at the top.
 struct SidebarView: View {
     @Bindable var model: SidebarModel
     @FocusState private var isFocused: Bool
@@ -23,14 +23,19 @@ struct SidebarView: View {
     private var list: some View {
         List(selection: $model.selection) {
             if let contents = model.visibleContents {
-                if !contents.branches.isEmpty {
-                    section(.branches) {
-                        ForEach(contents.branches, content: SidebarBranchRow.init)
+                if !contents.pinned.isEmpty {
+                    section(.pinned) {
+                        ForEach(contents.pinned, content: SidebarPinnedRow.init)
                     }
                 }
-                if !contents.remotes.isEmpty {
+                if !contents.unpinnedBranches.isEmpty {
+                    section(.branches) {
+                        ForEach(contents.unpinnedBranches, content: SidebarBranchRow.init)
+                    }
+                }
+                if !contents.unpinnedRemotes.isEmpty {
                     section(.remotes) {
-                        ForEach(contents.remotes) { remote in
+                        ForEach(contents.unpinnedRemotes) { remote in
                             DisclosureGroup(isExpanded: remoteExpansion(remote.name)) {
                                 ForEach(remote.branches) { branch in
                                     Label(branch.name, systemImage: "arrow.triangle.branch")
@@ -41,24 +46,26 @@ struct SidebarView: View {
                         }
                     }
                 }
-                if !contents.tags.isEmpty {
+                if !contents.unpinnedTags.isEmpty {
                     section(.tags) {
-                        ForEach(contents.tags) { tag in
-                            Label(tag.name, systemImage: "tag")
-                        }
+                        ForEach(contents.unpinnedTags, content: SidebarTagRow.init)
                     }
                 }
-                if !contents.stashes.isEmpty {
+                if !contents.unpinnedStashes.isEmpty {
                     section(.stashes) {
-                        ForEach(contents.stashes) { stash in
-                            Label(stash.message, systemImage: "archivebox")
-                                .help(stash.date.formatted(date: .abbreviated, time: .shortened))
-                        }
+                        ForEach(contents.unpinnedStashes, content: SidebarStashRow.init)
                     }
                 }
             }
         }
         .listStyle(.sidebar)
+        .contextMenu(forSelectionType: SidebarItemID.self) { ids in
+            if ids.count == 1, let id = ids.first, SidebarPins.canPin(id) {
+                Button(SidebarPinWorkflow.title(isPinned: model.pins.contains(id))) {
+                    model.togglePin(id)
+                }
+            }
+        }
         .focused($isFocused)
         .onKeyPress(characters: .alphanumerics.union(.punctuationCharacters).union(.symbols)) { press in
             guard press.modifiers.isDisjoint(with: [.command, .control]) else { return .ignored }
@@ -101,6 +108,40 @@ struct SidebarView: View {
             get: { model.isExpanded(remote: remote) },
             set: { model.setExpanded($0, remote: remote) }
         )
+    }
+}
+
+private struct SidebarPinnedRow: View {
+    let item: SidebarContents.PinnedItem
+
+    var body: some View {
+        switch item {
+        case let .branch(branch):
+            SidebarBranchRow(branch: branch)
+        case let .remoteBranch(_, name):
+            Label(name, systemImage: "arrow.triangle.branch")
+        case let .tag(tag):
+            SidebarTagRow(tag: tag)
+        case let .stash(stash):
+            SidebarStashRow(stash: stash)
+        }
+    }
+}
+
+private struct SidebarTagRow: View {
+    let tag: SidebarContents.Tag
+
+    var body: some View {
+        Label(tag.name, systemImage: "tag")
+    }
+}
+
+private struct SidebarStashRow: View {
+    let stash: SidebarContents.StashEntry
+
+    var body: some View {
+        Label(stash.message, systemImage: "archivebox")
+            .help(stash.date.formatted(date: .abbreviated, time: .shortened))
     }
 }
 

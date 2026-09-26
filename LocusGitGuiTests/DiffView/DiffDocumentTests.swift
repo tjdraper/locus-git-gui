@@ -60,6 +60,18 @@ struct DiffDocumentTests {
     }
 
     @Test
+    func aDiffThatDoesntHeadGroupsHasNoHeadings() {
+        // Arrange
+        let files = [file(edit, group: 1)]
+
+        // Act
+        let document = DiffDocument(files: files, collapsed: [0], style: .inline, headsGroups: false)
+
+        // Assert
+        #expect(document.blocks == [.header(file: 0)])
+    }
+
+    @Test
     func aFileEndsWhereTheSpaceAboveTheNextOneStarts() {
         // Act
         let document = DiffDocument(files: [file(edit), file(edit)], collapsed: [], style: .inline)

@@ -40,9 +40,11 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case commandPalette
     case showSidebar
     case filterSidebar
+    case togglePinInSidebar
     case showToolbar
     case customizeToolbar
     case goToUncommittedChanges
+    case openUncommittedChangesWindow
     case goToBranch
     case goToTag
     case goToStash
@@ -117,9 +119,11 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .commandPalette: "Command Palette…"
         case .showSidebar: "Show Sidebar"
         case .filterSidebar: "Filter Sidebar"
+        case .togglePinInSidebar: "Pin in Sidebar"
         case .showToolbar: "Show Toolbar"
         case .customizeToolbar: "Customize Toolbar…"
         case .goToUncommittedChanges: "Go to Uncommitted Changes"
+        case .openUncommittedChangesWindow: "Open Uncommitted Changes in New Window"
         case .goToBranch: "Go to Branch…"
         case .goToTag: "Go to Tag…"
         case .goToStash: "Go to Stash…"
@@ -211,6 +215,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToPreviousFile: KeyShortcut(KeyShortcut.upArrowKey, [.command, .option])
         case .showOnlyMissingRepositories: KeyShortcut("m", [.command, .shift])
         case .goToUncommittedChanges: KeyShortcut("u", [.command, .shift])
+        case .openUncommittedChangesWindow: KeyShortcut("u", [.command, .option, .shift])
         case .commitChanges: KeyShortcut(KeyShortcut.returnKey)
         case .stageAll: KeyShortcut("a", [.command, .shift])
         case .unstageAll: KeyShortcut("a", [.command, .option, .shift])

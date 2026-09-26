@@ -226,7 +226,7 @@ final class DiffViewController: NSViewController {
         let started = ContinuousClock.now
         let style = DiffLayout.style(forWidth: width, metrics: metrics, numberColumns: numberColumns)
         let collapsed = Set(files.indices.filter { collapsedFiles.contains(files[$0].id) })
-        let document = DiffDocument(files: files, collapsed: collapsed, style: style)
+        let document = DiffDocument(files: files, collapsed: collapsed, style: style, headsGroups: describeGroup != nil)
         let layout = DiffLayout(document: document, files: files, metrics: metrics, width: width, numberColumns: numberColumns)
         let isSameShape = canvas.content.map { $0.document == document } ?? false
         canvas.show(
@@ -247,10 +247,10 @@ final class DiffViewController: NSViewController {
 
     private func updateSummary() {
         guard isViewLoaded else { return }
+        summaryBar.show(files: files, isAllCollapsed: files.allSatisfy { collapsedFiles.contains($0.id) })
         let isShown = showsSummary && (!files.isEmpty || summaryAccessory != nil)
         summaryBar.isHidden = !isShown
-        summaryHeight.constant = isShown ? DiffSummaryBar.height : 0
-        summaryBar.show(files: files, isAllCollapsed: files.allSatisfy { collapsedFiles.contains($0.id) })
+        summaryHeight.constant = isShown ? summaryBar.height : 0
     }
 
     func index(of id: DiffFile.Identity) -> Int? {

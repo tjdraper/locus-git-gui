@@ -12,10 +12,12 @@ final class CommitWindowCoordinator {
     private let diffOptions: DiffOptionsStore
     private var controllers: [CommitWindowController] = []
     private var labels: [String: [CommitRefLabel]] = [:]
+    private weak var repositoryWindow: RepositoryWindowController?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, repositoryWindow: RepositoryWindowController) {
         self.commands = commands
         self.diffOptions = diffOptions
+        self.repositoryWindow = repositoryWindow
     }
 
     /// Cascaded from the repository's window, so it's clear which repository it came from.
@@ -25,6 +27,7 @@ final class CommitWindowCoordinator {
             return
         }
         let controller = CommitWindowController(repositoryName: repositoryName, commands: commands, diffOptions: diffOptions)
+        controller.repositoryWindow = self.repositoryWindow
         controller.detail.reveal = { [weak self] item in self?.reveal?(item) }
         controller.detail.openFileWindow = { [weak self, weak controller] request in
             self?.openFileWindow?(request, controller?.window)
@@ -48,6 +51,12 @@ final class CommitWindowCoordinator {
             }
         }
         controller.showWindow(nil)
+    }
+
+    func showRepositoryName(_ name: String) {
+        for controller in controllers {
+            controller.showRepositoryName(name)
+        }
     }
 
     /// Kept up to date as refreshes move branches and tags.

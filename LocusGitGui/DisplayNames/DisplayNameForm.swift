@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DisplayNameForm: View {
     let folderName: String
-    /// Git already tracks the `.locus` folder, so the name is shared whatever is chosen here.
+    /// Git already tracks the name, so it's shared whatever is chosen here.
     let isTracked: Bool
     let onSave: (RepositoryDisplayName) -> Void
     let onCancel: () -> Void
@@ -63,7 +63,7 @@ struct DisplayNameForm: View {
         if isTracked {
             return """
             The name is kept in a .locus folder at the top of the repository. Git already tracks \
-            that folder, so everyone who clones the repository gets the name.
+            it there, so everyone who clones the repository gets the name.
             """
         }
         if isShared {
@@ -73,8 +73,8 @@ struct DisplayNameForm: View {
             """
         }
         return """
-        The name is kept in a .locus folder at the top of the repository, which Git ignores. Only \
-        this copy of the repository has the name.
+        The name is kept in a .locus folder at the top of the repository, where Git ignores it. \
+        Only this copy of the repository has the name.
         """
     }
 }

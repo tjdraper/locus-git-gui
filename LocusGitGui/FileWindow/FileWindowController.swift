@@ -12,16 +12,19 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
 
     let source: FileWindowRequest.Source
     var onClose: (() -> Void)?
+    weak var repositoryWindow: RepositoryWindowController?
     private var files: [DiffFile]
     /// The file shown, which stays the same while a refresh takes it out of `files`.
     private(set) var file: DiffFile.Identity
     /// Where Previous File and Next File count from.
     private var index: Int
-    private let repositoryName: String
+    private var repositoryName: String
     private let diff: DiffViewController
     private let commands: RepositoryCommandRunner
     private let failureSheet = GitFailureSheetPresenter()
     private var reading: Task<Void, Never>?
+    /// The file the title bar names, which stays while a refresh takes it out of `files`.
+    private var titled: DiffFile?
 
     init(_ request: FileWindowRequest, repositoryName: String, commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
         source = request.source
@@ -118,16 +121,29 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
     /// What's already been read shows at once, and the whole file follows.
     private func show(_ file: DiffFile) {
         window?.title = (file.changed.path as NSString).lastPathComponent
+        showSubtitle(for: file)
+        diff.show([file], emptyMessage: "", isSameDiff: false)
+        read(file, isSameDiff: true)
+    }
+
+    func showRepositoryName(_ name: String) {
+        repositoryName = name
+        if let titled {
+            showSubtitle(for: titled)
+        }
+    }
+
+    /// The repository first, so it's the last thing a narrow window cuts.
+    private func showSubtitle(for file: DiffFile) {
+        titled = file
         let folder = (file.changed.path as NSString).deletingLastPathComponent
         let origin = switch source {
         case let .commit(commit): String(commit.hash.prefix(7))
         case .workingArea: WorkingAreaGroup(file)?.title
         }
-        window?.subtitle = [folder.isEmpty ? nil : folder, origin, repositoryName]
+        window?.subtitle = [repositoryName, origin, folder.isEmpty ? nil : folder]
             .compactMap(\.self)
             .joined(separator: " · ")
-        diff.show([file], emptyMessage: "", isSameDiff: false)
-        read(file, isSameDiff: true)
     }
 
     private func goToFile(offset: Int) {
@@ -184,9 +200,16 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
         onClose?()
     }
 
-    /// Diff commands reach the diff wherever focus is in the window.
+    /// Diff commands reach the diff wherever focus is in the window, and commands for the whole
+    /// repository reach its window.
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
-        DiffViewController.windowActions.contains(action) ? diff : super.supplementalTarget(forAction: action, sender: sender)
+        if DiffViewController.windowActions.contains(action) {
+            return diff
+        }
+        if RepositoryWindowController.repositoryActions.contains(action) {
+            return repositoryWindow
+        }
+        return super.supplementalTarget(forAction: action, sender: sender)
     }
 
     @objc private func goToPreviousFile(_: Any?) {
