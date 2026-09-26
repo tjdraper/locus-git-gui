@@ -76,11 +76,11 @@ final class StagingWorkflow {
     }
 
     /// An untracked file goes to the Trash. A tracked one goes back to how it's staged, with the
-    /// file as it was kept in the Trash.
-    func discard(_ file: DiffFile) {
-        guard let window = window?() else { return }
-        DiscardConfirmation.ask(discarding: .file, of: file, on: window) { [weak self] in
-            self?.discardConfirmed(file, keepingCopy: true)
+    /// file as it was kept in the Trash. One confirmation covers them all.
+    func discard(_ files: [DiffFile]) {
+        guard !files.isEmpty, let window = window?() else { return }
+        DiscardConfirmation.ask(discardingFiles: files, on: window) { [weak self] in
+            self?.discardConfirmed(files[...], keepingCopies: true)
         }
     }
 
@@ -122,7 +122,7 @@ final class StagingWorkflow {
             switch operation {
             case .stage: stage([file])
             case .unstage: unstage([file])
-            case .discard: discard(file)
+            case .discard: discard([file])
             }
             return
         }
@@ -140,29 +140,44 @@ final class StagingWorkflow {
         }
     }
 
-    private func discardConfirmed(_ file: DiffFile, keepingCopy: Bool) {
-        let url = workTree.appending(path: file.changed.path)
-        let isUntracked = WorkingAreaGroup(file) == .untracked
-        do {
-            if isUntracked {
-                if keepingCopy {
-                    try DiscardedVersionTrash.moveToTrash(url)
+    /// The Trash takes each file in turn. When it can't take one, the user is asked whether to go on
+    /// without it for the files left.
+    private func discardConfirmed(_ files: ArraySlice<DiffFile>, keepingCopies: Bool) {
+        var tracked: [String] = []
+        for (index, file) in zip(files.indices, files) {
+            let url = workTree.appending(path: file.changed.path)
+            do {
+                if WorkingAreaGroup(file) == .untracked {
+                    if keepingCopies {
+                        try DiscardedVersionTrash.moveToTrash(url)
+                    } else {
+                        try FileManager.default.removeItem(at: url)
+                    }
                 } else {
-                    try FileManager.default.removeItem(at: url)
+                    if keepingCopies {
+                        try DiscardedVersionTrash.keep(url)
+                    }
+                    tracked.append(file.changed.path)
                 }
-                queue.noteChange()
+            } catch {
+                restore(tracked, describing: Array(files[..<index]))
+                askWithoutTrash(file, because: error) { [weak self] in
+                    self?.discardConfirmed(files[index...], keepingCopies: false)
+                }
                 return
             }
-            if keepingCopy {
-                try DiscardedVersionTrash.keep(url)
-            }
-        } catch {
-            askWithoutTrash(file, because: error) { [weak self] in self?.discardConfirmed(file, keepingCopy: false) }
+        }
+        restore(tracked, describing: Array(files))
+    }
+
+    /// Puts tracked files back as they're staged, once the Trash has their copies.
+    private func restore(_ paths: [String], describing files: [DiffFile]) {
+        guard !paths.isEmpty else {
+            queue.noteChange()
             return
         }
-        let path = file.changed.path
-        queue.run("Git couldn’t discard the changes to \(Self.describe([file])).") { [commands] in
-            try await WorkingAreaStaging.discard([path], running: commands.run)
+        queue.run("Git couldn’t discard the changes to \(Self.describe(files)).") { [commands] in
+            try await WorkingAreaStaging.discard(paths, running: commands.run)
         }
     }
 

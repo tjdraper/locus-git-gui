@@ -64,6 +64,12 @@ final class DiffViewController: NSViewController {
     var onTypedKey: ((String) -> Bool)?
     /// The file Next File and Previous File went to, which stays current while it's in view.
     var markedFile: DiffFile.Identity?
+    /// Whether files can be picked to act on together, with ⌘-click, Shift-click and Shift-J/K.
+    var selectsFiles = false
+    /// The files picked, in no order. Empty when the current file is the one acted on.
+    var selectedFiles: Set<DiffFile.Identity> = []
+    /// Where Shift-click and Shift-J/K take in a range from.
+    var selectionAnchor: DiffFile.Identity?
 
     let options: DiffOptionsStore
     let workTree: URL
@@ -120,6 +126,7 @@ final class DiffViewController: NSViewController {
             self?.blockViews.update()
         }
         canvas.onTypedKey = { [weak self] key in self?.typed(key) ?? false }
+        canvas.onCancel = { [weak self] in self?.clearFileSelection() }
         images.onLoad = { [weak self] in self?.blockViews.update() }
         canvas.setAccessibilityLabel("Changes")
         canvas.setAccessibilityRole(.textArea)
@@ -174,6 +181,7 @@ final class DiffViewController: NSViewController {
         let previousFiles = self.files
         self.files = files
         markedFile = isSameDiff ? DiffCommandTarget.markedFile(markedFile, from: previousFiles, in: files) : nil
+        keepSelectedFilesStillShown()
         numberColumns = DiffLayout.numberColumns(of: files)
         emptyMessage.stringValue = message
         emptyMessage.isHidden = !files.isEmpty

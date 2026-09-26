@@ -14,6 +14,8 @@ extension DiffViewController {
         switch key {
         case Self.nextFileKey: goToFile(offset: 1)
         case Self.previousFileKey: goToFile(offset: -1)
+        case Self.nextFileKey.uppercased() where selectsFiles: extendSelection(offset: 1)
+        case Self.previousFileKey.uppercased() where selectsFiles: extendSelection(offset: -1)
         default: return false
         }
         return true

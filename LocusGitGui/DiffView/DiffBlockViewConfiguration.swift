@@ -51,8 +51,11 @@ extension DiffViewController {
             removed: file.patch.removed,
             isCollapsed: collapsedFiles.contains(id),
             isInWorkingTree: isInWorkingTree(path),
-            isCurrent: highlightsCurrentFile && canvas.hasFocus && commandTarget?.file == index
+            isCurrent: highlightsCurrentFile && canvas.hasFocus && commandTarget?.file == index,
+            isSelected: selectsFiles && selectedFiles.contains(id)
         ))
+        view.onCommandClick = selectsFiles ? { [weak self] in self?.toggleSelection(of: id) } : nil
+        view.onShiftClick = selectsFiles ? { [weak self] in self?.extendSelection(to: id) } : nil
         view.show(actions: fileActions?(file) ?? [])
         view.onToggle = { [weak self] in self?.toggleCollapsed(id) }
         view.onToggleAll = { [weak self] in self?.toggleAllCollapsed(like: id) }

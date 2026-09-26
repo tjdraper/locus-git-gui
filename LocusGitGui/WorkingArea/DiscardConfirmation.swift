@@ -9,6 +9,29 @@ enum DiscardConfirmation {
         case lines
     }
 
+    /// One file is named, and several are counted.
+    static func ask(discardingFiles files: [DiffFile], on window: NSWindow, then discard: @escaping () -> Void) {
+        guard files.count > 1 else {
+            if let file = files.first {
+                ask(discarding: .file, of: file, on: window, then: discard)
+            }
+            return
+        }
+        let alert = NSAlert()
+        let count = files.count.formatted()
+        if files.allSatisfy({ WorkingAreaGroup($0) == .untracked }) {
+            alert.messageText = "Move \(count) files to the Trash?"
+            alert.informativeText = "Git doesn’t track these files, so the copies in the Trash are the only ones."
+            alert.addButton(withTitle: "Move to Trash")
+        } else {
+            alert.messageText = "Discard the changes to \(count) files?"
+            alert.informativeText = "Changed files go back to how they’re staged, or how they were last committed, and "
+                + "untracked files are removed. Every file as it is now goes to the Trash first, so it can be put back."
+            alert.addButton(withTitle: "Discard \(count) Files")
+        }
+        present(alert, on: window, then: discard)
+    }
+
     static func ask(discarding scope: Scope, of file: DiffFile, on window: NSWindow, then discard: @escaping () -> Void) {
         let alert = NSAlert()
         let name = (file.changed.path as NSString).lastPathComponent

@@ -12,11 +12,17 @@ final class DiffFileHeaderView: NSView {
         let isInWorkingTree: Bool
         /// The file the keyboard acts on, such as with Space in the working area.
         var isCurrent = false
+        /// One of several files picked to act on together.
+        var isSelected = false
     }
 
     var onToggle: (() -> Void)?
     /// Option-click, which collapses or expands every file.
     var onToggleAll: (() -> Void)?
+    /// ⌘-click and Shift-click, which add the file to the files picked or take in the range up to it,
+    /// as in Finder. Nil in a diff whose files aren't picked.
+    var onCommandClick: (() -> Void)?
+    var onShiftClick: (() -> Void)?
     var onOpenInEditor: (() -> Void)?
     /// Built when the "…" button is pressed, so it names the file as it is then.
     var makeMenu: (() -> NSMenu)?
@@ -92,7 +98,7 @@ final class DiffFileHeaderView: NSView {
 
     func show(_ content: Content) {
         guard content != self.content else { return }
-        if content.isCurrent != self.content?.isCurrent {
+        if content.isCurrent != self.content?.isCurrent || content.isSelected != self.content?.isSelected {
             needsDisplay = true
         }
         self.content = content
@@ -164,9 +170,11 @@ final class DiffFileHeaderView: NSView {
         bounds.fill()
         NSColor.separatorColor.setFill()
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
-        if content?.isCurrent == true {
-            NSColor.controlAccentColor.withAlphaComponent(0.14).setFill()
+        if content?.isSelected == true || content?.isCurrent == true {
+            NSColor.controlAccentColor.withAlphaComponent(content?.isSelected == true ? 0.24 : 0.14).setFill()
             bounds.fill()
+        }
+        if content?.isCurrent == true {
             NSColor.controlAccentColor.setFill()
             NSRect(x: 0, y: 0, width: 3, height: bounds.height).fill()
         }
@@ -176,7 +184,14 @@ final class DiffFileHeaderView: NSView {
 
     /// Every click, so a double-click collapses the file and expands it again.
     override func mouseDown(with event: NSEvent) {
-        toggle(allFiles: event.modifierFlags.contains(.option))
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        if modifiers == .command, let onCommandClick {
+            onCommandClick()
+        } else if modifiers == .shift, let onShiftClick {
+            onShiftClick()
+        } else {
+            toggle(allFiles: modifiers.contains(.option))
+        }
     }
 
     private func toggle(allFiles: Bool) {

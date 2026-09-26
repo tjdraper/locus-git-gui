@@ -18,6 +18,8 @@ final class DiffCanvasView: NSView {
     var onFocusChange: (() -> Void)?
     /// A key typed while the diff has focus, which has no text to type into. True when it was used.
     var onTypedKey: ((String) -> Bool)?
+    /// Escape.
+    var onCancel: (() -> Void)?
 
     private(set) var content: Content?
     private(set) var selection: DiffSelection?
@@ -321,6 +323,10 @@ extension DiffCanvasView {
 
     override func moveToEndOfDocument(_ sender: Any?) {
         scrollToEndOfDocument(sender)
+    }
+
+    override func cancelOperation(_: Any?) {
+        onCancel?()
     }
 
     /// Nothing to do for keys that don't scroll, rather than beeping at each one.

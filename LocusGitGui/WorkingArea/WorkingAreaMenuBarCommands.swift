@@ -22,8 +22,9 @@ extension WorkingAreaViewController {
         isViewLoaded && !view.isHiddenOrHasHiddenAncestor
     }
 
-    private var currentFile: DiffFile? {
-        isShowing ? diff.currentFile : nil
+    /// The picked files, or the current one.
+    private var targets: StagingTargets {
+        StagingTargets(files: isShowing ? diff.filesToActOn : [])
     }
 
     /// A hunk, and its changed lines the selection picks, if any.
@@ -63,14 +64,10 @@ extension WorkingAreaViewController {
 
     /// A conflicted file is staged to mark it resolved.
     @objc func toggleFileStaging(_: Any?) {
-        guard let file = currentFile else {
-            NSSound.beep()
-            return
-        }
-        if WorkingAreaGroup(file) == .staged {
-            staging.unstage([file])
-        } else {
-            staging.stage([file])
+        switch targets.toggle {
+        case let .stage(files), let .resolve(files): staging.stage(files)
+        case let .unstage(files): staging.unstage(files)
+        case nil: NSSound.beep()
         }
     }
 
@@ -83,11 +80,12 @@ extension WorkingAreaViewController {
     }
 
     @objc func discardFile(_: Any?) {
-        guard let file = currentFile, WorkingAreaGroup(file) == .unstaged || WorkingAreaGroup(file) == .untracked else {
+        let files = targets.toDiscard
+        guard !files.isEmpty else {
             NSSound.beep()
             return
         }
-        staging.discard(file)
+        staging.discard(files)
     }
 
     @objc func discardHunk(_: Any?) {
@@ -136,22 +134,19 @@ extension WorkingAreaViewController: NSMenuItemValidation {
         }
     }
 
-    /// The commands that act on the current file or hunk.
+    /// The commands that act on the picked files, or the current file or hunk.
     private func validateStagingCommand(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
         case #selector(toggleFileStaging(_:)):
-            menuItem.title = switch currentFile.flatMap(WorkingAreaGroup.init) {
-            case .conflicted: "Mark as Resolved"
-            case .staged: "Unstage File"
-            default: AppCommand.toggleFileStaging.title
-            }
-            return currentFile != nil
+            let targets = targets
+            menuItem.title = targets.toggleTitle
+            return targets.toggle != nil
         case #selector(toggleHunkStaging(_:)):
             return validateHunkCommand(menuItem, verb: nil)
         case #selector(discardFile(_:)):
-            let group = currentFile.flatMap(WorkingAreaGroup.init)
-            menuItem.title = group == .untracked ? "Move to Trash…" : AppCommand.discardFile.title
-            return group == .unstaged || group == .untracked
+            let targets = targets
+            menuItem.title = targets.discardTitle
+            return !targets.toDiscard.isEmpty
         case #selector(discardHunk(_:)):
             return validateHunkCommand(menuItem, verb: "Discard")
         default:
