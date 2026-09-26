@@ -3,7 +3,8 @@
 /// file to the diff, and expand it.
 nonisolated enum WorkingAreaCollapse {
     /// A file that has left one group and arrived in another takes the state it had in the group it
-    /// left. A file that was already shown, or that's new to the working area, keeps its own.
+    /// left. A file that was already shown, or that's new to the working area, keeps its own. A file
+    /// that has left the working area is forgotten, since the state is saved with the repository.
     static func following(_ collapsed: Set<DiffFile.Identity>, from previous: [DiffFile], to files: [DiffFile]) -> Set<DiffFile.Identity> {
         let previousIDs = Set(previous.map(\.id))
         let currentIDs = Set(files.map(\.id))
@@ -20,6 +21,6 @@ nonisolated enum WorkingAreaCollapse {
                 result.remove(file.id)
             }
         }
-        return result
+        return result.intersection(currentIDs)
     }
 }

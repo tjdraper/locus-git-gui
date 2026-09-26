@@ -17,6 +17,7 @@ nonisolated struct RepositoryViewState: Codable, Equatable, Sendable {
     /// As `NSWindow.frameDescriptor` writes it, which records the screen as well as the frame.
     var windowFrame: String?
     var diffOptions = DiffOptions()
+    var collapsedFiles = CollapsedFileMemory()
     /// A commit message written and not yet committed, so closing the window doesn't lose it.
     var commitDraft: CommitMessage?
 }
@@ -31,6 +32,7 @@ nonisolated extension RepositoryViewState {
         columns = try container.decodeIfPresent(Columns.self, forKey: .columns)
         windowFrame = try container.decodeIfPresent(String.self, forKey: .windowFrame)
         diffOptions = try container.decodeIfPresent(DiffOptions.self, forKey: .diffOptions) ?? DiffOptions()
+        collapsedFiles = try container.decodeIfPresent(CollapsedFileMemory.self, forKey: .collapsedFiles) ?? CollapsedFileMemory()
         commitDraft = try container.decodeIfPresent(CommitMessage.self, forKey: .commitDraft)
     }
 }

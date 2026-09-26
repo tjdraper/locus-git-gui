@@ -57,4 +57,16 @@ struct WorkingAreaCollapseTests {
         // Assert
         #expect(collapsed.contains(staged.id))
     }
+
+    @Test
+    func aFileThatLeavesTheWorkingAreaIsForgotten() {
+        // Arrange
+        let committed = file("a", .staged)
+
+        // Act
+        let collapsed = WorkingAreaCollapse.following([committed.id], from: [committed], to: [file("b", .unstaged)])
+
+        // Assert
+        #expect(collapsed.isEmpty)
+    }
 }

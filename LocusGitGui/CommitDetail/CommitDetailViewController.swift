@@ -36,9 +36,13 @@ final class CommitDetailViewController: NSViewController {
     private var failure: GitFailure?
     private var reading: Task<Void, Never>?
     private var readingSignature: Task<Void, Never>?
+    private let collapsedFiles: CollapsedFilesStore
+    /// The commit whose changes the diff shows, which lags the header's while they're read.
+    private var shownHash: String?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, collapsedFiles: CollapsedFilesStore) {
         self.commands = commands
+        self.collapsedFiles = collapsedFiles
         diff = DiffViewController(options: diffOptions, workTree: commands.repository.workTree)
         super.init(nibName: nil, bundle: nil)
         placeholder.showDetails = { [weak self] in
@@ -53,6 +57,7 @@ final class CommitDetailViewController: NSViewController {
             openFileWindow?(FileWindowRequest(source: .commit(commit), file: file, files: diff.files))
         }
         diffOptions.observe(self) { [weak self] _ in self?.read(isSameDiff: true) }
+        connectCollapsedFiles()
     }
 
     @available(*, unavailable)
@@ -134,6 +139,7 @@ final class CommitDetailViewController: NSViewController {
         header.body = nil
         header.signature = nil
         header.isSignatureUnavailable = false
+        shownHash = nil
         diff.clear()
         read()
         readingSignature?.cancel()
@@ -213,7 +219,13 @@ final class CommitDetailViewController: NSViewController {
         diff.readFile = { [commands, options = diff.options] file in
             try await CommitDetail.readFile(file.changed, of: hash, options: options.options, readingPatch: commands.readPatch)
         }
-        diff.show(detail.files, emptyMessage: "This commit changes no files.", isSameDiff: isSameDiff)
+        shownHash = hash
+        diff.show(
+            detail.files,
+            emptyMessage: "This commit changes no files.",
+            isSameDiff: isSameDiff,
+            collapsed: collapsedFiles.files(in: .commit(hash))
+        )
         updatePlaceholder()
     }
 
@@ -294,5 +306,19 @@ extension CommitDetailViewController: NSMenuItemValidation {
         guard menuItem.action == #selector(toggleFullMessage(_:)) else { return true }
         menuItem.title = header.isMessageExpanded ? "Hide Full Message" : AppCommand.showFullMessage.title
         return header.body != nil
+    }
+}
+
+extension CommitDetailViewController {
+    /// Kept per commit, so going back to a commit shows it as it was left.
+    fileprivate func connectCollapsedFiles() {
+        diff.onCollapsedFilesChange = { [weak self] files in
+            guard let self, let shownHash else { return }
+            collapsedFiles.set(files, in: .commit(shownHash))
+        }
+        collapsedFiles.observe(self) { [weak self] diff, files in
+            guard let self, let shownHash, diff == .commit(shownHash) else { return }
+            self.diff.showCollapsedFiles(files)
+        }
     }
 }

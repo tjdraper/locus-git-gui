@@ -7,6 +7,7 @@ final class WorkingAreaWindowCoordinator {
     var showFailure: ((GitFailure, NSWindow, _ retry: @escaping () -> Void) -> Void)?
     private let commands: RepositoryCommandRunner
     private let diffOptions: DiffOptionsStore
+    private let collapsedFiles: CollapsedFilesStore
     private let session: WorkingAreaSession
     private var controller: WorkingAreaWindowController?
     private var snapshot: RepositorySnapshot?
@@ -15,11 +16,13 @@ final class WorkingAreaWindowCoordinator {
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
+        collapsedFiles: CollapsedFilesStore,
         session: WorkingAreaSession,
         repositoryWindow: RepositoryWindowController
     ) {
         self.commands = commands
         self.diffOptions = diffOptions
+        self.collapsedFiles = collapsedFiles
         self.session = session
         self.repositoryWindow = repositoryWindow
     }
@@ -34,7 +37,12 @@ final class WorkingAreaWindowCoordinator {
             controller.showWindow(nil)
             return
         }
-        let workingArea = WorkingAreaViewController(commands: commands, diffOptions: diffOptions, session: session)
+        let workingArea = WorkingAreaViewController(
+            commands: commands,
+            diffOptions: diffOptions,
+            collapsedFiles: collapsedFiles,
+            session: session
+        )
         let controller = WorkingAreaWindowController(workingArea: workingArea, repositoryName: repositoryName)
         controller.repositoryWindow = repositoryWindow
         workingArea.openFileWindow = { [weak self, weak controller] request in self?.openFileWindow?(request, controller?.window) }

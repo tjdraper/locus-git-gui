@@ -48,6 +48,7 @@
 				Dashboard/DashboardSelection.swift,
 				Dashboard/RecentRepositoryState.swift,
 				DiffView/ChangedFile.swift,
+				DiffView/CollapsedFileMemory.swift,
 				DiffView/ChangedWords.swift,
 				DiffView/DiffCommandTarget.swift,
 				DiffView/DiffDocument.swift,

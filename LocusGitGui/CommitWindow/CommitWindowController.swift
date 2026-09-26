@@ -11,10 +11,10 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
     private let failureSheet = GitFailureSheetPresenter()
     private let repository: Repository
 
-    init(repositoryName: String, commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+    init(repositoryName: String, commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, collapsedFiles: CollapsedFilesStore) {
         repository = commands.repository
         self.repositoryName = repositoryName
-        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions)
+        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions, collapsedFiles: collapsedFiles)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],

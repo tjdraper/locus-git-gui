@@ -49,9 +49,16 @@ final class WorkingAreaViewController: NSViewController {
     private var isShown = false
     private var reading: Task<Void, Never>?
     private var failure: GitFailure?
+    private let collapsedFiles: CollapsedFilesStore
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, session: WorkingAreaSession) {
+    init(
+        commands: RepositoryCommandRunner,
+        diffOptions: DiffOptionsStore,
+        collapsedFiles: CollapsedFilesStore,
+        session: WorkingAreaSession
+    ) {
         self.commands = commands
+        self.collapsedFiles = collapsedFiles
         self.session = session
         diff = DiffViewController(options: diffOptions, workTree: commands.repository.workTree)
         staging = StagingWorkflow(commands: commands, options: diffOptions, queue: session.queue)
@@ -62,6 +69,7 @@ final class WorkingAreaViewController: NSViewController {
             showFailure?(failure) { [weak self] in self?.read() }
         }
         connectDiff()
+        connectCollapsedFiles()
         diffOptions.observe(self) { [weak self] _ in self?.read() }
     }
 
@@ -176,7 +184,9 @@ final class WorkingAreaViewController: NSViewController {
                 guard !Task.isCancelled, let self else { return }
                 Self.log.info("Read the working area's \(files.count) files in \(ContinuousClock.now - started, privacy: .public)")
                 failure = nil
-                diff.collapsedFiles = WorkingAreaCollapse.following(diff.collapsedFiles, from: allFiles, to: files)
+                let collapsed = WorkingAreaCollapse.following(diff.collapsedFiles, from: allFiles, to: files)
+                diff.collapsedFiles = collapsed
+                collapsedFiles.set(collapsed, in: .workingArea)
                 allFiles = files
                 showFiltered()
                 diff.readImagesAgain()
@@ -197,6 +207,16 @@ final class WorkingAreaViewController: NSViewController {
             } catch {
                 Self.log.error("Reading the working area failed: \(String(describing: type(of: error)), privacy: .public)")
             }
+        }
+    }
+
+    /// The detail column and the working area window show the same files collapsed.
+    private func connectCollapsedFiles() {
+        diff.collapsedFiles = collapsedFiles.files(in: .workingArea)
+        diff.onCollapsedFilesChange = { [weak self] files in self?.collapsedFiles.set(files, in: .workingArea) }
+        collapsedFiles.observe(self) { [weak self] diff, files in
+            guard diff == .workingArea else { return }
+            self?.diff.showCollapsedFiles(files)
         }
     }
 

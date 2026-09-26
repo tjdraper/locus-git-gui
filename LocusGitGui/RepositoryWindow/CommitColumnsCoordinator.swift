@@ -25,13 +25,23 @@ final class CommitColumnsCoordinator {
     /// As of the last refresh.
     private var workingAreaSummary: WorkingAreaSummary?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, commitDraft: CommitMessage?) {
+    init(
+        commands: RepositoryCommandRunner,
+        diffOptions: DiffOptionsStore,
+        collapsedFiles: CollapsedFilesStore,
+        commitDraft: CommitMessage?
+    ) {
         history = HistoryViewController(list: HistoryList { command, onOutput in
             try await commands.run(command, onOutput: onOutput)
         })
-        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions)
+        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions, collapsedFiles: collapsedFiles)
         workingAreaSession = WorkingAreaSession(commands: commands, draft: commitDraft)
-        workingArea = WorkingAreaViewController(commands: commands, diffOptions: diffOptions, session: workingAreaSession)
+        workingArea = WorkingAreaViewController(
+            commands: commands,
+            diffOptions: diffOptions,
+            collapsedFiles: collapsedFiles,
+            session: workingAreaSession
+        )
         detailColumn = DetailColumnController(commit: detail, workingArea: workingArea)
         history.onSelect = { [weak self] item in
             guard let self else { return }

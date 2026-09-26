@@ -41,6 +41,7 @@ extension DiffViewController {
 
     @objc func collapseAllFiles(_: Any?) {
         collapsedFiles = Set(files.map(\.id))
+        onCollapsedFilesChange?(collapsedFiles)
         rebuild(keepingPlace: false)
         canvas.scroll(to: 0)
         blockViews.update()
@@ -54,6 +55,7 @@ extension DiffViewController {
             content.layout.block(atY: canvas.visibleRect.minY).map { files[content.document.blocks[$0].file].id }
         }
         collapsedFiles = []
+        onCollapsedFilesChange?(collapsedFiles)
         if let top {
             rebuildKeepingHeader(of: top)
         } else {

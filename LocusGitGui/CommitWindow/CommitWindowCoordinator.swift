@@ -10,13 +10,20 @@ final class CommitWindowCoordinator {
     var openFileWindow: ((FileWindowRequest, NSWindow?) -> Void)?
     private let commands: RepositoryCommandRunner
     private let diffOptions: DiffOptionsStore
+    private let collapsedFiles: CollapsedFilesStore
     private var controllers: [CommitWindowController] = []
     private var labels: [String: [CommitRefLabel]] = [:]
     private weak var repositoryWindow: RepositoryWindowController?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, repositoryWindow: RepositoryWindowController) {
+    init(
+        commands: RepositoryCommandRunner,
+        diffOptions: DiffOptionsStore,
+        collapsedFiles: CollapsedFilesStore,
+        repositoryWindow: RepositoryWindowController
+    ) {
         self.commands = commands
         self.diffOptions = diffOptions
+        self.collapsedFiles = collapsedFiles
         self.repositoryWindow = repositoryWindow
     }
 
@@ -26,7 +33,12 @@ final class CommitWindowCoordinator {
             existing.showWindow(nil)
             return
         }
-        let controller = CommitWindowController(repositoryName: repositoryName, commands: commands, diffOptions: diffOptions)
+        let controller = CommitWindowController(
+            repositoryName: repositoryName,
+            commands: commands,
+            diffOptions: diffOptions,
+            collapsedFiles: collapsedFiles
+        )
         controller.repositoryWindow = self.repositoryWindow
         controller.detail.reveal = { [weak self] item in self?.reveal?(item) }
         controller.detail.openFileWindow = { [weak self, weak controller] request in

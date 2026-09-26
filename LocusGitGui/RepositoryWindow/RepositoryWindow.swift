@@ -8,6 +8,33 @@ final class RepositoryWindow: NSWindow {
     /// Given whether Shift was held. True when it moved focus.
     var onTab: ((_ backward: Bool) -> Bool)?
 
+    static let contentSize = NSSize(width: 1200, height: 760)
+
+    convenience init(showing repository: Repository) {
+        self.init(
+            contentRect: NSRect(origin: .zero, size: Self.contentSize),
+            // The sidebar runs the full height of the window, under the toolbar.
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        // Still read by the Window menu, Mission Control and VoiceOver while the toolbar shows it.
+        title = (repository.workTree.path as NSString).abbreviatingWithTildeInPath
+        titleVisibility = .hidden
+        isReleasedWhenClosed = false
+        // Kept apart from the dashboard and Activity windows, which also count as documents to
+        // macOS's automatic tabbing.
+        tabbingIdentifier = "RepositoryWindow"
+        identifier = RepositoryWindowRestoration.identifier
+        restorationClass = RepositoryWindowRestoration.self
+    }
+
+    /// Setting the content resizes the window to it, so the size is set again after.
+    func show(_ content: NSViewController) {
+        contentViewController = content
+        setContentSize(Self.contentSize)
+    }
+
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown,
            event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command,

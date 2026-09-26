@@ -12,7 +12,7 @@ nonisolated struct DiffFile: Equatable, Sendable {
 
     /// Tells files apart in a diff where the same path can show twice, such as its staged and its
     /// unstaged changes.
-    struct Identity: Hashable, Sendable {
+    struct Identity: Hashable, Codable, Sendable {
         let group: Int?
         let path: String
     }

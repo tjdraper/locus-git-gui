@@ -87,6 +87,8 @@ final class DiffViewController: NSViewController {
 
     private(set) var files: [DiffFile] = []
     var collapsedFiles: Set<DiffFile.Identity> = []
+    /// Told when the user collapses or expands files, for whoever shows the diff to remember.
+    var onCollapsedFilesChange: ((Set<DiffFile.Identity>) -> Void)?
     /// Files whose left-out changes the user asked to see, which whoever reads the diff again, as
     /// the working area does on every refresh, reads whole again.
     private(set) var filesShownWhole: Set<DiffFile.Identity> = []
@@ -168,11 +170,12 @@ final class DiffViewController: NSViewController {
     }
 
     /// `isSameDiff` keeps which files are collapsed and where the diff is scrolled to, for the same
-    /// changes read again, such as with other options.
-    func show(_ files: [DiffFile], emptyMessage message: String, isSameDiff: Bool) {
+    /// changes read again, such as with other options. Otherwise the files start out as `collapsed`
+    /// says.
+    func show(_ files: [DiffFile], emptyMessage message: String, isSameDiff: Bool, collapsed: Set<DiffFile.Identity> = []) {
         _ = view
         if !isSameDiff {
-            collapsedFiles = []
+            collapsedFiles = collapsed
             filesShownWhole = []
             images.removeAll()
         }
@@ -306,12 +309,21 @@ extension DiffViewController {
         } else {
             collapsedFiles.insert(id)
         }
+        onCollapsedFilesChange?(collapsedFiles)
         rebuildKeepingHeader(of: id)
+    }
+
+    /// Collapsed or expanded somewhere else showing the same diff.
+    func showCollapsedFiles(_ collapsed: Set<DiffFile.Identity>) {
+        guard collapsed != collapsedFiles else { return }
+        collapsedFiles = collapsed
+        rebuild(keepingPlace: true)
     }
 
     /// Option-click, as in Finder: every file goes the way the clicked one would.
     func toggleAllCollapsed(like id: DiffFile.Identity) {
         collapsedFiles = collapsedFiles.contains(id) ? [] : Set(files.map(\.id))
+        onCollapsedFilesChange?(collapsedFiles)
         rebuildKeepingHeader(of: id)
     }
 

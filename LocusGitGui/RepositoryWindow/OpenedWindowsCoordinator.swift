@@ -16,16 +16,23 @@ final class OpenedWindowsCoordinator {
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
+        collapsedFiles: CollapsedFilesStore,
         session: WorkingAreaSession,
         repositoryName: String,
         repositoryWindow: RepositoryWindowController
     ) {
         self.repositoryName = repositoryName
-        commits = CommitWindowCoordinator(commands: commands, diffOptions: diffOptions, repositoryWindow: repositoryWindow)
+        commits = CommitWindowCoordinator(
+            commands: commands,
+            diffOptions: diffOptions,
+            collapsedFiles: collapsedFiles,
+            repositoryWindow: repositoryWindow
+        )
         files = FileWindowCoordinator(commands: commands, diffOptions: diffOptions, repositoryWindow: repositoryWindow)
         workingArea = WorkingAreaWindowCoordinator(
             commands: commands,
             diffOptions: diffOptions,
+            collapsedFiles: collapsedFiles,
             session: session,
             repositoryWindow: repositoryWindow
         )

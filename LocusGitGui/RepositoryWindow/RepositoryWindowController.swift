@@ -15,9 +15,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let pinning: SidebarPinWorkflow
     private let commitColumns: CommitColumnsCoordinator
     private let diffOptions: DiffOptionsStore
+    private let collapsedFiles: CollapsedFilesStore
     private lazy var openedWindows = OpenedWindowsCoordinator(
         commands: commands,
         diffOptions: diffOptions,
+        collapsedFiles: collapsedFiles,
         session: commitColumns.workingAreaSession,
         repositoryName: name,
         repositoryWindow: self
@@ -60,40 +62,30 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         sidebar = SidebarModel(state: viewState)
         pinning = SidebarPinWorkflow(sidebar: sidebar, workTree: repository.workTree)
         diffOptions = DiffOptionsStore(options: viewState.diffOptions)
+        collapsedFiles = CollapsedFilesStore(memory: viewState.collapsedFiles)
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
         // The split view sets the columns' sizes, not SwiftUI.
         sidebarController.sizingOptions = []
         sidebarView = sidebarController.view
-        commitColumns = CommitColumnsCoordinator(commands: commands, diffOptions: diffOptions, commitDraft: viewState.commitDraft)
+        commitColumns = CommitColumnsCoordinator(
+            commands: commands,
+            diffOptions: diffOptions,
+            collapsedFiles: collapsedFiles,
+            commitDraft: viewState.commitDraft
+        )
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
             history: commitColumns.history,
             detail: commitColumns.detailColumn,
             columns: viewState.columns
         )
-        let window = RepositoryWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 760),
-            // The sidebar runs the full height of the window, under the toolbar.
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        // Still read by the Window menu, Mission Control and VoiceOver while the toolbar shows it.
-        window.title = (repository.workTree.path as NSString).abbreviatingWithTildeInPath
-        window.titleVisibility = .hidden
-        window.isReleasedWhenClosed = false
-        // Kept apart from the dashboard and Activity windows, which also count as documents to
-        // macOS's automatic tabbing.
-        window.tabbingIdentifier = "RepositoryWindow"
-        window.identifier = RepositoryWindowRestoration.identifier
-        window.restorationClass = RepositoryWindowRestoration.self
+        let window = RepositoryWindow(showing: repository)
         super.init(window: window)
-        // Setting the content resizes the window to it, so the size is set again after.
-        window.contentViewController = columns
-        window.setContentSize(NSSize(width: 1200, height: 760))
+        window.show(columns)
         connectSidebar()
         columns.onColumnsChange = { [weak self] in self?.saveViewState() }
         diffOptions.onChange = { [weak self] _ in self?.saveViewState() }
+        collapsedFiles.onChange = { [weak self] _ in self?.saveViewState() }
         connectCommitColumns()
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
         window.onTab = { [weak self, weak window] backward in
@@ -151,7 +143,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         if NSScreen.screens.contains(where: { $0.visibleFrame.intersects(window.frame) }) {
             return true
         }
-        window.setContentSize(NSSize(width: 1200, height: 760))
+        window.setContentSize(RepositoryWindow.contentSize)
         return false
     }
 
@@ -257,6 +249,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         state.collapsedRemotes = sidebar.collapsedRemotes
         state.columns = columns.columns
         state.diffOptions = diffOptions.options
+        state.collapsedFiles = collapsedFiles.memory
         state.commitDraft = commitColumns.workingArea.draft
         viewStates.set(state, for: repository)
     }
