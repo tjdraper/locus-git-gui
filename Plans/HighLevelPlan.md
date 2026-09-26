@@ -408,6 +408,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Check out, create, rename and delete branches. Set and unset upstream.
     - Merge, rebase, cherry-pick and revert, from the sidebar, the history and the palette
     - Reset the current branch to a commit: soft, mixed or hard, with hard asking first
+    - Edit a commit picked in the history: Reword… changes its message, and Edit… stops there so its contents can be changed in the working area, then Continue carries the change through the commits after it. Both in the Commit menu, the history's context menu and the palette. Git does it as a small interactive rebase of the checked-out branch (`GIT_SEQUENCE_EDITOR` marking that one commit), so it stops on conflicts like any rebase, with the bar and menu items below. Only for a commit on the checked-out branch, since the rebase rewrites that branch; the menu says why it's disabled otherwise. Asks first when the commit is already on the upstream, since the branch will need a force push. The last commit is simply Amend Last Commit (slice 9). The list-based interactive rebase stays in Future versions.
     - Create and delete tags, annotated or lightweight
     - Stash, stash including untracked, apply, pop and drop
     - An operation that stops partway (conflicts, a rebase step) puts the window into that state: the title bar says so, and Continue, Skip and Abort are in the menu and on a bar above the history
@@ -584,7 +585,7 @@ Git clients tend to grow things that aren't Git. These stay out on purpose:
 
 ## Future versions
 
-- **Interactive rebase.** Reorder, squash, fixup, edit and reword commits in a list, then run. The biggest Git feature missing from v1, and the one most worth doing well.
+- **Interactive rebase.** Reorder, squash, fixup, edit and reword commits in a list, then run. The biggest Git feature missing from v1, and the one most worth doing well. Rewording or editing one commit picked in the history comes earlier, in slice 11.
 - **Blame and file history.** Both are Git and both belong here, just not in the first release.
 - **Undo through the reflog.** ⌘Z after a commit, reset, checkout or rebase, restoring the previous state. Needs care to never lose work, so it waits until the rest is solid.
 - **Syntax highlighting in diffs.** Side by side moved into slice 8.
