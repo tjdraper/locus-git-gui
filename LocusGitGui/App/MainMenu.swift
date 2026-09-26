@@ -35,6 +35,8 @@ enum MainMenu {
             items(.showDashboard),
             owned.dashboardFile,
             [.separator()],
+            items(.openInEditor, .revealChangedFileInFinder, .copyAbsolutePath, .copyPathFromRepositoryRoot, .openFileInNewWindow),
+            [.separator()],
             items(.close),
         ]))
 
@@ -46,19 +48,7 @@ enum MainMenu {
             items(.findInHistory, .findByMessage, .findByAuthor, .findInChanges),
         ]))
 
-        // AppKit adds the tab bar and full screen items, and retitles the sidebar and toolbar items
-        // to Show or Hide as they change.
-        main.addItem(submenu(named: "View", items: [
-            owned.commandPalette,
-            [.separator()],
-            items(.showSidebar, .filterSidebar, .showToolbar, .customizeToolbar),
-            [.separator()],
-            owned.goTo,
-            [.separator()],
-            items(.showActivity),
-            owned.dashboardView,
-        ]))
-
+        main.addItem(viewMenu(owned))
         main.addItem(commitMenu(owned))
 
         let windowMenu = submenu(named: "Window", items: [
@@ -75,6 +65,25 @@ enum MainMenu {
         NSApp.mainMenu = main
         NSApp.windowsMenu = windowMenu.submenu
         NSApp.helpMenu = help.submenu
+    }
+
+    /// AppKit adds the tab bar and full screen items, and retitles the sidebar and toolbar items to
+    /// Show or Hide as they change.
+    private static func viewMenu(_ owned: OwnedItems) -> NSMenuItem {
+        submenu(named: "View", items: [
+            owned.commandPalette,
+            [.separator()],
+            items(.showSidebar, .filterSidebar, .showToolbar, .customizeToolbar),
+            [.separator()],
+            owned.goTo,
+            [.separator()],
+            items(.collapseFile, .expandFile, .collapseAllFiles, .expandAllFiles, .goToNextFile, .goToPreviousFile),
+            [.separator()],
+            items(.ignoreWhitespace, .showMoreContext, .showLessContext),
+            [.separator()],
+            items(.showActivity),
+            owned.dashboardView,
+        ])
     }
 
     private static func commitMenu(_ owned: OwnedItems) -> NSMenuItem {

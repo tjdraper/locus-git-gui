@@ -24,6 +24,27 @@ final class RepositoryCommandRunner {
     /// `onOutput` is handed Git's standard output as it arrives, for a caller that shows it before
     /// the command has finished.
     func run(_ command: GitCommand, onOutput: ((Data) -> Void)?) async throws -> ChildProcess.Result {
+        try await perform(command) { runner, directory in
+            guard let onOutput else {
+                return (try await runner.run(command, in: directory), ())
+            }
+            return (try await Self.collect(runner.stream(command, in: directory), onOutput: onOutput), ())
+        }.result
+    }
+
+    /// Reads a patch as Git writes it, away from the main actor, without keeping the output itself,
+    /// which for a large commit can be hundreds of megabytes. The result's standard output is empty.
+    func readPatch(_ command: GitCommand, limits: PatchParser.Limits) async throws -> (result: ChildProcess.Result, files: [FilePatch]) {
+        let (result, files) = try await perform(command) { runner, directory in
+            try await Self.parsePatch(runner.stream(command, in: directory), parser: PatchParser(limits: limits))
+        }
+        return (result, files)
+    }
+
+    private func perform<Value: Sendable>(
+        _ command: GitCommand,
+        _ body: @escaping (GitRunner, URL) async throws -> (ChildProcess.Result, Value)
+    ) async throws -> (result: ChildProcess.Result, value: Value) {
         guard let runner = await gitChoice.runner() else {
             throw NoUsableGit()
         }
@@ -42,22 +63,19 @@ final class RepositoryCommandRunner {
         // Run as a task of its own, so the Activity window can cancel it as well as its caller.
         let directory = repository.workTree
         let task = Task {
-            guard let onOutput else {
-                return try await runner.run(command, in: directory)
-            }
-            return try await Self.collect(runner.stream(command, in: directory), onOutput: onOutput)
+            try await body(runner, directory)
         }
         let running = log.begin(command.arguments, at: startedAt) { task.cancel() }
         defer { log.end(running) }
 
         do {
-            let result = try await withTaskCancellationHandler {
+            let (result, value) = try await withTaskCancellationHandler {
                 try await task.value
             } onCancel: {
                 task.cancel()
             }
             record(.exited(result))
-            return result
+            return (result, value)
         } catch let ChildProcess.Failure.couldNotStart(error) {
             record(.couldNotStart(error.localizedDescription))
             // Git can fail to start because it's gone, or because the repository's folder is.
@@ -70,6 +88,26 @@ final class RepositoryCommandRunner {
             record(.cancelled)
             throw error
         }
+    }
+
+    @concurrent
+    private nonisolated static func parsePatch(
+        _ events: AsyncThrowingStream<ChildProcess.Event, any Error>,
+        parser: PatchParser
+    ) async throws -> (ChildProcess.Result, [FilePatch]) {
+        var parser = parser
+        var standardError = Data()
+        for try await event in events {
+            switch event {
+            case let .standardOutput(data):
+                parser.consume(data)
+            case let .standardError(data):
+                standardError.append(data)
+            case let .exited(status):
+                return (ChildProcess.Result(status: status, standardOutput: Data(), standardError: standardError), parser.finish())
+            }
+        }
+        throw CancellationError()
     }
 
     private static func collect(

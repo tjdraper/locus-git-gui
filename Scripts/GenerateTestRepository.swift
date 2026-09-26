@@ -1,4 +1,7 @@
+import CoreGraphics
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 // Builds a repository with as much history as a performance check needs, through `git fast-import`,
 // which writes a million commits in about a minute where committing them one by one would take hours.
@@ -14,6 +17,7 @@ struct Options {
     var remoteBranches = 0
     var tags = 100
     var writesCommitGraph = false
+    var addsLargeChanges = false
 }
 
 func parseOptions() -> Options {
@@ -33,6 +37,7 @@ func parseOptions() -> Options {
         case "--remote-branches": options.remoteBranches = number(for: argument)
         case "--tags": options.tags = number(for: argument)
         case "--commit-graph": options.writesCommitGraph = true
+        case "--large-changes": options.addsLargeChanges = true
         case "--help", "-h": usage()
         default:
             guard options.folder.isEmpty, !argument.hasPrefix("-") else { fail("Unknown option \(argument)") }
@@ -53,6 +58,8 @@ func usage() -> Never {
       --remote-branches <n>  Branches under refs/remotes/origin (default 0)
       --tags <n>             Tags pointing into the history (default 100)
       --commit-graph         Write a commit-graph file afterwards, as `git gc` would
+      --large-changes        End main with commits whose diffs are hard to show, tagged perf/…:
+                             thousands of files, a huge file, one enormous line, a large image
     """)
     exit(0)
 }
@@ -95,7 +102,11 @@ final class Stream {
     }
 
     func write(_ text: String) {
-        buffer.append(contentsOf: text.utf8)
+        write(Data(text.utf8))
+    }
+
+    func write(_ data: Data) {
+        buffer.append(data)
         if buffer.count > 1 << 20 {
             flush()
         }
@@ -191,6 +202,10 @@ let status = git(["fast-import", "--quiet"], in: folder) { handle in
             stream.write("reset \(make(index, target))\nfrom :\(target)\n\n")
         }
     }
+    if options.addsLargeChanges {
+        mainTip = addLargeChanges(to: stream, after: mainTip, mark: &mark, time: &time)
+    }
+
     spread(options.branches) { index, _ in "refs/heads/topic/branch-\(index)" }
     spread(options.remoteBranches) { index, _ in "refs/remotes/origin/topic/branch-\(index)" }
     spread(options.tags) { index, _ in "refs/tags/v\(options.tags - index).0" }
@@ -200,6 +215,84 @@ let status = git(["fast-import", "--quiet"], in: folder) { handle in
     stream.flush()
 }
 guard status == 0 else { fail("git fast-import failed") }
+
+/// Commits on main whose diffs are hard to show, each tagged so a performance check can find it.
+func addLargeChanges(to stream: Stream, after parent: Int?, mark: inout Int, time: inout Int) -> Int? {
+    var tip = parent
+    func commit(_ message: String, tag: String? = nil, files: [(path: String, contents: Data)]) {
+        mark += 1
+        time += 60
+        stream.write("commit refs/heads/main\nmark :\(mark)\n")
+        stream.write("author \(person(mark, at: time))\ncommitter \(person(mark, at: time))\n")
+        stream.data(message + "\n")
+        if let tip {
+            stream.write("from :\(tip)\n")
+        }
+        for file in files {
+            stream.write("M 100644 inline \(file.path)\ndata \(file.contents.count)\n")
+            stream.write(file.contents)
+            stream.write("\n")
+        }
+        stream.write("\n")
+        tip = mark
+        if let tag {
+            stream.write("reset refs/tags/perf/\(tag)\nfrom :\(mark)\n\n")
+        }
+    }
+    func lines(_ count: Int, changing every: Int? = nil, _ line: (Int) -> String) -> Data {
+        Data((0 ..< count).map { index in
+            (every.map { index % $0 == 0 } ?? false ? "changed " : "") + line(index) + "\n"
+        }.joined().utf8)
+    }
+
+    let manyFiles = 5000
+    let fileLines = { (index: Int, changing: Bool) in
+        lines(20, changing: changing ? 4 : nil) { "Line \($0) of file \(index), with enough words to be a typical line of code" }
+    }
+    commit("Add many files", files: (0 ..< manyFiles).map { ("many/file-\($0).txt", fileLines($0, false)) })
+    commit("Change many files", tag: "many-files", files: (0 ..< manyFiles).map { ("many/file-\($0).txt", fileLines($0, true)) })
+
+    let largeLines = 200_000
+    commit("Add a large file", tag: "large-file-added", files: [("large.txt", lines(largeLines) { "Line \($0) of a large file" })])
+    commit("Change a large file", tag: "large-file", files: [("large.txt", lines(largeLines, changing: 10) { "Line \($0) of a large file" })])
+
+    let longLine = { (seed: Int) in
+        Data((String(repeating: "var a\(seed)=function(b){return b+1};", count: 150_000) + "\n").utf8)
+    }
+    commit("Add a minified file", files: [("minified.js", longLine(1))])
+    commit("Change a minified file", tag: "long-line", files: [("minified.js", longLine(2))])
+
+    commit("Add a large image", files: [("large.png", image(width: 8000, height: 6000, seed: 1))])
+    commit("Change a large image", tag: "large-image", files: [("large.png", image(width: 8000, height: 6000, seed: 2))])
+    return tip
+}
+
+/// A PNG of coloured blocks, which compresses poorly enough to be many megabytes.
+func image(width: Int, height: Int, seed: UInt64) -> Data {
+    guard let context = CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else { fail("Couldn’t draw an image") }
+    var random = seed
+    func next() -> Double {
+        random = random &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+        return Double(random >> 11) / Double(1 << 53)
+    }
+    for y in stride(from: 0, to: height, by: 16) {
+        for x in stride(from: 0, to: width, by: 16) {
+            context.setFillColor(CGColor(red: next(), green: next(), blue: next(), alpha: 1))
+            context.fill(CGRect(x: x, y: y, width: 16, height: 16))
+        }
+    }
+    let data = NSMutableData()
+    guard let cgImage = context.makeImage(),
+          let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
+        fail("Couldn’t write an image")
+    }
+    CGImageDestinationAddImage(destination, cgImage, nil)
+    CGImageDestinationFinalize(destination)
+    return data as Data
+}
 git(["reset", "--hard", "--quiet"], in: folder)
 if options.writesCommitGraph {
     git(["commit-graph", "write", "--reachable"], in: folder)

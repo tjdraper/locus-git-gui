@@ -10,10 +10,10 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
     private let failureSheet = GitFailureSheetPresenter()
     private let repository: Repository
 
-    init(repository: Repository, repositoryName: String, run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
-        self.repository = repository
+    init(repositoryName: String, commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+        repository = commands.repository
         self.repositoryName = repositoryName
-        detail = CommitDetailViewController(run: run)
+        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -55,6 +55,11 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_: Notification) {
         onClose?()
+    }
+
+    /// Diff commands reach the diff wherever focus is in the window.
+    override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
+        DiffViewController.windowActions.contains(action) ? detail.diff : super.supplementalTarget(forAction: action, sender: sender)
     }
 
     @objc func copyCommitHash(_: Any?) {

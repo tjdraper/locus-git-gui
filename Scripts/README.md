@@ -38,7 +38,11 @@ A generated repository, built in about a minute without the network:
 swift Scripts/GenerateTestRepository.swift ~/Scratch/million --commits 1000000
 ```
 
-It makes `main` and several lanes of work beside it (`--lanes`), each merged back into `main` in turn, plus extra branches (`--branches`), remote branches (`--remote-branches`) and tags (`--tags`). `--commit-graph` writes a commit-graph file afterwards; without it, the repository is in the state a fresh clone is usually in. Add or remove the file later with `git commit-graph write --reachable` and `rm .git/objects/info/commit-graph`. Run it with `--help` for the defaults.
+It makes `main` and several lanes of work beside it (`--lanes`), each merged back into `main` in turn, plus extra branches (`--branches`), remote branches (`--remote-branches`) and tags (`--tags`). `--large-changes` ends `main` with commits whose diffs are hard to show, each tagged `perf/…`: 5,000 files changed at once (`perf/many-files`), a file of 200,000 lines with 20,000 of them changed (`perf/large-file`), a minified file whose one line is millions of characters (`perf/long-line`), and an 8000 × 6000 image (`perf/large-image`). The history's length doesn't change what they cost, so a short one will do:
+
+```
+swift Scripts/GenerateTestRepository.swift ~/Scratch/diffs --commits 2000 --large-changes
+``` `--commit-graph` writes a commit-graph file afterwards; without it, the repository is in the state a fresh clone is usually in. Add or remove the file later with `git commit-graph write --reachable` and `rm .git/objects/info/commit-graph`. Run it with `--help` for the defaults.
 
 A real one, for the shapes a generator doesn't make, such as octopus merges with dozens of parents. A blobless clone of the Linux kernel has its whole history, 1.3 million commits, without the file contents, which it fetches only when a diff needs them:
 
@@ -53,9 +57,15 @@ TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/million xcodebuild -project "
 cat ~/Scratch/million-performance.txt
 ```
 
+`DiffPerformanceTests` times reading and laying out the `perf/…` commits the same way, and skips any tag the repository doesn't have:
+
+```
+TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/diffs xcodebuild -project "Locus Git Gui.xcodeproj" -scheme "Locus Git Gui" -destination "platform=macOS" -configuration Release test -only-testing:"Locus Git Gui Tests/DiffPerformanceTests"
+```
+
 The timings go in a file beside the repository, since a test's printed output doesn't reach `xcodebuild`. Each run adds to it.
 
-In the app, the history logs how long each page took under the `History` category (see Reading the app's log in `AGENTS.md`).
+In the app, the history logs how long each page took under the `History` category, and the diff how long a commit took to read (`CommitDetail`) and to lay out (`DiffView`) (see Reading the app's log in `AGENTS.md`).
 
 ## Versions and the beta channel
 

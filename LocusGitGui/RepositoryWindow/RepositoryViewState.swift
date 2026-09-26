@@ -16,6 +16,7 @@ nonisolated struct RepositoryViewState: Codable, Equatable, Sendable {
     var columns: Columns?
     /// As `NSWindow.frameDescriptor` writes it, which records the screen as well as the frame.
     var windowFrame: String?
+    var diffOptions = DiffOptions()
 }
 
 nonisolated extension RepositoryViewState {
@@ -27,5 +28,6 @@ nonisolated extension RepositoryViewState {
         collapsedRemotes = try container.decodeIfPresent(Set<String>.self, forKey: .collapsedRemotes) ?? []
         columns = try container.decodeIfPresent(Columns.self, forKey: .columns)
         windowFrame = try container.decodeIfPresent(String.self, forKey: .windowFrame)
+        diffOptions = try container.decodeIfPresent(DiffOptions.self, forKey: .diffOptions) ?? DiffOptions()
     }
 }

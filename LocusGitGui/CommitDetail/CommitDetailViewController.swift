@@ -6,35 +6,53 @@ import SwiftUI
 final class CommitDetailViewController: NSViewController {
     /// Commands the window passes on from whichever column has focus.
     static let windowActions: Set<Selector> = [#selector(toggleFullMessage(_:))]
+    /// Past this, an image isn't read, only its size.
+    private static let imageByteLimit = DiffImage.byteLimit
 
     private static let log = Logger(subsystem: "com.buzzingpixel.LocusGitGui", category: "CommitDetail")
     /// Holding an arrow key down in the history passes over commits faster than they can be read,
     /// so a read waits this long for the selection to settle.
     private static let settleDelay: Duration = .milliseconds(80)
 
-    var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
+    var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)? {
+        didSet {
+            diff.showFailure = showFailure
+        }
+    }
 
-    private let run: (GitCommand) async throws -> ChildProcess.Result
+    /// A file's changes in a window of their own, as they are in the shown commit.
+    var openFileWindow: ((FileWindowRequest) -> Void)?
+
+    let diff: DiffViewController
+    private let commands: RepositoryCommandRunner
     private let header = CommitHeader()
     private lazy var headerController = NSHostingController(rootView: CommitHeaderView(model: header))
     /// Set from the header's height at the column's width. A hosting view's own intrinsic size is
     /// its ideal size, a subject on one line however narrow the column, which would cut off a
     /// subject that wraps.
     private lazy var headerHeight = headerController.view.heightAnchor.constraint(equalToConstant: 0)
-    private let changesScrollView = NSTextView.scrollableTextView()
     private let placeholder = CommitDetailPlaceholder()
     private lazy var placeholderView = NSHostingView(rootView: CommitDetailPlaceholderView(model: placeholder))
     private var failure: GitFailure?
     private var reading: Task<Void, Never>?
     private var readingSignature: Task<Void, Never>?
 
-    init(run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
-        self.run = run
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+        self.commands = commands
+        diff = DiffViewController(options: diffOptions, workTree: commands.repository.workTree)
         super.init(nibName: nil, bundle: nil)
         placeholder.showDetails = { [weak self] in
             guard let self, let failure else { return }
             showFailure?(failure) { [weak self] in self?.read() }
         }
+        diff.readImage = { [commands] file, isNew in
+            try await Self.readImage(isNew ? file.newObject : file.oldObject, running: commands.run)
+        }
+        diff.openFileWindow = { [weak self] file in
+            guard let self, let commit = header.commit else { return }
+            openFileWindow?(FileWindowRequest(commit: commit, file: file, files: diff.files.map(\.changed)))
+        }
+        diffOptions.observe(self) { [weak self] _ in self?.read(isSameDiff: true) }
     }
 
     @available(*, unavailable)
@@ -62,33 +80,24 @@ final class CommitDetailViewController: NSViewController {
 
     /// What Tab moves focus to, which is nothing while no commit is shown.
     var focusableView: NSView? {
-        commit == nil || changesScrollView.isHidden ? nil : changesView
+        commit == nil || diff.view.isHidden ? nil : diff.focusableView
     }
 
     func focusChanges() {
         view.window?.makeFirstResponder(focusableView)
     }
 
-    private var changesView: NSTextView? {
-        changesScrollView.documentView as? NSTextView
-    }
-
     override func loadView() {
         let view = NSView()
-        if let changesView {
-            changesView.isEditable = false
-            changesView.isSelectable = true
-            changesView.textContainerInset = NSSize(width: 8, height: 8)
-            changesView.setAccessibilityLabel("Changes")
-        }
-        changesScrollView.automaticallyAdjustsContentInsets = false
         headerController.sizingOptions = []
         // Pinned over the changes, so they set its size. SwiftUI's would fix the window's height
         // to whatever the placeholder shows, which for nothing is zero.
         placeholderView.sizingOptions = []
         addChild(headerController)
+        addChild(diff)
         let headerView = headerController.view
-        for subview in [headerView, changesScrollView, placeholderView] {
+        let changesView = diff.view
+        for subview in [headerView, changesView, placeholderView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(subview)
         }
@@ -97,16 +106,16 @@ final class CommitDetailViewController: NSViewController {
             headerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             headerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             headerHeight,
-            changesScrollView.topAnchor.constraint(equalTo: headerView.bottomAnchor),
-            changesScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            changesScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            changesScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            changesView.topAnchor.constraint(equalTo: headerView.bottomAnchor),
+            changesView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            changesView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            changesView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             // Over the changes only, since the header still has the commit when its changes fail.
             // With no commit the header is empty, and the changes start at the top.
-            placeholderView.topAnchor.constraint(equalTo: changesScrollView.topAnchor),
-            placeholderView.leadingAnchor.constraint(equalTo: changesScrollView.leadingAnchor),
-            placeholderView.trailingAnchor.constraint(equalTo: changesScrollView.trailingAnchor),
-            placeholderView.bottomAnchor.constraint(equalTo: changesScrollView.bottomAnchor),
+            placeholderView.topAnchor.constraint(equalTo: changesView.topAnchor),
+            placeholderView.leadingAnchor.constraint(equalTo: changesView.leadingAnchor),
+            placeholderView.trailingAnchor.constraint(equalTo: changesView.trailingAnchor),
+            placeholderView.bottomAnchor.constraint(equalTo: changesView.bottomAnchor),
         ])
         self.view = view
         updatePlaceholder()
@@ -125,7 +134,7 @@ final class CommitDetailViewController: NSViewController {
         header.body = nil
         header.signature = nil
         header.isSignatureUnavailable = false
-        changesView?.string = ""
+        diff.clear()
         read()
         readingSignature?.cancel()
         if let hash = commit?.hash {
@@ -139,18 +148,26 @@ final class CommitDetailViewController: NSViewController {
         header.labels = labels
     }
 
-    private func read() {
+    /// `isSameDiff` reads the same commit again, such as with other diff options, keeping the diff's
+    /// place and collapsed files.
+    private func read(isSameDiff: Bool = false) {
         reading?.cancel()
         failure = nil
         updatePlaceholder()
         guard let hash = header.commit?.hash else { return }
-        reading = Task { [weak self, run] in
-            try? await Task.sleep(for: Self.settleDelay)
+        let options = diff.options.options
+        reading = Task { [weak self, commands] in
+            if !isSameDiff {
+                try? await Task.sleep(for: Self.settleDelay)
+            }
             guard !Task.isCancelled else { return }
             do {
-                let detail = try await CommitDetail.read(hash, running: run)
+                let started = ContinuousClock.now
+                let detail = try await CommitDetail.read(hash, options: options, running: commands.run, readingPatch: commands.readPatch)
                 guard !Task.isCancelled else { return }
-                self?.show(detail)
+                let elapsed = ContinuousClock.now - started
+                Self.log.info("Read a commit's \(detail.files.count) files in \(elapsed, privacy: .public)")
+                self?.show(detail, of: hash, isSameDiff: isSameDiff)
             } catch is CancellationError {
                 return
             } catch is RepositoryCommandRunner.NoUsableGit {
@@ -174,11 +191,11 @@ final class CommitDetailViewController: NSViewController {
     /// was looking for.
     private func readSignature(of hash: String) {
         readingSignature?.cancel()
-        readingSignature = Task { [weak self, run] in
+        readingSignature = Task { [weak self, commands] in
             try? await Task.sleep(for: Self.settleDelay)
             guard !Task.isCancelled else { return }
             do {
-                let signature = try await CommitSignature.read(hash, running: run)
+                let signature = try await CommitSignature.read(hash, running: commands.run)
                 guard !Task.isCancelled else { return }
                 self?.header.signature = signature
             } catch is CancellationError {
@@ -191,11 +208,30 @@ final class CommitDetailViewController: NSViewController {
         }
     }
 
-    private func show(_ detail: CommitDetail) {
+    private func show(_ detail: CommitDetail, of hash: String, isSameDiff: Bool) {
         header.body = detail.body
-        changesView?.textStorage?.setAttributedString(CommitChangesText.make(detail))
-        changesView?.scrollToBeginningOfDocument(nil)
+        diff.readFile = { [commands, options = diff.options] file in
+            try await CommitDetail.readFile(file, of: hash, options: options.options, readingPatch: commands.readPatch)
+        }
+        diff.show(detail.files, emptyMessage: "This commit changes no files.", isSameDiff: isSameDiff)
         updatePlaceholder()
+    }
+
+    /// `cat-file -s` first, so an image too large to show isn't read into memory.
+    static func readImage(
+        _ object: String?,
+        running run: (GitCommand) async throws -> ChildProcess.Result
+    ) async throws -> (data: Data?, byteCount: Int)? {
+        guard let object else { return nil }
+        let size = try await GitReadFailure.read("image size", with: .reading(["cat-file", "-s", object]), running: run) { output in
+            guard let size = Int(try UnreadableGitOutput.text(output).trimmingCharacters(in: .whitespacesAndNewlines)) else {
+                throw UnreadableGitOutput(reason: "Object size isn’t a number")
+            }
+            return size
+        }
+        guard size <= imageByteLimit else { return (nil, size) }
+        let data = try await GitReadFailure.read("image", with: .reading(["cat-file", "blob", object]), running: run) { $0 }
+        return (data, size)
     }
 
     private func fail(_ failure: GitFailure) {
@@ -229,6 +265,7 @@ final class CommitDetailViewController: NSViewController {
             : headerController.sizeThatFits(in: NSSize(width: width, height: .greatestFiniteMagnitude)).height
         guard abs(headerHeight.constant - height) >= 0.5 else { return }
         headerHeight.constant = height
+        updatePlaceholder()
     }
 
     private func updatePlaceholder() {
@@ -241,7 +278,10 @@ final class CommitDetailViewController: NSViewController {
         }
         placeholder.state = state
         placeholderView.isHidden = state == .hidden
-        changesScrollView.isHidden = state != .hidden
+        // Hidden until the header has its height. Shown before that, the diff's scroll view sits
+        // right under the toolbar for a moment, and macOS then draws the column's divider up through
+        // the toolbar for as long as the window is open.
+        diff.view.isHidden = state != .hidden || headerHeight.constant < 1
     }
 
     @objc func toggleFullMessage(_: Any?) {

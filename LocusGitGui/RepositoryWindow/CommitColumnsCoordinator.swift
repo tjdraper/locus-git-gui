@@ -7,6 +7,7 @@ final class CommitColumnsCoordinator {
     let detail: CommitDetailViewController
     var reveal: ((SidebarItemID) -> Void)?
     var open: ((Commit) -> Void)?
+    var openFileWindow: ((FileWindowRequest) -> Void)?
     /// Every labelled commit's labels, as of the last refresh.
     private(set) var labels: [String: [CommitRefLabel]] = [:]
     var present: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
@@ -16,11 +17,11 @@ final class CommitColumnsCoordinator {
     private var head: RepositoryStatus.Branch?
     private var shownSelection: SidebarItemID?
 
-    init(commands: RepositoryCommandRunner) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
         history = HistoryViewController(list: HistoryList { command, onOutput in
             try await commands.run(command, onOutput: onOutput)
         })
-        detail = CommitDetailViewController { try await commands.run($0) }
+        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions)
         history.onSelect = { [weak self] commit in
             guard let self else { return }
             detail.show(commit, labels: commit.map(history.labels) ?? [])
@@ -29,6 +30,7 @@ final class CommitColumnsCoordinator {
         history.onOpen = { [weak self] commit in self?.open?(commit) }
         detail.reveal = { [weak self] id in self?.reveal?(id) }
         detail.goToCommit = { [weak self] hash in self?.history.goToCommit(hash) }
+        detail.openFileWindow = { [weak self] request in self?.openFileWindow?(request) }
         history.showFailure = { [weak self] failure, retry in self?.present?(failure, retry) }
         detail.showFailure = { [weak self] failure, retry in self?.present?(failure, retry) }
     }
@@ -62,6 +64,9 @@ final class CommitColumnsCoordinator {
         }
         if CommitDetailViewController.windowActions.contains(action) {
             return detail
+        }
+        if DiffViewController.windowActions.contains(action) {
+            return detail.diff
         }
         return nil
     }

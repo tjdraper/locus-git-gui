@@ -13,7 +13,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let sidebar: SidebarModel
     private let sidebarView: NSView
     private let commitColumns: CommitColumnsCoordinator
-    private lazy var commitWindows = CommitWindowCoordinator(repository: repository, run: commands.run)
+    private let diffOptions: DiffOptionsStore
+    private lazy var commitWindows = CommitWindowCoordinator(commands: commands, diffOptions: diffOptions)
+    private lazy var fileWindows = FileWindowCoordinator(commands: commands, diffOptions: diffOptions)
     private lazy var commitGraph = CommitGraphWriter(repository: repository, run: commands.run)
     private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
@@ -48,11 +50,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         let viewState = viewStates.state(for: repository)
         windowFrame = viewState.windowFrame
         sidebar = SidebarModel(state: viewState)
+        diffOptions = DiffOptionsStore(options: viewState.diffOptions)
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
         // The split view sets the columns' sizes, not SwiftUI.
         sidebarController.sizingOptions = []
         sidebarView = sidebarController.view
-        commitColumns = CommitColumnsCoordinator(commands: commands)
+        commitColumns = CommitColumnsCoordinator(commands: commands, diffOptions: diffOptions)
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
             history: commitColumns.history,
@@ -85,9 +88,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             commitColumns.show(selection: sidebar.selection, contents: sidebar.contents)
         }
         columns.onColumnsChange = { [weak self] in self?.saveViewState() }
-        commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
-        commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
-        commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
+        diffOptions.onChange = { [weak self] _ in self?.saveViewState() }
+        connectCommitColumns()
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
         window.onTab = { [weak self, weak window] backward in
             self?.focusCycle.move(from: window?.firstResponder, backward: backward) ?? false
@@ -101,6 +103,13 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
         nil
+    }
+
+    private func connectCommitColumns() {
+        commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
+        commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
+        commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
+        commitColumns.openFileWindow = { [weak self] request in self?.openFileWindow(request, from: self?.window) }
     }
 
     /// Reached through the responder chain from View > Show Activity.
@@ -125,7 +134,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             self?.showWindow(nil)
             self?.revealInSidebar(id)
         }
+        commitWindows.openFileWindow = { [weak self] request, window in self?.openFileWindow(request, from: window) }
         commitWindows.show(commit, from: window, repositoryName: displayName ?? repository.workTree.lastPathComponent)
+    }
+
+    private func openFileWindow(_ request: FileWindowRequest, from sourceWindow: NSWindow?) {
+        fileWindows.show(request, from: sourceWindow, repositoryName: displayName ?? repository.workTree.lastPathComponent)
     }
 
     /// Shows the sidebar first if it's hidden.
@@ -183,6 +197,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         scheduler.cancel()
         activityWindow.close()
         commitWindows.closeAll()
+        fileWindows.closeAll()
     }
 
     private func refresh(because reason: RefreshScheduler.Reason) async {
@@ -254,6 +269,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         state.collapsedSections = sidebar.collapsedSections
         state.collapsedRemotes = sidebar.collapsedRemotes
         state.columns = columns.columns
+        state.diffOptions = diffOptions.options
         viewStates.set(state, for: repository)
     }
 

@@ -4,7 +4,14 @@ import Testing
 struct CommitDetailTests {
     private func detail(of repository: FixtureRepository, _ revision: String = "HEAD") async throws -> CommitDetail {
         let hash = try await repository.git("rev-parse", revision)
-        return try await CommitDetail.read(hash) { try await repository.run($0) }
+        return try await CommitDetail.read(hash, options: DiffOptions()) {
+            try await repository.run($0)
+        } readingPatch: { command, limits in
+            let result = try await repository.run(command)
+            var parser = PatchParser(limits: limits)
+            parser.consume(result.standardOutput)
+            return (result, parser.finish())
+        }
     }
 
     @Test
@@ -52,11 +59,11 @@ struct CommitDetailTests {
 
         // Assert
         #expect(detail.body == "With a body.")
-        #expect(detail.files.map(\.path) == ["kept.txt", "removed.txt", "é new.txt"])
-        #expect(detail.files.map(\.change) == [.modified, .deleted, .added])
-        #expect(detail.patch.files.count == 3)
-        #expect(detail.patch.files[0].map(\.kind) == [.hunkHeader, .context, .removed, .added])
-        #expect(detail.patch.files[2].first == CommitPatchLine(kind: .fileInfo, text: "new file mode 100644"))
+        #expect(detail.files.map(\.changed.path) == ["kept.txt", "removed.txt", "é new.txt"])
+        #expect(detail.files.map(\.changed.change) == [.modified, .deleted, .added])
+        #expect(detail.files[0].patch.hunks[0].lines.map(\.kind) == [.context, .removed, .added])
+        #expect(detail.files[1].patch.removed == 1)
+        #expect(detail.files[2].patch.hunks[0].lines.map(\.text) == ["new"])
     }
 
     @Test
@@ -72,8 +79,10 @@ struct CommitDetailTests {
         let detail = try await detail(of: repository)
 
         // Assert
-        #expect(detail.files == [ChangedFile(change: .renamed, path: "new name.txt", originalPath: "old name.txt")])
-        #expect(detail.patch.files.first?.map(\.text).contains("rename from old name.txt") == true)
+        #expect(detail.files.map(\.changed.path) == ["new name.txt"])
+        #expect(detail.files.map(\.changed.originalPath) == ["old name.txt"])
+        #expect(detail.files[0].patch.fileLine == "diff --git a/old name.txt b/new name.txt")
+        #expect(detail.files[0].patch.hunks.isEmpty)
     }
 
     @Test
@@ -88,8 +97,8 @@ struct CommitDetailTests {
         let detail = try await detail(of: repository)
 
         // Assert
-        #expect(detail.files.map(\.path) == ["a.txt"])
-        #expect(detail.patch.files.count == 1)
+        #expect(detail.files.map(\.changed.path) == ["a.txt"])
+        #expect(detail.files[0].patch.added == 1)
     }
 
     @Test
@@ -108,7 +117,7 @@ struct CommitDetailTests {
         let detail = try await detail(of: repository)
 
         // Assert
-        #expect(detail.files.map(\.path) == ["feature.txt"])
+        #expect(detail.files.map(\.changed.path) == ["feature.txt"])
     }
 
     @Test
@@ -127,9 +136,64 @@ struct CommitDetailTests {
         let detail = try await detail(of: repository)
 
         // Assert
-        #expect(detail.files.map(\.change) == [.typeChanged, .added])
-        #expect(detail.patch.files.count == 2)
-        #expect(detail.patch.files[0].contains(CommitPatchLine(kind: .added, text: "+b.txt")))
-        #expect(detail.patch.files[1].contains(CommitPatchLine(kind: .added, text: "+other")))
+        #expect(detail.files.map(\.changed.change) == [.typeChanged, .added])
+        #expect(detail.files[0].patch.hunks.flatMap(\.lines).map(\.text) == ["text", "b.txt"])
+        #expect(detail.files[1].patch.hunks.flatMap(\.lines).map(\.text) == ["other"])
+    }
+
+    @Test
+    func aLeftOutFileIsReadOnItsOwn() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("Add", writing: "one\n", to: "old.txt")
+        try await repository.git("mv", "old.txt", "new.txt")
+        try repository.write("one\ntwo\n", to: "new.txt")
+        try await repository.git("add", "--all")
+        try await repository.git("commit", "--quiet", "--message", "Rename and edit")
+        let hash = try await repository.git("rev-parse", "HEAD")
+        let changed = try await detail(of: repository).files[0].changed
+
+        // Act
+        let file = try await CommitDetail.readFile(changed, of: hash, options: DiffOptions()) { command, limits in
+            let result = try await repository.run(command)
+            var parser = PatchParser(limits: limits)
+            parser.consume(result.standardOutput)
+            return (result, parser.finish())
+        }
+
+        // Assert
+        #expect(file.changed.change == .renamed)
+        #expect(file.patch.hunks[0].lines.map(\.text) == ["one", "two"])
+    }
+
+    @Test
+    func ignoringWhitespaceLeavesAFileWithNoHunks() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("Add", writing: "a b\n", to: "a.txt")
+        try await repository.commit("Add", writing: "one\n", to: "b.txt")
+        try repository.write("a    b\n", to: "a.txt")
+        try repository.write("two\n", to: "b.txt")
+        try await repository.git("commit", "--quiet", "--all", "--message", "Spaces")
+        let hash = try await repository.git("rev-parse", "HEAD")
+
+        // Act
+        var options = DiffOptions()
+        options.ignoresWhitespace = true
+        let detail = try await CommitDetail.read(hash, options: options) {
+            try await repository.run($0)
+        } readingPatch: { command, limits in
+            let result = try await repository.run(command)
+            var parser = PatchParser(limits: limits)
+            parser.consume(result.standardOutput)
+            return (result, parser.finish())
+        }
+
+        // Assert
+        #expect(detail.files.map(\.changed.path) == ["a.txt", "b.txt"])
+        #expect(detail.files[0].patch.hunks.isEmpty)
+        #expect(detail.files[1].patch.hunks[0].lines.map(\.text) == ["one", "two"])
     }
 }

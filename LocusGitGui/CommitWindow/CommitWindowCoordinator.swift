@@ -7,14 +7,15 @@ final class CommitWindowCoordinator {
     private static let log = Logger(subsystem: "com.buzzingpixel.LocusGitGui", category: "CommitWindow")
 
     var reveal: ((SidebarItemID) -> Void)?
-    private let repository: Repository
-    private let run: (GitCommand) async throws -> ChildProcess.Result
+    var openFileWindow: ((FileWindowRequest, NSWindow?) -> Void)?
+    private let commands: RepositoryCommandRunner
+    private let diffOptions: DiffOptionsStore
     private var controllers: [CommitWindowController] = []
     private var labels: [String: [CommitRefLabel]] = [:]
 
-    init(repository: Repository, run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
-        self.repository = repository
-        self.run = run
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+        self.commands = commands
+        self.diffOptions = diffOptions
     }
 
     /// Cascaded from the repository's window, so it's clear which repository it came from.
@@ -23,8 +24,11 @@ final class CommitWindowCoordinator {
             existing.showWindow(nil)
             return
         }
-        let controller = CommitWindowController(repository: repository, repositoryName: repositoryName, run: run)
+        let controller = CommitWindowController(repositoryName: repositoryName, commands: commands, diffOptions: diffOptions)
         controller.detail.reveal = { [weak self] item in self?.reveal?(item) }
+        controller.detail.openFileWindow = { [weak self, weak controller] request in
+            self?.openFileWindow?(request, controller?.window)
+        }
         controller.detail.goToCommit = { [weak self, weak controller] hash in
             guard let controller else { return }
             self?.goToParent(hash, in: controller)
@@ -73,9 +77,9 @@ final class CommitWindowCoordinator {
             existing.showWindow(nil)
             return
         }
-        Task { [weak self, weak controller, run] in
+        Task { [weak self, weak controller, commands] in
             do {
-                guard let commit = try await HistoryReader.readHashMatch(hash, running: run) else {
+                guard let commit = try await HistoryReader.readHashMatch(hash, running: commands.run) else {
                     NSSound.beep()
                     return
                 }

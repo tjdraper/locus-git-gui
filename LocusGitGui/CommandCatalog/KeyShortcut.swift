@@ -9,6 +9,11 @@ nonisolated struct KeyShortcut: Hashable, Sendable {
 
     static let returnKey = "\r"
     static let deleteKey = "\u{8}"
+    /// AppKit's `NSUpArrowFunctionKey` and the rest, as the characters a menu item's key takes.
+    static let upArrowKey = "\u{F700}"
+    static let downArrowKey = "\u{F701}"
+    static let leftArrowKey = "\u{F702}"
+    static let rightArrowKey = "\u{F703}"
 
     init(_ key: String, _ modifiers: NSEvent.ModifierFlags = .command) {
         self.key = key
@@ -54,6 +59,10 @@ nonisolated struct KeyShortcut: Hashable, Sendable {
     private static let keyGlyphs: [String: String] = [
         returnKey: "↩",
         deleteKey: "⌫",
+        upArrowKey: "↑",
+        downArrowKey: "↓",
+        leftArrowKey: "←",
+        rightArrowKey: "→",
         "\t": "⇥",
         " ": "Space",
     ]

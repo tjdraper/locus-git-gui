@@ -19,6 +19,11 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case removeAllMissingRepositories
     case showRepositoryInFinder
     case setDisplayName
+    case openInEditor
+    case revealChangedFileInFinder
+    case copyAbsolutePath
+    case copyPathFromRepositoryRoot
+    case openFileInNewWindow
     case close
 
     case undo
@@ -40,6 +45,15 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case goToBranch
     case goToTag
     case goToStash
+    case collapseFile
+    case expandFile
+    case collapseAllFiles
+    case expandAllFiles
+    case goToNextFile
+    case goToPreviousFile
+    case ignoreWhitespace
+    case showMoreContext
+    case showLessContext
     case showActivity
     case showOnlyMissingRepositories
 
@@ -72,6 +86,11 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .removeAllMissingRepositories: "Remove All Missing Repositories"
         case .showRepositoryInFinder: "Show in Finder"
         case .setDisplayName: "Set Display Name…"
+        case .openInEditor: "Open in Editor"
+        case .revealChangedFileInFinder: "Reveal in Finder"
+        case .copyAbsolutePath: "Copy Absolute Path"
+        case .copyPathFromRepositoryRoot: "Copy Path from Repository Root"
+        case .openFileInNewWindow: "Open File in New Window"
         case .close: "Close"
         case .undo: "Undo"
         case .redo: "Redo"
@@ -91,6 +110,15 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToBranch: "Go to Branch…"
         case .goToTag: "Go to Tag…"
         case .goToStash: "Go to Stash…"
+        case .collapseFile: "Collapse File"
+        case .expandFile: "Expand File"
+        case .collapseAllFiles: "Collapse All Files"
+        case .expandAllFiles: "Expand All Files"
+        case .goToNextFile: "Next File"
+        case .goToPreviousFile: "Previous File"
+        case .ignoreWhitespace: "Ignore Whitespace"
+        case .showMoreContext: "More Context Lines"
+        case .showLessContext: "Fewer Context Lines"
         case .showActivity: "Show Activity"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
         case .openCommitInNewWindow: "Open in New Window"
@@ -128,6 +156,10 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .removeSelectedRepositories: KeyShortcut(KeyShortcut.deleteKey)
         case .removeAllMissingRepositories: KeyShortcut(KeyShortcut.deleteKey, [.command, .option])
         case .showRepositoryInFinder: KeyShortcut(KeyShortcut.returnKey)
+        case .openInEditor: KeyShortcut("e", [.command, .option])
+        case .revealChangedFileInFinder: KeyShortcut("r", [.command, .option])
+        case .copyAbsolutePath: KeyShortcut("c", [.command, .option])
+        case .copyPathFromRepositoryRoot: KeyShortcut("c", [.command, .option, .shift])
         case .close: KeyShortcut("w")
         case .undo: KeyShortcut("z")
         case .redo: KeyShortcut("z", [.command, .shift])
@@ -141,6 +173,12 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .showSidebar: KeyShortcut("s", [.command, .control])
         case .filterSidebar: KeyShortcut("f", [.command, .option])
         case .showToolbar: KeyShortcut("t", [.command, .option])
+        case .collapseFile: KeyShortcut(KeyShortcut.leftArrowKey, [.command, .option])
+        case .expandFile: KeyShortcut(KeyShortcut.rightArrowKey, [.command, .option])
+        case .collapseAllFiles: KeyShortcut(KeyShortcut.leftArrowKey, [.command, .option, .shift])
+        case .expandAllFiles: KeyShortcut(KeyShortcut.rightArrowKey, [.command, .option, .shift])
+        case .goToNextFile: KeyShortcut(KeyShortcut.downArrowKey, [.command, .option])
+        case .goToPreviousFile: KeyShortcut(KeyShortcut.upArrowKey, [.command, .option])
         case .showOnlyMissingRepositories: KeyShortcut("m", [.command, .shift])
         case .copyCommitHash: KeyShortcut("c", [.command, .shift])
         case .minimize: KeyShortcut("m")
