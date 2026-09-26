@@ -123,7 +123,7 @@ Read the app's log with:
 
 `--info` is required. Entries logged at info level are silently left out of a plain `log show`, which looks exactly like an app that logged nothing. Use `log stream` with the same predicate to watch live.
 
-This log is separate from the in-app Git log (View > Show Git Log), which records the commands run in a repository for the person using the app. Log decisions, kinds, counts and durations here, never repository paths, file names, branch names, commit messages or remote URLs. They carry people's names and private project names, and a remote URL can carry a password or token. `os_log` redacts interpolated strings unless marked `privacy: .public`, so such a value either leaks or shows as `<private>`.
+This log is separate from the in-app Activity window (View > Show Activity), which records the commands run in a repository for the person using the app. Log decisions, kinds, counts and durations here, never repository paths, file names, branch names, commit messages or remote URLs. They carry people's names and private project names, and a remote URL can carry a password or token. `os_log` redacts interpolated strings unless marked `privacy: .public`, so such a value either leaks or shows as `<private>`.
 
 ## Swift 6 Concurrency
 

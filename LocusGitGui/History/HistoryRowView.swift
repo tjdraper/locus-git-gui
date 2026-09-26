@@ -38,6 +38,9 @@ final class HistoryRowView: NSTableCellView {
         details.textColor = .secondaryLabelColor
         details.lineBreakMode = .byTruncatingTail
         graph.setAccessibilityElement(false)
+        // Since macOS 14 a view draws outside its bounds unless told not to, which would put the
+        // graph's lines through the subject beside it.
+        graph.clipsToBounds = true
         textField = subject
         for view in [graph, subject, details, more] {
             addSubview(view)

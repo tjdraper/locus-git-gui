@@ -55,7 +55,7 @@ enum MainMenu {
             [.separator()],
             owned.goTo,
             [.separator()],
-            items(.showGitLog),
+            items(.showActivity),
             owned.dashboardView,
         ]))
 

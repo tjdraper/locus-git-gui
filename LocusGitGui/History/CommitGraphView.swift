@@ -22,7 +22,7 @@ final class CommitGraphView: NSView {
     }
 
     static func color(_ index: Int) -> NSColor {
-        palette[index % palette.count]
+        index == CommitGraphRow.overflowColor ? .tertiaryLabelColor : palette[index % palette.count]
     }
 
     override var isFlipped: Bool {

@@ -16,10 +16,6 @@ final class HistoryViewController: NSViewController {
         #selector(findInChanges(_:)),
     ]
 
-    /// A history of hundreds of branches side by side would push every subject off the row. Past
-    /// this, the graph is cut off at the right.
-    private static let widestGraph = 12
-
     /// Waits for a pause in typing, since each search is a `git log` over the whole history.
     private static let searchDelay: Duration = .milliseconds(300)
 
@@ -50,8 +46,14 @@ final class HistoryViewController: NSViewController {
     /// Selection changes the history makes itself, rather than the user.
     private var isRestoringSelection = false
     private var pendingSearch: Task<Void, Never>?
-    private var goingToCommit: Task<Void, Never>?
+    private lazy var navigator = HistoryCommitNavigator(list: list, table: table) { [weak self] in
+        self?.focusList()
+    } open: { [weak self] commit in
+        self?.onOpen?(commit)
+    }
     private var shownGraphLanes = 0
+    /// The selected commit, while a search that may yet find it is still arriving.
+    private var pendingSelection: String?
 
     init(list: HistoryList) {
         self.list = list
@@ -146,27 +148,9 @@ final class HistoryViewController: NSViewController {
         labels[commit.hash] ?? []
     }
 
-    /// Reads on down the history until it reaches the commit, for a parent well below its child.
-    /// A newer go-to, or the user choosing another commit, cancels one still reading.
+    /// Reads on down the history until it reaches the commit, or says why it can't.
     func goToCommit(_ hash: String) {
-        goingToCommit?.cancel()
-        // A search's results rarely hold a commit's parent, and reading on through all of them to
-        // be sure would search the history again for every page.
-        if list.search != nil, list.index(of: hash) == nil {
-            NSSound.beep()
-            return
-        }
-        goingToCommit = Task { [weak self] in
-            let index = await self?.list.find(hash)
-            guard !Task.isCancelled, let self else { return }
-            guard let index else {
-                NSSound.beep()
-                return
-            }
-            table.selectRowIndexes([index], byExtendingSelection: false)
-            table.scrollRowToVisible(index)
-            focusList()
-        }
+        navigator.goTo(hash)
     }
 
     /// A parent's short hash and subject when it's been read, and only its short hash otherwise.
@@ -227,6 +211,7 @@ final class HistoryViewController: NSViewController {
         case let .appended(range):
             let shownRows = table.numberOfRows
             table.noteNumberOfRowsChanged()
+            selectPendingCommit()
             // A page further down can reach wider than those before it, which moves every subject.
             if list.graphLanes != shownGraphLanes {
                 reloadVisibleRows()
@@ -238,6 +223,11 @@ final class HistoryViewController: NSViewController {
             // A read that failed partway down takes the loading row away.
             if table.numberOfRows != numberOfRows(in: table) {
                 table.noteNumberOfRowsChanged()
+            }
+            if !list.isLoading, pendingSelection != nil {
+                pendingSelection = nil
+                selectedCommit = nil
+                onSelect?(nil)
             }
         }
         updatePlaceholder()
@@ -267,10 +257,21 @@ final class HistoryViewController: NSViewController {
 
         if let selected {
             selectedCommit = list.commits[selected]
+        } else if let selectedCommit, list.isLoading {
+            // A search shows its matches as it finds them, and may find this one yet.
+            pendingSelection = selectedCommit.hash
         } else if selectedCommit != nil {
             selectedCommit = nil
             onSelect?(nil)
         }
+    }
+
+    private func selectPendingCommit() {
+        guard let hash = pendingSelection, let index = list.index(of: hash) else { return }
+        pendingSelection = nil
+        isRestoringSelection = true
+        table.selectRowIndexes([index], byExtendingSelection: false)
+        isRestoringSelection = false
     }
 
     private func updatePlaceholder() {
@@ -368,7 +369,7 @@ extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
         view.show(
             commit,
             graphRow: list.graph.indices.contains(row) ? list.graph[row] : nil,
-            graphLanes: min(list.graphLanes, Self.widestGraph),
+            graphLanes: list.graphLanes,
             labels: labels[commit.hash] ?? []
         )
         loadMoreSoon(near: row)
@@ -389,7 +390,8 @@ extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
 
     func tableViewSelectionDidChange(_: Notification) {
         guard !isRestoringSelection else { return }
-        goingToCommit?.cancel()
+        navigator.cancel()
+        pendingSelection = nil
         let commit = commit(at: table.selectedRow)
         guard commit?.hash != selectedCommit?.hash else { return }
         selectedCommit = commit

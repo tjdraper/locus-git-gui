@@ -14,7 +14,7 @@ struct RememberedWindowPlacement {
         window.setContentSize(initialContentSize ?? window.contentView?.fittingSize ?? window.frame.size)
         let fittedSize = window.frame.size
         let restored = window.setFrameUsingName(autosaveName)
-        // Another window already holds the name, such as a second repository's Git log. Placed
+        // Another window already holds the name, such as a second repository's Activity window. Placed
         // exactly over the first, it would hide it.
         if !window.setFrameAutosaveName(autosaveName) {
             let topLeft = window.cascadeTopLeft(from: NSPoint(x: window.frame.minX, y: window.frame.maxY))

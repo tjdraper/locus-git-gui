@@ -10,6 +10,7 @@ nonisolated struct Commit: Equatable, Sendable {
 
     /// The placeholders in the order `init(fields:)` reads them.
     private static let placeholders = ["%H", "%P", "%an", "%ae", "%at", "%cn", "%ce", "%ct", "%s"]
+    static let fieldCount = placeholders.count
 
     let hash: String
     /// Empty for a root commit, two or more for a merge.

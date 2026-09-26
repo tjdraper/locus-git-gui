@@ -168,4 +168,26 @@ struct HistoryReaderTests {
         // Assert
         #expect(match == nil)
     }
+
+    @Test
+    func aStreamedPageHandsOverItsCommitsAndCountsThem() async throws {
+        // Arrange
+        let repository = try await makeRepository(commits: ["One", "Two", "Three", "Four", "Five"])
+        defer { repository.remove() }
+        let head = try await repository.git("rev-parse", "HEAD")
+        var received: [String] = []
+
+        // Act
+        let count = try await HistoryReader.stream(HistoryScope(tips: [head]), search: nil, commits: 1 ..< 4) { command, onOutput in
+            let result = try await repository.run(command)
+            onOutput(result.standardOutput)
+            return result
+        } receive: { commits in
+            received += commits.map(\.subject)
+        }
+
+        // Assert
+        #expect(count == 3)
+        #expect(received == ["Four", "Three", "Two"])
+    }
 }

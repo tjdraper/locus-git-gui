@@ -1,3 +1,5 @@
+import Foundation
+
 /// Reads a history a page at a time. Each page is its own `git log` that skips the commits already
 /// read, so a repository with a million commits costs no more to open than one with ten.
 nonisolated enum HistoryReader {
@@ -25,6 +27,42 @@ nonisolated enum HistoryReader {
             running: run,
             parse: Commit.parseLog
         )
+    }
+
+    /// Hands over commits as Git finds them rather than all at once, and returns how many there
+    /// were. A search can take seconds between matches on a long history. `commits` is which of
+    /// the history's commits to read, counting from its newest.
+    static func stream(
+        _ scope: HistoryScope,
+        search: HistorySearch?,
+        commits: Range<Int>,
+        running run: (GitCommand, @escaping (Data) -> Void) async throws -> ChildProcess.Result,
+        receive: @escaping ([Commit]) -> Void
+    ) async throws -> Int {
+        guard !scope.tips.isEmpty else { return 0 }
+        let command = command(for: scope, search: search, skip: commits.lowerBound, count: commits.count)
+        var stream = CommitLogStream()
+        var received = 0
+        var isUnreadable = false
+        let result = try await run(command) { data in
+            guard !isUnreadable else { return }
+            do {
+                let commits = try stream.read(data)
+                received += commits.count
+                if !commits.isEmpty {
+                    receive(commits)
+                }
+            } catch {
+                isUnreadable = true
+            }
+        }
+        guard result.status == 0 else {
+            throw GitReadFailure(subject: "history", command: command, result: result, outputWasUnreadable: false)
+        }
+        guard !isUnreadable, stream.isAtCommitBoundary else {
+            throw GitReadFailure(subject: "history", command: command, result: result, outputWasUnreadable: true)
+        }
+        return received
     }
 
     static func hashCommand(_ candidate: String) -> GitCommand {

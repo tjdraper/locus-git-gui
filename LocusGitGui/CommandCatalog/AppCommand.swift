@@ -40,7 +40,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case goToBranch
     case goToTag
     case goToStash
-    case showGitLog
+    case showActivity
     case showOnlyMissingRepositories
 
     case openCommitInNewWindow
@@ -91,7 +91,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToBranch: "Go to Branch…"
         case .goToTag: "Go to Tag…"
         case .goToStash: "Go to Stash…"
-        case .showGitLog: "Show Git Log"
+        case .showActivity: "Show Activity"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
         case .openCommitInNewWindow: "Open in New Window"
         case .copyCommitHash: "Copy Hash"

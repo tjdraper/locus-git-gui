@@ -10,6 +10,38 @@ nonisolated struct CommitGraphRow: Equatable, Sendable {
     }
 }
 
+extension CommitGraphRow {
+    /// The colour of the lines drawn together in the last lane of a row that reaches past the lanes
+    /// shown, which stand for many lines rather than one.
+    static let overflowColor = -1
+    /// Lanes drawn beside the history. Past this, the rest are drawn together in the last one.
+    static let widestDrawn = 8
+
+    /// The row as drawn in at most `lanes` lanes. Everything past them is drawn in the last one:
+    /// lines passing through out there become one line in the overflow colour, a commit out there
+    /// keeps its own colour, and a line into or out of that region bends to it. A history like the
+    /// Linux kernel's can run over a hundred lines side by side, which nobody can follow and which
+    /// would otherwise take the whole row.
+    func limited(toLanes lanes: Int) -> CommitGraphRow {
+        guard lanes > 0, width > lanes else { return self }
+        let last = lanes - 1
+        var limited: [CommitGraphLine] = []
+        for line in lines {
+            let isOverflow = line.fromLane >= last && line.toLane >= last
+            let drawn = CommitGraphLine(
+                fromLane: min(line.fromLane, last),
+                toLane: min(line.toLane, last),
+                span: line.span,
+                color: isOverflow ? Self.overflowColor : line.color
+            )
+            if !limited.contains(drawn) {
+                limited.append(drawn)
+            }
+        }
+        return CommitGraphRow(lane: min(lane, last), color: color, lines: limited)
+    }
+}
+
 /// One line through a row of the graph.
 nonisolated struct CommitGraphLine: Equatable, Sendable {
     enum Span: Sendable {

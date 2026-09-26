@@ -99,4 +99,56 @@ struct CommitGraphLayoutTests {
         #expect(tip.lines.last == Line(fromLane: 1, toLane: 0, span: .outgoing, color: 1))
         #expect(layout.add("base", parents: []).width == 1)
     }
+
+    @Test
+    func aRowNarrowEnoughIsDrawnAsItIs() {
+        // Arrange
+        let row = CommitGraphRow(lane: 1, color: 3, lines: [Line(fromLane: 0, toLane: 0, span: .passing, color: 0)])
+
+        // Act
+        let limited = row.limited(toLanes: 4)
+
+        // Assert
+        #expect(limited == row)
+    }
+
+    @Test
+    func linesPastTheLastLaneAreDrawnAsOneInTheOverflowColour() {
+        // Arrange
+        let row = CommitGraphRow(lane: 0, color: 0, lines: [
+            Line(fromLane: 0, toLane: 0, span: .outgoing, color: 0),
+            Line(fromLane: 1, toLane: 1, span: .passing, color: 1),
+            Line(fromLane: 2, toLane: 2, span: .passing, color: 2),
+            Line(fromLane: 5, toLane: 5, span: .passing, color: 5),
+            Line(fromLane: 9, toLane: 9, span: .passing, color: 9),
+        ])
+
+        // Act
+        let limited = row.limited(toLanes: 3)
+
+        // Assert
+        #expect(limited.lines == [
+            Line(fromLane: 0, toLane: 0, span: .outgoing, color: 0),
+            Line(fromLane: 1, toLane: 1, span: .passing, color: 1),
+            Line(fromLane: 2, toLane: 2, span: .passing, color: CommitGraphRow.overflowColor),
+        ])
+        #expect(limited.width == 3)
+    }
+
+    @Test
+    func aCommitPastTheLastLaneKeepsItsDotAndColourInTheLastLane() {
+        // Arrange
+        let row = CommitGraphRow(lane: 7, color: 4, lines: [
+            Line(fromLane: 0, toLane: 0, span: .passing, color: 0),
+            Line(fromLane: 7, toLane: 0, span: .outgoing, color: 4),
+        ])
+
+        // Act
+        let limited = row.limited(toLanes: 3)
+
+        // Assert
+        #expect(limited.lane == 2)
+        #expect(limited.color == 4)
+        #expect(limited.lines.contains(Line(fromLane: 2, toLane: 0, span: .outgoing, color: 4)))
+    }
 }

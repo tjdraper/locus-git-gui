@@ -53,4 +53,22 @@ struct GitProcessFinderTests {
         // Assert
         #expect(!found.contains(process.processIdentifier))
     }
+
+    @Test
+    func leavesOutTheProcessesAParentStarted() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        let (process, input) = try startWaitingGit(in: repository.folder)
+        defer {
+            try? input.fileHandleForWriting.close()
+            process.waitUntilExit()
+        }
+
+        // Act
+        let found = GitProcessFinder.processes(workingIn: [repository.folder], excludingChildrenOf: getpid())
+
+        // Assert
+        #expect(!found.contains(process.processIdentifier))
+    }
 }

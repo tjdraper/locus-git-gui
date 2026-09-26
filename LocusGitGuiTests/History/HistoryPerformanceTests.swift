@@ -93,11 +93,13 @@ struct HistoryPerformanceTests {
             let page = try await HistoryReader.read(scope, search: nil, skip: commits.count, count: 1000, running: run)
             guard !page.isEmpty else { break }
             commits += page
-            rows += page.map { layout.add($0.hash, parents: $0.parents) }
+            rows += page.map { layout.add($0.hash, parents: $0.parents).limited(toLanes: CommitGraphRow.widestDrawn) }
         }
         let bytes = Self.footprint() - before
         let each = bytes / max(commits.count, 1)
         write("memory for \(commits.count) commits and \(rows.count) graph rows: \(bytes / 1_048_576) MB, \(each) bytes each")
+        let lines = rows.reduce(0) { $0 + $1.lines.count }
+        write("graph: at most \(rows.map(\.width).max() ?? 0) lanes wide, \(lines / max(rows.count, 1)) lines a row on average")
     }
 
     /// The process's memory as Activity Monitor reports it.
@@ -112,12 +114,63 @@ struct HistoryPerformanceTests {
         return result == KERN_SUCCESS ? Int(info.phys_footprint) : 0
     }
 
+    /// A search with few matches reads the whole history, so what counts is how soon the first
+    /// one shows.
+    @Test
+    func firstMatchOfARareSearch() async throws {
+        let scope = try await head()
+        let runner = runner
+        let repository = try #require(PerformanceRepository.url)
+        let clock = ContinuousClock()
+        let started = clock.now
+        var first: Duration?
+        let count = try await HistoryReader.stream(
+            scope,
+            search: HistorySearch(text: "lane 3", field: .message),
+            commits: 0 ..< 200
+        ) { command, onOutput in
+            try await Self.collect(runner.stream(command, in: repository), onOutput: onOutput)
+        } receive: { _ in
+            first = first ?? clock.now - started
+        }
+        report("first of \(count) matches for a rare message, streamed", first ?? clock.now - started)
+        report("all of them", clock.now - started)
+    }
+
+    private static func collect(
+        _ events: AsyncThrowingStream<ChildProcess.Event, any Error>,
+        onOutput: (Data) -> Void
+    ) async throws -> ChildProcess.Result {
+        var output = Data()
+        for try await event in events {
+            switch event {
+            case let .standardOutput(data):
+                output.append(data)
+                onOutput(data)
+            case .standardError:
+                break
+            case let .exited(status):
+                return ChildProcess.Result(status: status, standardOutput: output, standardError: Data())
+            }
+        }
+        throw CancellationError()
+    }
+
     @Test
     func searches() async throws {
         let scope = try await head()
         for search in [HistorySearch(text: "lane 3", field: .message), HistorySearch(text: "Grace", field: .author)] {
             let (duration, count) = try await readPage(scope, search: search, skip: 0, count: 200)
             report("first \(count) matches for \(search?.field.rawValue ?? "")", duration)
+        }
+        // A partial clone, such as a blobless clone of the kernel, would download the contents of
+        // every file in the history to search their changes. Git marks one with a promisor remote,
+        // or with `extensions.partialClone` before 2.26.
+        let promisor = try await run(.reading(["config", "--get-regexp", #"^remote\..*\.promisor$"#, "true"]))
+        let partialClone = try await run(.reading(["config", "extensions.partialClone"]))
+        guard promisor.status != 0, partialClone.status != 0 else {
+            write("search in changes skipped: this is a partial clone")
+            return
         }
         let changes = HistorySearch(text: "Change 12345\n", field: .changes)
         let (duration, count) = try await readPage(scope, search: changes, skip: 0, count: 200)

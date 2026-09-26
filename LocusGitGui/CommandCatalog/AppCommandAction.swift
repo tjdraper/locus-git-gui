@@ -39,7 +39,7 @@ extension AppCommand {
         case .goToBranch: #selector(CommandPalettePresenter.goToBranch(_:))
         case .goToTag: #selector(CommandPalettePresenter.goToTag(_:))
         case .goToStash: #selector(CommandPalettePresenter.goToStash(_:))
-        case .showGitLog: #selector(RepositoryWindowController.showGitLog(_:))
+        case .showActivity: #selector(RepositoryWindowController.showActivity(_:))
         case .showOnlyMissingRepositories: #selector(DashboardWindowPresenter.toggleShowOnlyMissing(_:))
         case .openCommitInNewWindow: #selector(HistoryViewController.openCommitInNewWindow(_:))
         case .copyCommitHash: #selector(HistoryViewController.copyCommitHash(_:))

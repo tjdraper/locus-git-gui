@@ -20,6 +20,9 @@ final class HistoryList {
     /// Reading the same history again keeps up to this many of the commits already shown, so a
     /// commit selected well down the list is still there after a new commit arrives.
     private static let longestReread = 5000
+    /// Go to Parent reads on through the history until it finds the commit, but stops past this
+    /// many rather than hold hundreds of megabytes of history for one very old merge.
+    static let farthestFind = 50000
     /// How close to the end the list scrolls before the next page is read.
     private static let readAhead = 100
 
@@ -36,11 +39,16 @@ final class HistoryList {
     private(set) var failure: GitFailure?
     var onChange: ((Change) -> Void)?
 
-    private let run: (GitCommand) async throws -> ChildProcess.Result
+    /// Hands Git's output over as it arrives when given somewhere to hand it.
+    private let run: (GitCommand, ((Data) -> Void)?) async throws -> ChildProcess.Result
     private var layout = CommitGraphLayout()
     /// How many commits `git log` has given, which leaves out a commit found by its hash.
     private var loggedCount = 0
     private var hashMatch: String?
+    /// A commit found by its hash, shown first once the search's own matches start arriving.
+    private var pendingHashMatch: Commit?
+    /// Counted so output still arriving for a history that's been replaced is left out.
+    private var generation = 0
     private var loading: Task<Void, Never>?
     /// The commits shown stay until the first page of what replaces them has been read, so a
     /// history read again after a commit doesn't empty and refill.
@@ -49,7 +57,7 @@ final class HistoryList {
     /// Counted so `find` can tell a read that added a page from one that ended without.
     private var pagesRead = 0
 
-    init(run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
+    init(run: @escaping (GitCommand, ((Data) -> Void)?) async throws -> ChildProcess.Result) {
         self.run = run
     }
 
@@ -81,24 +89,37 @@ final class HistoryList {
         commits.firstIndex { $0.hash == hash }
     }
 
+    enum FindResult {
+        case found(Int)
+        /// Further down than `farthestFind`.
+        case tooFar
+        case missing
+    }
+
     /// Reads on until the commit is found or the history ends, for a parent well below its child.
-    func find(_ hash: String) async -> Int? {
+    func find(_ hash: String) async -> FindResult {
         while !Task.isCancelled {
             if let index = index(of: hash), !isReplacing {
-                return index
+                return .found(index)
             }
-            guard !isComplete, failure == nil else { return nil }
+            guard !isComplete, failure == nil else { return .missing }
+            guard commits.count < Self.farthestFind else { return .tooFar }
             if loading == nil {
                 loadNextPage()
             }
-            guard let loading else { return nil }
+            guard let loading else { return .missing }
             let pages = pagesRead
             await loading.value
             // A read that ended without a page, such as when Git has gone missing, would otherwise
             // be tried again forever.
-            guard pagesRead != pages else { return nil }
+            guard pagesRead != pages else { return .missing }
         }
-        return nil
+        return .missing
+    }
+
+    /// One commit by its hash, for a commit the history hasn't read, to show in its own window.
+    func readCommit(_ hash: String) async -> Commit? {
+        try? await HistoryReader.readHashMatch(hash) { try await self.run($0, nil) }
     }
 
     private func start(reading count: Int, isSameHistory: Bool) {
@@ -107,6 +128,8 @@ final class HistoryList {
         layout = CommitGraphLayout()
         loggedCount = 0
         hashMatch = nil
+        pendingHashMatch = nil
+        generation += 1
         isComplete = false
         failure = nil
         isReplacing = true
@@ -119,19 +142,34 @@ final class HistoryList {
         let search = search
         let isFirstPage = loggedCount == 0 && (isReplacing || commits.isEmpty)
         let skip = loggedCount
+        let generation = generation
         isLoading = true
         onChange?(.state)
         loading = Task { [weak self, run] in
             let started = ContinuousClock.now
             do {
-                var match: Commit?
                 if isFirstPage, let candidate = search?.hashCandidate {
-                    match = try await HistoryReader.readHashMatch(candidate, running: run)
+                    self?.pendingHashMatch = try await HistoryReader.readHashMatch(candidate) { try await run($0, nil) }
                 }
-                let page = try await HistoryReader.read(scope, search: search, skip: skip, count: count, running: run)
+                let read: Int
+                if let search {
+                    // A search can take seconds between matches, so each is shown as it's found.
+                    read = try await HistoryReader.stream(scope, search: search, commits: skip ..< skip + count) { command, onOutput in
+                        try await run(command, onOutput)
+                    } receive: { [weak self] commits in
+                        guard self?.generation == generation else { return }
+                        self?.receive(commits)
+                    }
+                } else {
+                    // A page arrives whole, so a history read again finds its selected commit in it.
+                    let page = try await HistoryReader.read(scope, search: nil, skip: skip, count: count) { try await run($0, nil) }
+                    try Task.checkCancellation()
+                    self?.receive(page)
+                    read = page.count
+                }
                 try Task.checkCancellation()
-                self?.append(page, hashMatch: match, isLast: page.count < count)
-                Self.log.info("Read \(page.count) commits in \(ContinuousClock.now - started, privacy: .public)")
+                self?.finishPage(isLast: read < count)
+                Self.log.info("Read \(read) commits in \(ContinuousClock.now - started, privacy: .public)")
             } catch is CancellationError {
                 return
             } catch is RepositoryCommandRunner.NoUsableGit {
@@ -142,25 +180,34 @@ final class HistoryList {
         }
     }
 
-    private func append(_ page: [Commit], hashMatch match: Commit?, isLast: Bool) {
+    private func receive(_ page: [Commit]) {
         let previous = takeReplacedCommits()
-        pagesRead += 1
         let start = commits.count
-        if let match {
+        if let match = pendingHashMatch {
+            pendingHashMatch = nil
             hashMatch = match.hash
             commits.append(match)
         }
         loggedCount += page.count
         commits += page.filter { $0.hash != hashMatch }
         if search == nil {
-            let rows = commits[start...].map { layout.add($0.hash, parents: $0.parents) }
+            // Only the row as drawn is kept, which also keeps a very wide history's rows small.
+            let rows = commits[start...].map { layout.add($0.hash, parents: $0.parents).limited(toLanes: CommitGraphRow.widestDrawn) }
             graph += rows
             graphLanes = rows.reduce(graphLanes) { max($0, $1.width) }
         }
-        isComplete = isLast
-        loading = nil
-        isLoading = false
         onChange?(previous.map { .replaced(sameHistoryAs: isReplacingSameHistory ? $0 : nil) } ?? .appended(start ..< commits.count))
+    }
+
+    /// A page with no commits of its own still replaces the history it was read for, and still
+    /// shows a commit found by its hash.
+    private func finishPage(isLast: Bool) {
+        if isReplacing || pendingHashMatch != nil {
+            receive([])
+        }
+        pagesRead += 1
+        isComplete = isLast
+        finishLoading()
     }
 
     /// The commits shown before, when this is the first page of what replaces them.

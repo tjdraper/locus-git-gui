@@ -1,6 +1,6 @@
 import Foundation
 
-/// One command the app ran in a repository, as the Git log shows it.
+/// One command the app ran in a repository, as the Activity window shows it.
 nonisolated struct GitLogEntry: Identifiable, Equatable, Sendable {
     enum Outcome: Equatable, Sendable {
         case exited(ChildProcess.Result)

@@ -64,6 +64,7 @@
 				GitFailures/RecognizedGitFailure.swift,
 				GitLog/GitLogEntry.swift,
 				GitReading/Commit.swift,
+				GitReading/CommitLogStream.swift,
 				GitReading/GitReadFailure.swift,
 				GitReading/InProgressOperation.swift,
 				GitReading/Ref.swift,

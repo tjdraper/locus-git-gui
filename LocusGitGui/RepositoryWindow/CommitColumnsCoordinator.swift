@@ -16,9 +16,11 @@ final class CommitColumnsCoordinator {
     private var head: RepositoryStatus.Branch?
     private var shownSelection: SidebarItemID?
 
-    init(run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
-        history = HistoryViewController(list: HistoryList(run: run))
-        detail = CommitDetailViewController(run: run)
+    init(commands: RepositoryCommandRunner) {
+        history = HistoryViewController(list: HistoryList { command, onOutput in
+            try await commands.run(command, onOutput: onOutput)
+        })
+        detail = CommitDetailViewController { try await commands.run($0) }
         history.onSelect = { [weak self] commit in
             guard let self else { return }
             detail.show(commit, labels: commit.map(history.labels) ?? [])

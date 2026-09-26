@@ -5,10 +5,15 @@ import Foundation
 /// can be holding it. A Git process runs in the repository it works on, so its working directory
 /// gives it away.
 nonisolated enum GitProcessFinder {
-    static func processes(workingIn folders: [URL]) -> [pid_t] {
+    /// `excludingChildrenOf` leaves out the ones a process started itself, such as the app's own
+    /// reads, when what matters is whether something else is working in the repository.
+    static func processes(workingIn folders: [URL], excludingChildrenOf parent: pid_t? = nil) -> [pid_t] {
         let paths = folders.map { ResolvedPath.of($0).path }
         return allProcessIdentifiers().filter { processIdentifier in
             guard isGit(processIdentifier), let directory = workingDirectory(of: processIdentifier) else {
+                return false
+            }
+            if let parent, parentIdentifier(of: processIdentifier) == parent {
                 return false
             }
             return paths.contains { directory == $0 || directory.hasPrefix($0 + "/") }
@@ -33,6 +38,15 @@ nonisolated enum GitProcessFinder {
             return false
         }
         return processName == "git" || processName.hasPrefix("git-")
+    }
+
+    private static func parentIdentifier(of processIdentifier: pid_t) -> pid_t? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(processIdentifier, PROC_PIDTBSDINFO, 0, &info, size) == size else {
+            return nil
+        }
+        return pid_t(info.pbi_ppid)
     }
 
     /// Nil for processes owned by someone else, which macOS doesn't let the app look into.

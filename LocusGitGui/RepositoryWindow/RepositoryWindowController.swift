@@ -14,11 +14,15 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let sidebarView: NSView
     private let commitColumns: CommitColumnsCoordinator
     private lazy var commitWindows = CommitWindowCoordinator(repository: repository, run: commands.run)
+    private lazy var commitGraph = CommitGraphWriter(repository: repository, run: commands.run)
     private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
     private let titleItem: RepositoryTitleItem
-    private lazy var toolbar = RepositoryToolbar(title: titleItem) { [weak self] in self?.showBackgroundFailure() }
-    private lazy var gitLogWindow = GitLogWindowPresenter(log: commands.log, repository: repository)
+    private lazy var toolbar = RepositoryToolbar(
+        title: titleItem,
+        activity: ActivityIndicator(log: commands.log) { [weak self] in self?.activityWindow.show() }
+    ) { [weak self] in self?.showBackgroundFailure() }
+    private lazy var activityWindow = ActivityWindowPresenter(log: commands.log, repository: repository)
     private lazy var scheduler = RefreshScheduler { [weak self] reason in await self?.refresh(because: reason) }
     private lazy var watcher = RepositoryFileWatcher(repository: repository) { [weak self] in
         self?.scheduler.requestSoon(because: .filesChanged)
@@ -48,7 +52,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         // The split view sets the columns' sizes, not SwiftUI.
         sidebarController.sizingOptions = []
         sidebarView = sidebarController.view
-        commitColumns = CommitColumnsCoordinator(run: commands.run)
+        commitColumns = CommitColumnsCoordinator(commands: commands)
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
             history: commitColumns.history,
@@ -66,7 +70,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         window.title = (repository.workTree.path as NSString).abbreviatingWithTildeInPath
         window.titleVisibility = .hidden
         window.isReleasedWhenClosed = false
-        // Kept apart from the dashboard and Git log windows, which also count as documents to
+        // Kept apart from the dashboard and Activity windows, which also count as documents to
         // macOS's automatic tabbing.
         window.tabbingIdentifier = "RepositoryWindow"
         window.identifier = RepositoryWindowRestoration.identifier
@@ -88,8 +92,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         window.onTab = { [weak self, weak window] backward in
             self?.focusCycle.move(from: window?.firstResponder, backward: backward) ?? false
         }
-        window.toolbar = toolbar.toolbar
-        window.toolbarStyle = .unified
+        toolbar.attach(to: window)
         window.delegate = self
         watcher.start()
         scheduler.requestNow(because: .windowOpened)
@@ -100,9 +103,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         nil
     }
 
-    /// Reached through the responder chain from View > Show Git Log.
-    @objc func showGitLog(_: Any?) {
-        gitLogWindow.show()
+    /// Reached through the responder chain from View > Show Activity.
+    @objc func showActivity(_: Any?) {
+        activityWindow.show()
     }
 
     /// Reached through the responder chain from View > Filter Sidebar.
@@ -178,7 +181,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         saveViewState()
         watcher.stop()
         scheduler.cancel()
-        gitLogWindow.close()
+        activityWindow.close()
         commitWindows.closeAll()
     }
 
@@ -198,6 +201,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run))
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
             commitWindows.showLabels(commitColumns.labels)
+            // Once Git has reached the repository, so a folder that's gone isn't written to.
+            commitGraph.writeIfMissing()
             clearBackgroundFailure()
             let elapsed = ContinuousClock.now - started
             let files = snapshot.status.files.count
