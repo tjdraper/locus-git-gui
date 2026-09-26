@@ -272,17 +272,46 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 8. **Diff view**
 
+   Done. Seen running in light and dark mode, by hand and driven by script on this repository and on the performance commits: side by side and inline, wrapping, changed words, sticky headers, collapsing and expanding, the summary bar, More Context Lines, Show Changes, images, the enormous line, selecting and copying, Open in Editor, the file menus, commit windows, and file windows with their Previous and Next File. Not looked at yet: Tab and Shift-Tab into and out of the diff, and the "No newline at end of file" note; slice 17's keyboard audit and a file that ends without a newline will reach them. The diff can't be read by VoiceOver yet (see slice 17).
+
    - Unified diff, one section per file, each with a header that collapses and expands the file. Collapse All and Expand All in the View menu.
+     - Built as the app's own drawing rather than a text view (see Decisions). Each file's header stays at the top while any of the file is in view, until the next file's header pushes it up. Clicking a header collapses or expands the file, and the header stays where it was on screen; Option-clicking it collapses or expands every file, as in Finder. A bar above the files gives their count and the lines they add and remove, with a button that collapses them all, or expands them all once they're all collapsed. File windows show one file and leave the bar out. View has Collapse File (⌥⌘←), Expand File (⌥⌘→), Collapse All Files (⌥⇧⌘←), Expand All Files (⌥⇧⌘→), Next File (⌥⌘↓) and Previous File (⌥⌘↑).
+     - Side by side when the column has room for 80 characters a side, inline when it doesn't, like Sublime Merge. Side by side, a removed line sits level with the added line that replaced it, and a side with nothing to match is shaded. An added or deleted file is inline even then, since one of its sides would be empty. Inline shows both line numbers. Long lines wrap. Each line a long line wraps onto starts with a grey ↳, lined up with the first line's indentation, and its text starts just after it, as in JetBrains' editors. A tab character in a file is drawn four characters wide.
+     - Text can be selected and copied a side at a time, as from two documents side by side. Double-click selects a word, triple-click a line, and Shift-click extends. Space and Shift-Space page through the diff.
+     - Each hunk has a band above it with what Git found it to be inside, such as a function's first line. Slice 9 puts its staging buttons there.
    - Changed words highlighted inside changed lines
+     - Built as `ChangedWords`: a removed line and the added line that replaced it are compared a word at a time, and only when they share at least half of the shorter line and a quarter of the longer. Lines past 10,000 characters aren't compared.
    - Renames, mode changes, binary files, and images shown before and after
+     - An added file's header has a green plus in place of the word, and a deleted file's a red trash can, so they stand out in a long list. A rename shows both paths in its header; one with no changes says so. A mode change says "Made executable" or "No longer executable". An image shows before and after side by side, with pixel size and file size, decoded only as large as it's shown, and not read at all past 64 MB. Other binary files say they can't be shown as text.
    - A large file's diff is collapsed with a line count and a button to show it, so one generated file doesn't stall the view
-   - Open in Editor from a file's header and from the menu, opening at the line when the editor supports it
+     - A file with more than 5,000 changed lines, or 512 KB of them, is left out with its line count and Show Changes. After 50,000 lines in all, the rest of the files are left out the same way, so a commit changing thousands of files shows every file's header and counts. Show Changes reads that one file whole. The patch is read as Git writes it and never kept whole, so the lines left out cost no memory.
+   - Open in Editor from a file's header and from the menu
+     - Built as asking macOS to open the file, so it opens in whatever app the user has chosen for that kind of file. There's no editor setting: macOS already has one per file type.
    - Reveal in Finder, Copy Path
+     - In the File menu with Open in Editor (⌥⌘E), Reveal in Finder (⌥⌘R), Copy Absolute Path (⌥⌘C), Copy Path from Repository Root (⌥⇧⌘C) and Open File in New Window, and in each file's "…" menu and context menu. Slice 13 adds the setting that gives ⌥⌘C to the path from the repository root instead.
    - Open in Editor, Reveal in Finder and Copy Path work wherever a file's changes show: the commit detail column, commit windows, file windows and slice 9's working area. They act on the file as it is in the working tree now, so Open in Editor and Reveal in Finder are disabled when it isn't there, such as a file a commit deleted or one renamed since. Copy Path still works.
-   - A file's changes open in a window of their own: double-click the file's header, or use a menu command. From a commit, the window shows that file's changes in that commit. From the working area, it shows the file's staged or unstaged changes, and keeps up as they change.
+     - From the menu bar they act on the current file: the one with the selection in it while that's in view, and otherwise the one whose header is at the top.
+   - A file's changes open in a window of their own from a menu command: File > Open File in New Window, or the file's "…" or context menu. Double-clicking the header was dropped, since a click already collapses the file and the double-click's first click moved the files under the pointer. From a commit, the window shows that file's changes in that commit. From the working area, it shows the file's staged or unstaged changes, and keeps up as they change.
+     - Built for commits as `FileWindowCoordinator`, one window per file in a commit, closing with the repository's window and not restored after a relaunch. A file window reads its file whole. Toolbar buttons move to the commit's previous and next files in the same window, as do J and K, and View > Previous File and Next File. The working area's come with slice 9.
    - Ignore whitespace and the number of context lines, in the View menu and remembered per repository
+     - Built: Ignore Whitespace (`--ignore-all-space`), More Context Lines and Fewer Context Lines, stepping through 0, 1, 3, 5, 10, 25 and 100. Changing them reads every diff open from that repository again, keeping each one's place.
    - AppKit and TextKit 2 rather than SwiftUI (see Decisions)
+     - Drawn by the app itself instead, since side by side needs each row level with its counterpart (see Decisions). `DiffViewController` doesn't know where its changes come from: whoever shows it passes `readFile` for left-out changes and `readImage` for images, so slice 9's working area can show staged and unstaged changes with the same view.
+     - A column divider drawn up through the toolbar, from the moment a commit was first selected until the window closed, came from the diff's scroll view: shown before the commit header had measured its height, it sat right under the toolbar for a moment, and macOS 26 then kept the column's divider in the toolbar. The diff stays hidden until the header has its height.
+     - J and K in a file window aren't menu shortcuts, since a menu item with a plain letter would also fire while typing in a text field elsewhere. The diff takes them when it has focus, and the file window focuses its diff when it opens.
    - Performance check (see Decisions): a diff of a very large file, a file with one enormous line, a commit changing thousands of files, and a large image, using slice 7's test repositories
+     - `Scripts/GenerateTestRepository.swift --large-changes` adds the four as tagged commits, and `DiffPerformanceTests` times them. Measured in an optimized build (2026-09-26), with Git's own time for the patch in brackets:
+
+       | | Read | Laid out |
+       |---|---|---|
+       | 5,000 files, 50,000 changed lines | 0.24 s (0.11 s) | 5 ms for 60,000 rows |
+       | 20,000 of 200,000 lines changed, shown whole | 0.21 s (0.08 s) | 6 ms for 180,000 rows |
+       | One line of 4.6 million characters, shown whole | 0.08 s (0.04 s) | 58 ms, now constant |
+       | 8000 × 6000 image, each side | 0.19 s | |
+
+       Reading and parsing the patch as it streams adds about 0.01 s to Git's time; the rest of a read is the message, the file list and marking changed words. Lines past 10,000 characters now wrap every so many characters rather than between words, so their height comes from their length alone. Layout is arithmetic on the font's character width, which is why a width change on 180,000 rows takes milliseconds; drawing typesets only the lines on screen. The test runner's own timings of the same reads were several times slower than the app's code run on its own, so these come from a separate build of the same files.
+     - Keyboard scrolling first left the file headers behind: `NSClipView.scroll(to:)` doesn't go through `setBoundsOrigin`, so the diff's clip view reports both.
+     - In a Debug build, reading the 5,000-file commit took 3.5 s, against 0.24 s for the same code optimized.
 
 9. **Working area and committing**
 
@@ -290,6 +319,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - Selecting it fills the detail column with a commit message field at the top, then staged files, then unstaged and untracked files, each with its diff
    - Every staged, unstaged and untracked file has slice 8's Open in Editor, Reveal in Finder, Copy Path and file window
    - Stage and unstage a whole file, a hunk, or selected lines. Space toggles the selected file between staged and unstaged. Stage All and Unstage All in the menu.
+     - From slice 8: each hunk already has a band above it for its buttons, a selection in the diff (`DiffSelection`) gives the lines it covers, and `DiffViewController` takes its changes from `readFile` and `readImage`. An unstaged file's new side is the file on disk rather than a Git object, so its images are read from disk. The summary bar above the files can hold Stage All and Unstage All.
    - Discard changes to a file, hunk, or lines, after a confirmation. Delete an untracked file moves it to the Trash, not to oblivion.
    - The message field keeps the subject and body apart, with a quiet guide at the usual subject length. ⌘Return commits.
    - Amend Last Commit loads the previous message and shows what the amend will change
@@ -360,8 +390,9 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 13. **Settings**
 
     - Which `git` to use, with its path and version, and the same Find and Choose as the checklist's Git step
-    - Default editor, and whether it opens at a line
+    - Which path ⌥⌘C copies: the absolute path (the default, from slice 8) or the path from the repository root. The other command takes ⌥⇧⌘C.
     - Diff defaults: whitespace, context lines, font and size
+    - Inline or side by side: side by side when there's room (the default, from slice 8), or always one of them
     - Automatic fetch and its interval
     - Beta updates toggle, bound to the default slice 1 reads
     - Sparkle gentle reminders, so a found update shows a quiet sign rather than jumping to the front
@@ -416,7 +447,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 17. **Polish and first release**
 
     - Keyboard audit: walk every feature with the mouse unplugged. Anything that can't be reached is a bug.
-    - VoiceOver pass on all three columns, the palette and the conflict window
+    - VoiceOver pass on all three columns, the palette and the conflict window. The diff is drawn by the app (see Decisions), so VoiceOver can't read its text until the app describes its rows itself; its file headers, buttons and notices are ordinary views and already read.
     - On a partial clone, such as a blobless clone, Find in Changes (`git log -S`) downloads the contents of every file in the history to search them, one request at a time. Decide whether to warn first, or leave it out for partial clones, which Git marks with a promisor remote (`remote.<name>.promisor`).
     - Performance pass over the whole app on the Linux kernel. Each slice has already checked its own part (see Decisions), so this looks at the parts together: a fetch refreshing the sidebar and the history while the history is paging, a checkout changing thousands of files with the working area open, and several large repositories open at once.
     - Light and dark mode checked on every window. The repository window's sidebar hasn't been seen in dark mode yet.
@@ -434,9 +465,11 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 - **No App Sandbox.** The app runs `git`, `ssh` and the user's hooks, and reads repositories anywhere on disk. Matches the other Locus Mac apps. Signing and notarization still work, and App Store distribution isn't a goal.
 
-- **SwiftUI for views by default, AppKit for the shell and the two big views.** Windows, tabs, the split view, the toolbar and the main menu are AppKit. Native tabs, the close button dot, proxy icons, and menu validation through the responder chain are all AppKit features that SwiftUI either hides or doesn't offer. locus-todo went the other way, and needed `MainWindowTitleConcealer` and `MainWindowSizeMatcher` to reach the window SwiftUI owns, and a long list of `@FocusedValue`s to drive its menus. Inside the windows, every view is SwiftUI unless there's a reason it can't be: the sidebar, the dashboard, the palette, the commit header, the message field, Settings, the checklist. The two exceptions are the history list (`NSTableView`) and the diff view (TextKit 2), because a SwiftUI `List` of a hundred thousand commits or a ten-thousand-line diff is where SwiftUI stops keeping up.
+- **SwiftUI for views by default, AppKit for the shell and the two big views.** Windows, tabs, the split view, the toolbar and the main menu are AppKit. Native tabs, the close button dot, proxy icons, and menu validation through the responder chain are all AppKit features that SwiftUI either hides or doesn't offer. locus-todo went the other way, and needed `MainWindowTitleConcealer` and `MainWindowSizeMatcher` to reach the window SwiftUI owns, and a long list of `@FocusedValue`s to drive its menus. Inside the windows, every view is SwiftUI unless there's a reason it can't be: the sidebar, the dashboard, the palette, the commit header, the message field, Settings, the checklist. The two exceptions are the history list (`NSTableView`) and the diff view (drawn by the app, see below), because a SwiftUI `List` of a hundred thousand commits or a ten-thousand-line diff is where SwiftUI stops keeping up.
 
   AppKit isn't going away. Apple still adds to it every year, including the macOS 26 design, and SwiftUI on the Mac runs on top of it. Keeping views in SwiftUI is still the forward-looking choice, since that's where Apple's new view work lands first. If SwiftUI later gains what the shell needs, the shell can move without the views changing.
+
+- **The diff view draws its own rows.** The plan was TextKit 2, but side by side needs each changed line level with the line it replaced, and two text views can't keep wrapped lines level without laying out both in full. The diff is drawn instead as rows of fixed-width text: a row's height is the taller side's wrapped height, worked out from character widths (`LineWrap`) without laying out any text, and only the rows on screen are typeset. That also keeps a hundred thousand lines, or one line of millions of characters, as quick to scroll as ten. The cost is that selection, copying and accessibility are the app's own code rather than a text view's; slice 17's VoiceOver pass covers the diff.
 
 - **One command catalog feeds every surface.** Menus, context menus, the toolbar and the palette read their titles and shortcuts from the same place, and enabling follows the responder chain, so a command is available in the palette exactly when it is in the menu. locus-sound-control's `DeviceCommand` is the small version of this.
 
@@ -512,7 +545,7 @@ Git clients tend to grow things that aren't Git. These stay out on purpose:
 - **Interactive rebase.** Reorder, squash, fixup, edit and reword commits in a list, then run. The biggest Git feature missing from v1, and the one most worth doing well.
 - **Blame and file history.** Both are Git and both belong here, just not in the first release.
 - **Undo through the reflog.** ⌘Z after a commit, reset, checkout or rebase, restoring the previous state. Needs care to never lose work, so it waits until the rest is solid.
-- **Side-by-side diff and syntax highlighting**
+- **Syntax highlighting in diffs.** Side by side moved into slice 8.
 - **Submodules, worktrees and LFS** shown in the sidebar and handled in their own terms. Until then they work, because Git does the work, but aren't shown specially.
 - **Commit signing status in the history's rows.** The selected commit's shows in its detail from slice 7; checking every row needs GPG or `ssh-keygen` once per commit.
 
