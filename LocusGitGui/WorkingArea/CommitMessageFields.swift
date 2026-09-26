@@ -183,6 +183,13 @@ final class CommitBodyTextView: NSTextView {
         didSet { if guideX != oldValue { needsDisplay = true } }
     }
 
+    /// The whole view, since it draws no background of its own: redrawing only the text typed
+    /// left the placeholder showing beside it.
+    override func didChangeText() {
+        super.didChangeText()
+        needsDisplay = true
+    }
+
     override func drawBackground(in rect: NSRect) {
         super.drawBackground(in: rect)
         NSColor.quaternaryLabelColor.setFill()
