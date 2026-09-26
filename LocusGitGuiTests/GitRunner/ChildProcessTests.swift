@@ -34,6 +34,24 @@ struct ChildProcessTests {
     }
 
     @Test
+    func readsItsInputAndCanStopBeforeTheEnd() async throws {
+        // Arrange
+        let input = Data(String(repeating: "line\n", count: 200_000).utf8)
+        var whole = shell("wc -l")
+        whole.input = input
+        var early = shell("head -n 1")
+        early.input = input
+
+        // Act
+        let counted = try await whole.run()
+        let first = try await early.run()
+
+        // Assert
+        #expect(String(bytes: counted.standardOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespaces) == "200000\n")
+        #expect(first.standardOutput == Data("line\n".utf8))
+    }
+
+    @Test
     func collectsBothOutputsAndTheExitStatus() async throws {
         // Arrange
         let process = shell("printf out; printf err >&2; exit 3")

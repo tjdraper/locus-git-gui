@@ -18,6 +18,7 @@ struct Options {
     var tags = 100
     var writesCommitGraph = false
     var addsLargeChanges = false
+    var workingChanges = 0
 }
 
 func parseOptions() -> Options {
@@ -38,6 +39,7 @@ func parseOptions() -> Options {
         case "--tags": options.tags = number(for: argument)
         case "--commit-graph": options.writesCommitGraph = true
         case "--large-changes": options.addsLargeChanges = true
+        case "--working-changes": options.workingChanges = number(for: argument)
         case "--help", "-h": usage()
         default:
             guard options.folder.isEmpty, !argument.hasPrefix("-") else { fail("Unknown option \(argument)") }
@@ -60,6 +62,8 @@ func usage() -> Never {
       --commit-graph         Write a commit-graph file afterwards, as `git gc` would
       --large-changes        End main with commits whose diffs are hard to show, tagged perf/…:
                              thousands of files, a huge file, one enormous line, a large image
+      --working-changes <n>  Leave <n> changed files and <n> untracked files in the working tree,
+                             in work/, for the working area's performance check
     """)
     exit(0)
 }
@@ -296,5 +300,29 @@ func image(width: Int, height: Int, seed: UInt64) -> Data {
 git(["reset", "--hard", "--quiet"], in: folder)
 if options.writesCommitGraph {
     git(["commit-graph", "write", "--reachable"], in: folder)
+}
+if options.workingChanges > 0 {
+    addWorkingChanges(options.workingChanges, in: folder)
+}
+
+/// Commits `count` files, then changes every one and adds as many untracked files beside them.
+func addWorkingChanges(_ count: Int, in folder: URL) {
+    let work = folder.appending(path: "work")
+    try? FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    func write(_ name: String, _ index: Int, changed: Bool) {
+        let text = (0 ..< 20).map { line in
+            (changed && line % 5 == 0 ? "changed " : "") + "Line \(line) of \(name) \(index), with enough words to be a typical line"
+        }.joined(separator: "\n") + "\n"
+        try? Data(text.utf8).write(to: work.appending(path: "\(name)-\(index).txt"))
+    }
+    for index in 0 ..< count {
+        write("tracked", index, changed: false)
+    }
+    git(["add", "work"], in: folder)
+    git(["-c", "user.name=Test Author", "-c", "user.email=author@example.com", "commit", "--quiet", "--message", "Add files to change"], in: folder)
+    for index in 0 ..< count {
+        write("tracked", index, changed: true)
+        write("untracked", index, changed: false)
+    }
 }
 print("Made \(options.commits) commits in \(folder.path) in \(Int(Date().timeIntervalSince(started))) seconds")

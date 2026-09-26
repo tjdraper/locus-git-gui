@@ -18,6 +18,18 @@ nonisolated struct RepositoryStatus: Equatable, Sendable {
         /// Where a renamed or copied file came from.
         let originalPath: String?
         let state: FileState
+        /// Nil for an untracked, ignored or conflicted file.
+        var versions: Versions?
+    }
+
+    /// A changed file's modes and objects in HEAD and the index, and its mode in the working tree.
+    /// A side the file isn't on has mode `000000` and an object of zeros.
+    struct Versions: Equatable, Sendable {
+        let headMode: String
+        let indexMode: String
+        let workTreeMode: String
+        let headObject: String
+        let indexObject: String
     }
 
     enum FileState: Equatable, Sendable {
@@ -46,7 +58,9 @@ nonisolated struct RepositoryStatus: Equatable, Sendable {
         case bothModified = "UU"
     }
 
-    static let command = GitCommand.reading(["status", "--porcelain=v2", "--branch", "-z"])
+    /// Every untracked file, rather than a folder of them as one, since the working area shows and
+    /// stages each file.
+    static let command = GitCommand.reading(["status", "--porcelain=v2", "--branch", "--untracked-files=all", "-z"])
 
     let branch: Branch
     let files: [File]
@@ -107,13 +121,13 @@ nonisolated struct RepositoryStatus: Equatable, Sendable {
     /// `1 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <path>`
     private static func ordinaryFile(_ record: Data) throws -> File {
         let fields = try fields(of: record, count: 9)
-        return File(path: fields[8], originalPath: nil, state: try changedState(fields[1]))
+        return File(path: fields[8], originalPath: nil, state: try changedState(fields[1]), versions: versions(fields))
     }
 
     /// `2 <XY> <sub> <mH> <mI> <mW> <hH> <hI> <X><score> <path>`
     private static func renamedFile(_ record: Data, from originalPath: String) throws -> File {
         let fields = try fields(of: record, count: 10)
-        return File(path: fields[9], originalPath: originalPath, state: try changedState(fields[1]))
+        return File(path: fields[9], originalPath: originalPath, state: try changedState(fields[1]), versions: versions(fields))
     }
 
     /// `u <XY> <sub> <m1> <m2> <m3> <mW> <h1> <h2> <h3> <path>`
@@ -123,6 +137,11 @@ nonisolated struct RepositoryStatus: Equatable, Sendable {
             throw UnreadableGitOutput(reason: "Unknown conflict")
         }
         return File(path: fields[10], originalPath: nil, state: .conflicted(conflict))
+    }
+
+    /// `<mH> <mI> <mW> <hH> <hI>`, which follow the change codes and the submodule field.
+    private static func versions(_ fields: [String]) -> Versions {
+        Versions(headMode: fields[3], indexMode: fields[4], workTreeMode: fields[5], headObject: fields[6], indexObject: fields[7])
     }
 
     /// The path comes last and can itself contain spaces, so splitting stops before it.

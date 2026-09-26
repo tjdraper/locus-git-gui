@@ -2,12 +2,13 @@ import Foundation
 import Testing
 
 struct DiffDocumentTests {
-    private func file(_ patch: String, change: ChangedFile.Change = .modified, path: String = "a.txt") -> DiffFile {
+    private func file(_ patch: String, change: ChangedFile.Change = .modified, path: String = "a.txt", group: Int? = nil) -> DiffFile {
         var parser = PatchParser(limits: .allFiles)
         parser.consume(Data(patch.utf8))
         return DiffFile(
             changed: ChangedFile(change: change, path: path, originalPath: nil, oldMode: "100644", newMode: "100644"),
-            patch: parser.finish().first ?? FilePatch()
+            patch: parser.finish().first ?? FilePatch(),
+            group: group
         )
     }
 
@@ -42,6 +43,29 @@ struct DiffDocumentTests {
             .lines(file: 0, hunk: 0, left: 2, right: nil),
             .lines(file: 0, hunk: 0, left: 4, right: 4),
         ])
+    }
+
+    @Test
+    func eachGroupHasAHeadingAboveItsFirstFile() {
+        // Arrange
+        let files = [file(edit, group: 1), file(edit, path: "b.txt", group: 1), file(edit, group: 2)]
+
+        // Act
+        let document = DiffDocument(files: files, collapsed: [0, 1, 2], style: .inline)
+
+        // Assert
+        #expect(document.blocks == [.group(file: 0), .header(file: 0), .header(file: 1), .group(file: 2), .header(file: 2)])
+        #expect(document.fileStarts == [1, 2, 4])
+        #expect(document.fileEnds == [2, 3, 5])
+    }
+
+    @Test
+    func aFileEndsWhereTheNextOneStarts() {
+        // Act
+        let document = DiffDocument(files: [file(edit), file(edit)], collapsed: [], style: .inline)
+
+        // Assert
+        #expect(document.fileEnds == [document.fileStarts[1], document.blocks.count])
     }
 
     @Test

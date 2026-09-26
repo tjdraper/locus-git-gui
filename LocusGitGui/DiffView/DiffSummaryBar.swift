@@ -1,7 +1,8 @@
 import AppKit
 
 /// Above a diff's files: how many there are and how many lines they add and remove, and a button
-/// that collapses them all, or expands them all once they're all collapsed.
+/// that collapses them all, or expands them all once they're all collapsed. Whoever shows the diff
+/// can put a control of its own first, as the working area puts its filter.
 final class DiffSummaryBar: NSView {
     static let height = 30.0
 
@@ -11,7 +12,17 @@ final class DiffSummaryBar: NSView {
     private let summary = NSTextField(labelWithString: "")
     private let counts = NSTextField(labelWithString: "")
     private let button = NSButton(title: AppCommand.collapseAllFiles.title, target: nil, action: nil)
+    private let stack = NSStackView()
     private var isAllCollapsed = false
+
+    var accessory: NSView? {
+        didSet {
+            oldValue?.removeFromSuperview()
+            if let accessory {
+                stack.insertView(accessory, at: 0, in: .leading)
+            }
+        }
+    }
 
     override init(frame: NSRect) {
         super.init(frame: frame)
@@ -22,7 +33,6 @@ final class DiffSummaryBar: NSView {
         button.bezelStyle = .push
         button.target = self
         button.action = #selector(toggleAll(_:))
-        let stack = NSStackView()
         stack.setViews([summary, counts], in: .leading)
         stack.setViews([button], in: .trailing)
         stack.orientation = .horizontal
@@ -60,6 +70,9 @@ final class DiffSummaryBar: NSView {
         }
         counts.attributedStringValue = text
         button.title = isAllCollapsed ? AppCommand.expandAllFiles.title : AppCommand.collapseAllFiles.title
+        for view in [summary, counts, button] {
+            view.isHidden = files.isEmpty
+        }
     }
 
     override func draw(_: NSRect) {

@@ -7,7 +7,7 @@ final class HistoryRowView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("HistoryRow")
     static let height: CGFloat = 40
 
-    private static let graphPadding: CGFloat = 4
+    static let graphPadding: CGFloat = 4
     private static let trailingPadding: CGFloat = 8
     private static let verticalPadding: CGFloat = 4
     private static let labelSpacing: CGFloat = 4

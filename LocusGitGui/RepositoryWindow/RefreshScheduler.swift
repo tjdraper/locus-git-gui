@@ -8,6 +8,8 @@ final class RefreshScheduler {
         case filesChanged
         case windowBecameKey
         case retried
+        /// The app changed the repository, such as by staging a file.
+        case commandRan
     }
 
     private static let quietPeriod: Duration = .milliseconds(400)

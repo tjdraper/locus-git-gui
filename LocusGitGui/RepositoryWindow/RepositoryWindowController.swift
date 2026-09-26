@@ -39,7 +39,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         sidebarView: sidebarView,
         isSidebarShown: { [weak self] in self?.columns.isSidebarCollapsed == false },
         history: commitColumns.history,
-        detail: commitColumns.detail
+        detail: commitColumns.detailColumn
     )
 
     init(commands: RepositoryCommandRunner, displayName: String?, viewStates: RepositoryViewStateStore) {
@@ -55,11 +55,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         // The split view sets the columns' sizes, not SwiftUI.
         sidebarController.sizingOptions = []
         sidebarView = sidebarController.view
-        commitColumns = CommitColumnsCoordinator(commands: commands, diffOptions: diffOptions)
+        commitColumns = CommitColumnsCoordinator(commands: commands, diffOptions: diffOptions, commitDraft: viewState.commitDraft)
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
             history: commitColumns.history,
-            detail: commitColumns.detail,
+            detail: commitColumns.detailColumn,
             columns: viewState.columns
         )
         let window = RepositoryWindow(
@@ -110,17 +110,10 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
         commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
         commitColumns.openFileWindow = { [weak self] request in self?.openFileWindow(request, from: self?.window) }
-    }
-
-    /// Reached through the responder chain from View > Show Activity.
-    @objc func showActivity(_: Any?) {
-        activityWindow.show()
-    }
-
-    /// Reached through the responder chain from View > Filter Sidebar.
-    @objc func filterSidebar(_: Any?) {
-        columns.showSidebar()
-        sidebar.requestFilterFocus()
+        let workingArea = commitColumns.workingArea
+        workingArea.requestRefresh = { [weak self] in self?.scheduler.requestNow(because: .commandRan) }
+        workingArea.presentCommandFailure = { [weak self] failure in self?.presentCommandFailure(failure) }
+        workingArea.onDraftChange = { [weak self] _ in self?.saveViewState() }
     }
 
     /// Commands for the history or the commit reach them from whichever column has focus.
@@ -205,6 +198,10 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         do {
             let snapshot = try await RepositorySnapshot.read(repository, running: commands.run)
             show(RepositoryTitleBar(status: snapshot.status, operation: snapshot.operation))
+            commitColumns.show(snapshot)
+            if fileWindows.showsWorkingArea {
+                fileWindows.showWorkingArea(commitColumns.workingArea.files(in: Set(WorkingAreaGroup.allCases)))
+            }
             // Read only once Git has reached the repository, so a folder that's gone or out of
             // reach isn't taken for one whose name was cleared.
             let displayName = await Self.readDisplayName(in: repository.workTree)
@@ -270,6 +267,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         state.collapsedRemotes = sidebar.collapsedRemotes
         state.columns = columns.columns
         state.diffOptions = diffOptions.options
+        state.commitDraft = commitColumns.workingArea.draft
         viewStates.set(state, for: repository)
     }
 
@@ -299,10 +297,43 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
+}
+
+/// Failures shown as a sheet on the window.
+extension RepositoryWindowController {
+    /// A command the user ran, such as a commit, that failed. They acknowledge it with OK.
+    fileprivate func presentCommandFailure(_ failure: GitFailure) {
+        guard let window else { return }
+        failureSheet.present(failure, repository: repository, on: window, wasOpenedByUser: false, retry: nil)
+    }
+
     /// Opened by the user from a warning or a column's Show Details, so it has a Try Again.
-    private func present(_ failure: GitFailure, retry: @escaping () -> Void) {
+    fileprivate func present(_ failure: GitFailure, retry: @escaping () -> Void) {
         guard let window else { return }
         failureSheet.present(failure, repository: repository, on: window, wasOpenedByUser: true, retry: retry)
+    }
+}
+
+/// View menu commands, which reach the window through the responder chain from anywhere in it.
+extension RepositoryWindowController {
+    /// Reached through the responder chain from View > Show Activity.
+    @objc func showActivity(_: Any?) {
+        activityWindow.show()
+    }
+    /// Reached through the responder chain from View > Filter Sidebar.
+    @objc func filterSidebar(_: Any?) {
+        columns.showSidebar()
+        sidebar.requestFilterFocus()
+    }
+    /// Reached through the responder chain from View > Go to Uncommitted Changes, from anywhere in
+    /// the window. The subject takes focus, since writing the message is usually what's next.
+    @objc func goToUncommittedChanges(_: Any?) {
+        guard commitColumns.history.workingArea != nil else {
+            NSSound.beep()
+            return
+        }
+        commitColumns.history.selectWorkingArea()
+        commitColumns.workingArea.focusSubject()
     }
 }
 

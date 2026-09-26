@@ -8,8 +8,9 @@ struct RepositoryStatusTests {
         return try RepositoryStatus(parsing: result.standardOutput)
     }
 
+    /// Without their modes and objects, which a test can't know ahead of time.
     private func byPath(_ files: [RepositoryStatus.File]) -> [RepositoryStatus.File] {
-        files.sorted { $0.path < $1.path }
+        files.sorted { $0.path < $1.path }.map { RepositoryStatus.File(path: $0.path, originalPath: $0.originalPath, state: $0.state) }
     }
 
     @Test
@@ -84,9 +85,50 @@ struct RepositoryStatusTests {
         let status = try await status(of: repository)
 
         // Assert
-        #expect(status.files == [
+        #expect(byPath(status.files) == [
             .init(path: "new name.txt", originalPath: "old name.txt", state: .changed(staged: .renamed, unstaged: nil)),
         ])
+    }
+
+    @Test
+    func aChangedFileHasItsModesAndObjects() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("First", writing: "one", to: "a.txt")
+        let headObject = try await repository.git("rev-parse", "HEAD:a.txt")
+        try repository.write("two", to: "a.txt")
+        try await repository.git("add", "a.txt")
+        let indexObject = try await repository.git("rev-parse", ":a.txt")
+        try repository.write("three", to: "a.txt")
+
+        // Act
+        let status = try await status(of: repository)
+
+        // Assert
+        #expect(status.files.first?.versions == .init(
+            headMode: "100644",
+            indexMode: "100644",
+            workTreeMode: "100644",
+            headObject: headObject,
+            indexObject: indexObject
+        ))
+    }
+
+    @Test
+    func untrackedFilesInAFolderAreListedOneByOne() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("First", writing: "a", to: "a.txt")
+        try repository.write("one", to: "new/one.txt")
+        try repository.write("two", to: "new/deeper/two.txt")
+
+        // Act
+        let status = try await status(of: repository)
+
+        // Assert
+        #expect(byPath(status.files).map(\.path) == ["new/deeper/two.txt", "new/one.txt"])
     }
 
     @Test

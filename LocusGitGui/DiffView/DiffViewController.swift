@@ -10,12 +10,12 @@ final class DiffViewController: NSViewController {
     private static let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
 
     /// Reads a file's changes whatever their size, for changes that were left out.
-    var readFile: ((ChangedFile) async throws -> DiffFile)? {
+    var readFile: ((DiffFile) async throws -> DiffFile)? {
         get { leftOut.read }
         set { leftOut.read = newValue }
     }
 
-    var readImage: ((ChangedFile, _ isNew: Bool) async throws -> (data: Data?, byteCount: Int)?)? {
+    var readImage: ((DiffFile, _ isNew: Bool) async throws -> (data: Data?, byteCount: Int)?)? {
         get { images.read }
         set { images.read = newValue }
     }
@@ -28,6 +28,14 @@ final class DiffViewController: NSViewController {
     var showsSummary = true {
         didSet { updateSummary() }
     }
+
+    /// A control at the start of the bar above the files, which keeps the bar shown with no files.
+    var summaryAccessory: NSView? {
+        didSet {
+            summaryBar.accessory = summaryAccessory
+            updateSummary()
+        }
+    }
     /// Where Next File and Previous File go when the files are somewhere other than this diff, as in
     /// a file window, which shows one of a commit's files at a time.
     var adjacentFiles: AdjacentFiles?
@@ -37,14 +45,34 @@ final class DiffViewController: NSViewController {
         let move: (_ offset: Int) -> Void
     }
 
+    /// The heading of each group in a grouped diff, such as the working area's staged changes.
+    var describeGroup: ((_ group: Int) -> (title: String, actions: [DiffAction]))?
+    /// What can be done to a file, shown in its header and at the top of its menu.
+    var fileActions: ((DiffFile) -> [DiffAction])?
+    /// What can be done to a hunk, or to the lines of it that are selected, shown on its band. Nil
+    /// for a diff whose hunks have nothing to do. `lines` are the selected lines' indices in the
+    /// hunk, and empty when none are.
+    var hunkActions: ((DiffFile, _ hunk: Int, _ lines: [Int]) -> [DiffAction])? {
+        didSet { connectHunkBars() }
+    }
+
+    /// Marks the file the keyboard and the menu bar's file commands act on while the diff has focus.
+    /// A diff of one file has no need to.
+    var highlightsCurrentFile = true
+    /// A key typed while the diff has focus, for whoever shows it to use first, as the working area
+    /// uses Space. True when it was used.
+    var onTypedKey: ((String) -> Bool)?
+    /// The file Next File and Previous File went to, which stays current while it's in view.
+    var markedFile: DiffFile.Identity?
+
     let options: DiffOptionsStore
     let workTree: URL
     let canvas = DiffCanvasView()
     private let scrollView = NSScrollView()
     private let clipView = DiffClipView()
     private(set) lazy var blockViews = DiffBlockViews(canvas: canvas)
-    private let images = DiffImageStore()
-    private let leftOut = LeftOutChangesReader()
+    let images = DiffImageStore()
+    let leftOut = LeftOutChangesReader()
     private let emptyMessage = NSTextField(labelWithString: "")
     private let summaryBar = DiffSummaryBar()
     private lazy var summaryHeight = summaryBar.heightAnchor.constraint(equalToConstant: 0)
@@ -52,7 +80,10 @@ final class DiffViewController: NSViewController {
     private let painter: DiffRowPainter
 
     private(set) var files: [DiffFile] = []
-    var collapsedPaths: Set<String> = []
+    var collapsedFiles: Set<DiffFile.Identity> = []
+    /// Files whose left-out changes the user asked to see, which whoever reads the diff again, as
+    /// the working area does on every refresh, reads whole again.
+    private(set) var filesShownWhole: Set<DiffFile.Identity> = []
     private var numberColumns = 3
     private var shownWidth = 0.0
     private var workingTreePresence: [String: Bool] = [:]
@@ -84,7 +115,11 @@ final class DiffViewController: NSViewController {
         scrollView.hasVerticalScroller = true
         scrollView.automaticallyAdjustsContentInsets = false
         scrollView.backgroundColor = .textBackgroundColor
-        clipView.onScroll = { [weak self] in self?.blockViews.update() }
+        clipView.onScroll = { [weak self] in
+            self?.forgetMarkedFileOutOfView()
+            self?.blockViews.update()
+        }
+        canvas.onTypedKey = { [weak self] key in self?.typed(key) ?? false }
         images.onLoad = { [weak self] in self?.blockViews.update() }
         canvas.setAccessibilityLabel("Changes")
         canvas.setAccessibilityRole(.textArea)
@@ -96,12 +131,7 @@ final class DiffViewController: NSViewController {
         emptyMessage.textColor = .secondaryLabelColor
         emptyMessage.alignment = .center
         emptyMessage.isHidden = true
-        blockViews.configureHeader = { [weak self] view, file in self?.configure(view, file: file) }
-        blockViews.configureNotice = { [weak self] view, file, notice in self?.configure(view, file: file, notice: notice) }
-        blockViews.configureImages = { [weak self] view, file in
-            guard let self else { return }
-            view.show(images.state(of: files[file].changed))
-        }
+        connectBlockViews()
         summaryBar.onCollapseAll = { [weak self] in self?.collapseAllFiles(nil) }
         summaryBar.onExpandAll = { [weak self] in self?.expandAllFiles(nil) }
         for subview in [summaryBar, scrollView, emptyMessage] {
@@ -117,7 +147,7 @@ final class DiffViewController: NSViewController {
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            emptyMessage.topAnchor.constraint(equalTo: view.topAnchor, constant: 24),
+            emptyMessage.topAnchor.constraint(equalTo: summaryBar.bottomAnchor, constant: 24),
             emptyMessage.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             emptyMessage.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
         ])
@@ -135,12 +165,15 @@ final class DiffViewController: NSViewController {
     func show(_ files: [DiffFile], emptyMessage message: String, isSameDiff: Bool) {
         _ = view
         if !isSameDiff {
-            collapsedPaths = []
+            collapsedFiles = []
+            filesShownWhole = []
             images.removeAll()
-            workingTreePresence = [:]
         }
+        workingTreePresence = [:]
         leftOut.cancelAll()
+        let previousFiles = self.files
         self.files = files
+        markedFile = isSameDiff ? DiffCommandTarget.markedFile(markedFile, from: previousFiles, in: files) : nil
         numberColumns = DiffLayout.numberColumns(of: files)
         emptyMessage.stringValue = message
         emptyMessage.isHidden = !files.isEmpty
@@ -148,6 +181,14 @@ final class DiffViewController: NSViewController {
         rebuild(keepingPlace: isSameDiff)
         if !isSameDiff {
             canvas.scroll(to: 0)
+        }
+        scrollToMarkedFileIfOutOfView()
+    }
+
+    /// For images that may have changed while their file's diff didn't, such as a working tree file.
+    func readImagesAgain() {
+        for file in files where file.changed.isImage {
+            images.readAgain(file)
         }
     }
 
@@ -176,7 +217,7 @@ final class DiffViewController: NSViewController {
         }
         let started = ContinuousClock.now
         let style = DiffLayout.style(forWidth: width, metrics: metrics, numberColumns: numberColumns)
-        let collapsed = Set(files.indices.filter { collapsedPaths.contains(files[$0].changed.path) })
+        let collapsed = Set(files.indices.filter { collapsedFiles.contains(files[$0].id) })
         let document = DiffDocument(files: files, collapsed: collapsed, style: style)
         let layout = DiffLayout(document: document, files: files, metrics: metrics, width: width, numberColumns: numberColumns)
         let isSameShape = canvas.content.map { $0.document == document } ?? false
@@ -198,43 +239,14 @@ final class DiffViewController: NSViewController {
 
     private func updateSummary() {
         guard isViewLoaded else { return }
-        let isShown = showsSummary && !files.isEmpty
+        let isShown = showsSummary && (!files.isEmpty || summaryAccessory != nil)
         summaryBar.isHidden = !isShown
         summaryHeight.constant = isShown ? DiffSummaryBar.height : 0
-        summaryBar.show(files: files, isAllCollapsed: files.allSatisfy { collapsedPaths.contains($0.changed.path) })
+        summaryBar.show(files: files, isAllCollapsed: files.allSatisfy { collapsedFiles.contains($0.id) })
     }
 
-    private func configure(_ view: DiffFileHeaderView, file index: Int) {
-        let file = files[index]
-        let path = file.changed.path
-        view.show(DiffFileHeaderView.Content(
-            file: file.changed,
-            added: file.patch.added,
-            removed: file.patch.removed,
-            isCollapsed: collapsedPaths.contains(path),
-            isInWorkingTree: isInWorkingTree(path)
-        ))
-        view.onToggle = { [weak self] in self?.toggleCollapsed(path) }
-        view.onToggleAll = { [weak self] in self?.toggleAllCollapsed(like: path) }
-        view.onOpenInEditor = { [weak self] in self?.openInEditor(path: path) }
-        view.makeMenu = { [weak self] in
-            guard let self, let index = self.index(of: path) else { return NSMenu() }
-            return menu(forFile: index).make()
-        }
-    }
-
-    private func configure(_ view: DiffNoticeView, file index: Int, notice: DiffDocument.Notice) {
-        view.show(notice)
-        let path = files[index].changed.path
-        view.onShow = { [weak self] in self?.showChanges(ofFile: path) }
-        view.onShowDetails = { [weak self] in
-            guard let self, let failure = leftOut.failure(for: path) else { return }
-            showFailure?(failure) { [weak self] in self?.showChanges(ofFile: path) }
-        }
-    }
-
-    func index(of path: String) -> Int? {
-        files.firstIndex { $0.changed.path == path }
+    func index(of id: DiffFile.Identity) -> Int? {
+        files.firstIndex { $0.id == id }
     }
 
     func isInWorkingTree(_ path: String) -> Bool {
@@ -247,12 +259,13 @@ final class DiffViewController: NSViewController {
     }
 
     /// Reads a file's left-out changes, or tries again after a failure.
-    private func showChanges(ofFile path: String) {
-        guard leftOut.canRead, let index = index(of: path) else { return }
+    func showChanges(ofFile id: DiffFile.Identity) {
+        guard leftOut.canRead, let index = index(of: id) else { return }
+        filesShownWhole.insert(id)
         files[index].reading = .reading
         rebuild(keepingPlace: true)
-        leftOut.start(files[index].changed) { [weak self] result in
-            guard let self, let index = self.index(of: path) else { return }
+        leftOut.start(files[index]) { [weak self] result in
+            guard let self, let index = self.index(of: id) else { return }
             switch result {
             case let .success(file):
                 files[index] = file
@@ -271,32 +284,33 @@ final class DiffViewController: NSViewController {
             layout: content.layout,
             selection: canvas.selection,
             visibleTop: canvas.visibleRect.minY + content.layout.metrics.headerHeight,
-            visibleBottom: canvas.visibleRect.maxY
+            visibleBottom: canvas.visibleRect.maxY,
+            markedFile: markedFile.flatMap(index(of:))
         )
     }
 }
 
 /// Collapsing and expanding files, from their headers and the summary bar.
 extension DiffViewController {
-    func toggleCollapsed(_ path: String) {
-        if collapsedPaths.contains(path) {
-            collapsedPaths.remove(path)
+    func toggleCollapsed(_ id: DiffFile.Identity) {
+        if collapsedFiles.contains(id) {
+            collapsedFiles.remove(id)
         } else {
-            collapsedPaths.insert(path)
+            collapsedFiles.insert(id)
         }
-        rebuildKeepingHeader(of: path)
+        rebuildKeepingHeader(of: id)
     }
 
     /// Option-click, as in Finder: every file goes the way the clicked one would.
-    func toggleAllCollapsed(like path: String) {
-        collapsedPaths = collapsedPaths.contains(path) ? [] : Set(files.map(\.changed.path))
-        rebuildKeepingHeader(of: path)
+    func toggleAllCollapsed(like id: DiffFile.Identity) {
+        collapsedFiles = collapsedFiles.contains(id) ? [] : Set(files.map(\.id))
+        rebuildKeepingHeader(of: id)
     }
 
     /// Keeps a file's header where it was on screen when the file collapses or expands under it,
     /// or at the top when it was stuck there.
-    func rebuildKeepingHeader(of path: String) {
-        guard let content = canvas.content, let file = index(of: path) else {
+    func rebuildKeepingHeader(of id: DiffFile.Identity) {
+        guard let content = canvas.content, let file = index(of: id) else {
             rebuild(keepingPlace: true)
             return
         }
@@ -319,24 +333,26 @@ extension DiffViewController {
         file.openInEditor()
     }
 
-    func openFileWindow(path: String) {
-        guard opensFileWindows, let index = index(of: path) else { return }
+    func openFileWindow(_ id: DiffFile.Identity) {
+        guard opensFileWindows, let index = index(of: id) else { return }
         openFileWindow?(files[index])
     }
 
     func menu(forFile index: Int) -> ChangedFileMenu {
-        let path = files[index].changed.path
+        let id = files[index].id
+        let path = id.path
         let file = WorkingTreeFile(path: path, in: workTree)
         return ChangedFileMenu(
+            actions: fileActions?(files[index]) ?? [],
             isInWorkingTree: isInWorkingTree(path),
             opensFileWindows: opensFileWindows,
-            isCollapsed: collapsedPaths.contains(path),
+            isCollapsed: collapsedFiles.contains(id),
             openInEditor: { [weak self] in self?.openInEditor(path: path) },
             revealInFinder: file.revealInFinder,
             copyAbsolutePath: file.copyAbsolutePath,
             copyPathFromRepositoryRoot: file.copyPathFromRepositoryRoot,
-            openFileWindow: { [weak self] in self?.openFileWindow(path: path) },
-            toggleCollapsed: { [weak self] in self?.toggleCollapsed(path) }
+            openFileWindow: { [weak self] in self?.openFileWindow(id) },
+            toggleCollapsed: { [weak self] in self?.toggleCollapsed(id) }
         )
     }
 }

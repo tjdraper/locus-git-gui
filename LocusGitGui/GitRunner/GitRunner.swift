@@ -18,7 +18,8 @@ nonisolated struct GitRunner: Sendable {
             executableURL: executableURL,
             arguments: command.arguments,
             environment: GitEnvironment.variables(for: command, from: environment),
-            currentDirectoryURL: directory
+            currentDirectoryURL: directory,
+            input: command.input
         )
     }
 }

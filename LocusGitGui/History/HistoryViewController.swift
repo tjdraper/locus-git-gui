@@ -19,16 +19,25 @@ final class HistoryViewController: NSViewController {
     /// Waits for a pause in typing, since each search is a `git log` over the whole history.
     private static let searchDelay: Duration = .milliseconds(300)
 
-    var onSelect: ((Commit?) -> Void)?
+    /// What the history has selected: the working area, or a commit.
+    enum Item: Equatable {
+        case workingArea
+        case commit(Commit)
+    }
+
+    var onSelect: ((Item?) -> Void)?
     var onOpen: ((Commit) -> Void)?
     var reveal: ((SidebarItemID) -> Void)?
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
     private(set) var selectedCommit: Commit?
+    private(set) var isWorkingAreaSelected = false
+    /// Nil until the repository's status has been read, and the history has no working area row.
+    var workingArea: WorkingAreaSummary?
     let table = HistoryTableView()
     private let list: HistoryList
     private let scrollView = NSScrollView()
-    private lazy var find = HistoryFindField(menuItems: [AppCommand.findByMessage, .findByAuthor, .findInChanges].map { command in
+    private(set) lazy var find = HistoryFindField(menuItems: [AppCommand.findByMessage, .findByAuthor, .findInChanges].map { command in
         command.makeMenuItem(target: self)
     })
     private let placeholder = HistoryPlaceholder()
@@ -44,14 +53,18 @@ final class HistoryViewController: NSViewController {
     private var labels: [String: [CommitRefLabel]] = [:]
     private var scope: HistoryScope?
     /// Selection changes the history makes itself, rather than the user.
-    private var isRestoringSelection = false
+    var isRestoringSelection = false
     private var pendingSearch: Task<Void, Never>?
-    private lazy var navigator = HistoryCommitNavigator(list: list, table: table) { [weak self] in
+    private(set) lazy var navigator = HistoryCommitNavigator(list: list, table: table) { [weak self] index in
+        self?.row(ofCommit: index) ?? index
+    } focusList: { [weak self] in
         self?.focusList()
     } open: { [weak self] commit in
         self?.onOpen?(commit)
     }
     private var shownGraphLanes = 0
+    /// Moves the placeholder below the working area's row while there is one.
+    private lazy var placeholderTop = placeholderView.topAnchor.constraint(equalTo: scrollView.topAnchor)
     /// The selected commit, while a search that may yet find it is still arriving.
     private var pendingSelection: String?
 
@@ -115,7 +128,7 @@ final class HistoryViewController: NSViewController {
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            placeholderView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            placeholderTop,
             placeholderView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
             placeholderView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
             placeholderView.bottomAnchor.constraint(equalTo: scrollView.bottomAnchor),
@@ -192,7 +205,8 @@ final class HistoryViewController: NSViewController {
     }
 
     private func commit(at row: Int) -> Commit? {
-        list.commits.indices.contains(row) ? list.commits[row] : nil
+        let index = row - commitRowOffset
+        return list.commits.indices.contains(index) ? list.commits[index] : nil
     }
 
     private func searchSoon() {
@@ -215,9 +229,9 @@ final class HistoryViewController: NSViewController {
             // A page further down can reach wider than those before it, which moves every subject.
             if list.graphLanes != shownGraphLanes {
                 reloadVisibleRows()
-            } else if range.lowerBound < shownRows {
+            } else if row(ofCommit: range.lowerBound) < shownRows {
                 // The loading row the page's first commit takes the place of.
-                table.reloadData(forRowIndexes: [range.lowerBound], columnIndexes: [0])
+                table.reloadData(forRowIndexes: [row(ofCommit: range.lowerBound)], columnIndexes: [0])
             }
         case .state:
             // A read that failed partway down takes the loading row away.
@@ -238,19 +252,24 @@ final class HistoryViewController: NSViewController {
     /// row at the top stays at the top, so a refresh doesn't move the list under the user. A
     /// different history, or a search started or cleared, starts at the selection or the top.
     private func showReplacement(sameHistoryAs previous: [Commit]?) {
-        let topRow = table.rows(in: table.visibleRect).location
+        let visibleTopRow = table.rows(in: table.visibleRect).location
+        let topRow = visibleTopRow - commitRowOffset
         let topHash = previous.flatMap { $0.indices.contains(topRow) ? $0[topRow].hash : nil }
         let selected = selectedCommit.flatMap { list.index(of: $0.hash) }
+        let selectedRow = selected.map(row(ofCommit:)) ?? (isWorkingAreaSelected ? 0 : nil)
         isRestoringSelection = true
         shownGraphLanes = list.graphLanes
         table.reloadData()
-        table.selectRowIndexes(selected.map { IndexSet(integer: $0) } ?? [], byExtendingSelection: false)
+        table.selectRowIndexes(selectedRow.map { IndexSet(integer: $0) } ?? [], byExtendingSelection: false)
         isRestoringSelection = false
 
-        if let top = topHash.flatMap(list.index(of:)) {
-            table.scroll(NSPoint(x: 0, y: table.rect(ofRow: top).minY))
-        } else if let selected {
-            table.scrollRowToVisible(selected)
+        if previous != nil, workingArea != nil, visibleTopRow == 0 {
+            // The working area's row was at the top, and stays there.
+            table.scrollRowToVisible(0)
+        } else if let top = topHash.flatMap(list.index(of:)) {
+            table.scroll(NSPoint(x: 0, y: table.rect(ofRow: row(ofCommit: top)).minY))
+        } else if let selectedRow {
+            table.scrollRowToVisible(selectedRow)
         } else if table.numberOfRows > 0 {
             table.scrollRowToVisible(0)
         }
@@ -270,21 +289,22 @@ final class HistoryViewController: NSViewController {
         guard let hash = pendingSelection, let index = list.index(of: hash) else { return }
         pendingSelection = nil
         isRestoringSelection = true
-        table.selectRowIndexes([index], byExtendingSelection: false)
+        table.selectRowIndexes([row(ofCommit: index)], byExtendingSelection: false)
         isRestoringSelection = false
     }
 
-    private func updatePlaceholder() {
+    func updatePlaceholder() {
         placeholder.show(list)
         placeholderView.isHidden = placeholder.state == .hidden
+        placeholderTop.constant = workingArea == nil ? 0 : HistoryRowView.height
     }
 
-    private func putOnPasteboard(_ text: String) {
+    func putOnPasteboard(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }
 
-    private func focusFind(searching field: HistorySearch.Field?) {
+    func focusFind(searching field: HistorySearch.Field?) {
         if let field {
             find.setSearchField(field)
         }
@@ -292,68 +312,11 @@ final class HistoryViewController: NSViewController {
     }
 }
 
-/// The Commit and Find commands, which reach the history from whichever column has focus.
-extension HistoryViewController {
-    /// Edit > Copy with the list focused copies the selected commit's hash.
-    @objc func copy(_: Any?) {
-        copyCommitHash(nil)
-    }
-
-    @objc func openCommitInNewWindow(_: Any?) {
-        guard let selectedCommit else { return }
-        onOpen?(selectedCommit)
-    }
-
-    @objc func copyCommitHash(_: Any?) {
-        guard let selectedCommit else { return }
-        putOnPasteboard(selectedCommit.hash)
-    }
-
-    @objc func copyCommitSubject(_: Any?) {
-        guard let selectedCommit else { return }
-        putOnPasteboard(selectedCommit.subject)
-    }
-
-    @objc func findInHistory(_: Any?) {
-        focusFind(searching: nil)
-    }
-
-    @objc func findByMessage(_: Any?) {
-        focusFind(searching: .message)
-    }
-
-    @objc func findByAuthor(_: Any?) {
-        focusFind(searching: .author)
-    }
-
-    @objc func findInChanges(_: Any?) {
-        focusFind(searching: .changes)
-    }
-}
-
-extension HistoryViewController: NSMenuItemValidation {
-    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        switch menuItem.action {
-        case #selector(copy(_:)), #selector(copyCommitHash(_:)), #selector(copyCommitSubject(_:)), #selector(openCommitInNewWindow(_:)):
-            return selectedCommit != nil
-        case #selector(findByMessage(_:)):
-            menuItem.state = find.searchField == .message ? .on : .off
-        case #selector(findByAuthor(_:)):
-            menuItem.state = find.searchField == .author ? .on : .off
-        case #selector(findInChanges(_:)):
-            menuItem.state = find.searchField == .changes ? .on : .off
-        default:
-            break
-        }
-        return true
-    }
-}
-
 extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
     /// One more row than there are commits while the history has more to read, holding a spinner,
     /// so the end of what's been read never looks like the end of the history.
     func numberOfRows(in _: NSTableView) -> Int {
-        list.commits.count + (hasLoadingRow ? 1 : 0)
+        commitRowOffset + list.commits.count + (hasLoadingRow ? 1 : 0)
     }
 
     private var hasLoadingRow: Bool {
@@ -361,18 +324,26 @@ extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
+        if isWorkingAreaRow(row), let workingArea {
+            let view = tableView.makeView(withIdentifier: WorkingAreaRowView.identifier, owner: nil) as? WorkingAreaRowView
+                ?? WorkingAreaRowView()
+            let graphWidth = list.search == nil ? CGFloat(max(list.graphLanes, 1)) * CommitGraphView.laneWidth : 0
+            view.show(workingArea, graphWidth: graphWidth, graphPadding: HistoryRowView.graphPadding)
+            return view
+        }
+        let index = row - commitRowOffset
         guard let commit = commit(at: row) else {
-            loadMoreSoon(near: row)
+            loadMoreSoon(near: index)
             return tableView.makeView(withIdentifier: HistoryLoadingRowView.identifier, owner: nil) ?? HistoryLoadingRowView()
         }
         let view = tableView.makeView(withIdentifier: HistoryRowView.identifier, owner: nil) as? HistoryRowView ?? HistoryRowView()
         view.show(
             commit,
-            graphRow: list.graph.indices.contains(row) ? list.graph[row] : nil,
+            graphRow: list.graph.indices.contains(index) ? list.graph[index] : nil,
             graphLanes: list.graphLanes,
             labels: labels[commit.hash] ?? []
         )
-        loadMoreSoon(near: row)
+        loadMoreSoon(near: index)
         return view
     }
 
@@ -385,16 +356,18 @@ extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableView(_: NSTableView, shouldSelectRow row: Int) -> Bool {
-        commit(at: row) != nil
+        isWorkingAreaRow(row) || commit(at: row) != nil
     }
 
     func tableViewSelectionDidChange(_: Notification) {
         guard !isRestoringSelection else { return }
         navigator.cancel()
         pendingSelection = nil
+        let isWorkingArea = isWorkingAreaRow(table.selectedRow)
         let commit = commit(at: table.selectedRow)
-        guard commit?.hash != selectedCommit?.hash else { return }
+        guard commit?.hash != selectedCommit?.hash || isWorkingArea != isWorkingAreaSelected else { return }
         selectedCommit = commit
-        onSelect?(commit)
+        isWorkingAreaSelected = isWorkingArea
+        onSelect?(isWorkingArea ? .workingArea : commit.map(Item.commit))
     }
 }

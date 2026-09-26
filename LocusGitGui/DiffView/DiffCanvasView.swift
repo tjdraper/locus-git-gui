@@ -35,13 +35,18 @@ final class DiffCanvasView: NSView {
         content != nil
     }
 
+    /// Set before `onFocusChange` is called, when the window's first responder hasn't changed yet.
+    private(set) var hasFocus = false
+
     override func becomeFirstResponder() -> Bool {
+        hasFocus = true
         needsDisplay = true
         onFocusChange?()
         return true
     }
 
     override func resignFirstResponder() -> Bool {
+        hasFocus = false
         needsDisplay = true
         onFocusChange?()
         return true
@@ -95,7 +100,7 @@ final class DiffCanvasView: NSView {
                         isFocused: isFocused
                     )
                 )
-            case .header, .notice, .images:
+            case .group, .header, .notice, .images:
                 break
             }
         }
@@ -241,12 +246,13 @@ extension DiffCanvasView {
         interpretKeyEvents([event])
     }
 
-    /// Space pages down and Shift-Space up, as in a browser, since there's no text to type into.
+    /// Space pages down and Shift-Space up, as in a browser, since there's no text to type into,
+    /// unless whoever shows the diff uses it for something else.
     override func insertText(_ insertString: Any) {
+        if let text = insertString as? String, onTypedKey?(text) == true {
+            return
+        }
         guard (insertString as? String) == " " else {
-            if let text = insertString as? String, onTypedKey?(text) == true {
-                return
-            }
             super.insertText(insertString)
             return
         }

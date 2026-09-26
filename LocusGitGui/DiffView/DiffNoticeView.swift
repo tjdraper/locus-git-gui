@@ -69,6 +69,7 @@ final class DiffNoticeView: NSView {
         case let .modeChange(text): text + "."
         case .binary: "Binary file. Its changes can’t be shown as text."
         case let .tooLarge(lines): "\(lines.formatted()) changed lines, left out to keep the diff quick to read."
+        case let .notRead(lines) where lines == 0: "Left out, since this diff is already long."
         case let .notRead(lines): "\(lines.formatted()) changed lines, left out since this diff is already long."
         case .reading: "Reading changes…"
         case let .failed(summary): summary

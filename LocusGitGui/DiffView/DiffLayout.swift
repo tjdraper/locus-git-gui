@@ -9,6 +9,7 @@ nonisolated struct DiffLayout: Sendable {
         /// The width of one character of the diff's font.
         var advance: Double
         var lineHeight: Double
+        var groupHeight = 40.0
         var headerHeight = 32.0
         var hunkHeight = 22.0
         var noticeHeight = 34.0
@@ -107,6 +108,7 @@ nonisolated struct DiffLayout: Sendable {
 
     private static func blockHeight(of block: DiffDocument.Block, files: [DiffFile], sides: [Side], metrics: Metrics) -> Double {
         switch block {
+        case .group: metrics.groupHeight
         case .header: metrics.headerHeight
         case .notice: metrics.noticeHeight
         case .images: metrics.imagesHeight

@@ -20,22 +20,27 @@ extension DiffViewController {
         #selector(openFileInNewWindow(_:)),
     ]
 
+    /// The file the menu bar's file commands act on.
+    var currentFile: DiffFile? {
+        commandTarget?.file.map { files[$0] }
+    }
+
     private var currentPath: String? {
-        commandTarget?.file.map { files[$0].changed.path }
+        currentFile?.changed.path
     }
 
     @objc func collapseFile(_: Any?) {
-        guard let path = currentPath, !collapsedPaths.contains(path) else { return }
-        toggleCollapsed(path)
+        guard let id = currentFile?.id, !collapsedFiles.contains(id) else { return }
+        toggleCollapsed(id)
     }
 
     @objc func expandFile(_: Any?) {
-        guard let path = currentPath, collapsedPaths.contains(path) else { return }
-        toggleCollapsed(path)
+        guard let id = currentFile?.id, collapsedFiles.contains(id) else { return }
+        toggleCollapsed(id)
     }
 
     @objc func collapseAllFiles(_: Any?) {
-        collapsedPaths = Set(files.map(\.changed.path))
+        collapsedFiles = Set(files.map(\.id))
         rebuild(keepingPlace: false)
         canvas.scroll(to: 0)
         blockViews.update()
@@ -46,9 +51,9 @@ extension DiffViewController {
     /// stuck at the top.
     @objc func expandAllFiles(_: Any?) {
         let top = canvas.content.flatMap { content in
-            content.layout.block(atY: canvas.visibleRect.minY).map { files[content.document.blocks[$0].file].changed.path }
+            content.layout.block(atY: canvas.visibleRect.minY).map { files[content.document.blocks[$0].file].id }
         }
-        collapsedPaths = []
+        collapsedFiles = []
         if let top {
             rebuildKeepingHeader(of: top)
         } else {
@@ -64,9 +69,9 @@ extension DiffViewController {
         goToFile(offset: -1)
     }
 
-    /// Moves the next file's header to the top. Going back from partway through a file goes to the
-    /// top of that file first.
-    private func goToFile(offset: Int) {
+    /// Marks the next file and moves its header to the top, as far as the diff scrolls. Going back
+    /// from partway through a file goes to the top of that file first.
+    func goToFile(offset: Int) {
         if let adjacentFiles {
             adjacentFiles.move(offset)
             return
@@ -82,6 +87,7 @@ extension DiffViewController {
             return
         }
         canvas.clearSelection()
+        markedFile = files[target].id
         canvas.scroll(to: content.layout.top(of: starts[target]))
         blockViews.update()
     }
@@ -119,8 +125,8 @@ extension DiffViewController {
     }
 
     @objc func openFileInNewWindow(_: Any?) {
-        guard let path = currentPath else { return }
-        openFileWindow(path: path)
+        guard let id = currentFile?.id else { return }
+        openFileWindow(id)
     }
 }
 
@@ -135,9 +141,9 @@ extension DiffViewController: NSMenuItemValidation {
         case #selector(showLessContext(_:)):
             return options.options.lessContext != nil
         case #selector(collapseAllFiles(_:)):
-            return files.contains { !collapsedPaths.contains($0.changed.path) }
+            return files.contains { !collapsedFiles.contains($0.id) }
         case #selector(expandAllFiles(_:)):
-            return files.contains { collapsedPaths.contains($0.changed.path) }
+            return files.contains { collapsedFiles.contains($0.id) }
         case #selector(goToNextFile(_:)):
             return adjacentFiles?.canGo(1) ?? (files.count > 1)
         case #selector(goToPreviousFile(_:)):
@@ -148,11 +154,11 @@ extension DiffViewController: NSMenuItemValidation {
     }
 
     private func validateFileCommand(_ action: Selector?) -> Bool {
-        guard let path = currentPath else { return false }
+        guard let file = currentFile else { return false }
         switch action {
-        case #selector(collapseFile(_:)): return !collapsedPaths.contains(path)
-        case #selector(expandFile(_:)): return collapsedPaths.contains(path)
-        case #selector(openInEditor(_:)), #selector(revealChangedFileInFinder(_:)): return isInWorkingTree(path)
+        case #selector(collapseFile(_:)): return !collapsedFiles.contains(file.id)
+        case #selector(expandFile(_:)): return collapsedFiles.contains(file.id)
+        case #selector(openInEditor(_:)), #selector(revealChangedFileInFinder(_:)): return isInWorkingTree(file.changed.path)
         case #selector(openFileInNewWindow(_:)): return opensFileWindows
         default: return true
         }

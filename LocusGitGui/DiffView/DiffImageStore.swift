@@ -5,15 +5,15 @@ import Foundation
 final class DiffImageStore {
     /// Reads one side of an image: its contents, or nil when it's too large to read, and its size.
     /// Nil when the file isn't on that side.
-    var read: ((ChangedFile, _ isNew: Bool) async throws -> (data: Data?, byteCount: Int)?)?
+    var read: ((DiffFile, _ isNew: Bool) async throws -> (data: Data?, byteCount: Int)?)?
     var onLoad: (() -> Void)?
 
-    private var states: [String: DiffImagesView.State] = [:]
-    private var tasks: [String: Task<Void, Never>] = [:]
+    private var states: [DiffFile.Identity: DiffImagesView.State] = [:]
+    private var tasks: [DiffFile.Identity: Task<Void, Never>] = [:]
 
     /// Starts reading the file's images the first time it's asked for.
-    func state(of file: ChangedFile) -> DiffImagesView.State {
-        if let state = states[file.path] {
+    func state(of file: DiffFile) -> DiffImagesView.State {
+        if let state = states[file.id] {
             return state
         }
         load(file)
@@ -28,9 +28,17 @@ final class DiffImageStore {
         states = [:]
     }
 
-    private func load(_ file: ChangedFile) {
-        guard let read, tasks[file.path] == nil else { return }
-        tasks[file.path] = Task { [weak self] in
+    /// Reads a file's images again if they've been read, such as when the file may have changed on
+    /// disk. What's shown stays until the new ones arrive, so they don't flicker.
+    func readAgain(_ file: DiffFile) {
+        guard states[file.id] != nil else { return }
+        tasks.removeValue(forKey: file.id)?.cancel()
+        load(file)
+    }
+
+    private func load(_ file: DiffFile) {
+        guard let read, tasks[file.id] == nil else { return }
+        tasks[file.id] = Task { [weak self] in
             let state: DiffImagesView.State
             do {
                 state = try await .loaded(
@@ -41,15 +49,16 @@ final class DiffImageStore {
                 state = .failed
             }
             guard !Task.isCancelled, let self else { return }
-            states[file.path] = state
+            states[file.id] = state
+            tasks[file.id] = nil
             onLoad?()
         }
     }
 
     private static func side(
-        of file: ChangedFile,
+        of file: DiffFile,
         isNew: Bool,
-        read: (ChangedFile, Bool) async throws -> (data: Data?, byteCount: Int)?
+        read: (DiffFile, Bool) async throws -> (data: Data?, byteCount: Int)?
     ) async throws -> DiffImage? {
         guard let contents = try await read(file, isNew) else { return nil }
         return await DiffImage.decode(contents.data, byteCount: contents.byteCount)

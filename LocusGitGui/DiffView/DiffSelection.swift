@@ -47,6 +47,23 @@ nonisolated struct DiffSelection: Equatable, Sendable {
         return lower < upper || (lower == upper && block != end.block) ? lower ..< upper : nil
     }
 
+    /// The lines of a hunk in the rows the selection covers, on both sides of a side-by-side row,
+    /// since staging a change takes the line it replaced with it. A row the selection only reaches
+    /// the very start of isn't covered.
+    func lines(inFile file: Int, hunk: Int, document: DiffDocument) -> [Int] {
+        guard !isEmpty else { return [] }
+        var lines: [Int] = []
+        for block in start.block ... min(end.block, document.blocks.count - 1) {
+            guard block < end.block || end.offset > 0 || start.block == end.block,
+                  case let .lines(blockFile, blockHunk, left, right) = document.blocks[block],
+                  blockFile == file, blockHunk == hunk else { continue }
+            for line in [left, right].compactMap(\.self) where !lines.contains(line) {
+                lines.append(line)
+            }
+        }
+        return lines.sorted()
+    }
+
     /// Each line's selected text on its own line. A selection that runs on past the end of a line
     /// takes its line break with it.
     func text(document: DiffDocument, files: [DiffFile]) -> String {

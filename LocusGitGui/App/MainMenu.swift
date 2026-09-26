@@ -75,7 +75,10 @@ enum MainMenu {
             [.separator()],
             items(.showSidebar, .filterSidebar, .showToolbar, .customizeToolbar),
             [.separator()],
+            items(.goToUncommittedChanges),
             owned.goTo,
+            [.separator()],
+            items(.showAllChanges, .showStagedChanges, .showUnstagedChanges),
             [.separator()],
             items(.collapseFile, .expandFile, .collapseAllFiles, .expandAllFiles, .goToNextFile, .goToPreviousFile),
             [.separator()],
@@ -88,6 +91,12 @@ enum MainMenu {
 
     private static func commitMenu(_ owned: OwnedItems) -> NSMenuItem {
         submenu(named: "Commit", items: [
+            items(.commitChanges, .amendLastCommit),
+            [.separator()],
+            items(.toggleFileStaging, .toggleHunkStaging, .discardFile, .discardHunk),
+            [.separator()],
+            items(.stageAll, .unstageAll),
+            [.separator()],
             items(.openCommitInNewWindow),
             [.separator()],
             items(.copyCommitHash, .copyCommitSubject),

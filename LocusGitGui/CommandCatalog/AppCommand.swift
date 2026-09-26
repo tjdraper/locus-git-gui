@@ -42,9 +42,13 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case filterSidebar
     case showToolbar
     case customizeToolbar
+    case goToUncommittedChanges
     case goToBranch
     case goToTag
     case goToStash
+    case showAllChanges
+    case showStagedChanges
+    case showUnstagedChanges
     case collapseFile
     case expandFile
     case collapseAllFiles
@@ -57,6 +61,14 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case showActivity
     case showOnlyMissingRepositories
 
+    case commitChanges
+    case amendLastCommit
+    case toggleFileStaging
+    case toggleHunkStaging
+    case discardFile
+    case discardHunk
+    case stageAll
+    case unstageAll
     case openCommitInNewWindow
     case copyCommitHash
     case copyCommitSubject
@@ -107,9 +119,13 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .filterSidebar: "Filter Sidebar"
         case .showToolbar: "Show Toolbar"
         case .customizeToolbar: "Customize Toolbar…"
+        case .goToUncommittedChanges: "Go to Uncommitted Changes"
         case .goToBranch: "Go to Branch…"
         case .goToTag: "Go to Tag…"
         case .goToStash: "Go to Stash…"
+        case .showAllChanges: "Show All Changes"
+        case .showStagedChanges: "Show Staged Changes"
+        case .showUnstagedChanges: "Show Unstaged Changes"
         case .collapseFile: "Collapse File"
         case .expandFile: "Expand File"
         case .collapseAllFiles: "Collapse All Files"
@@ -121,6 +137,14 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .showLessContext: "Fewer Context Lines"
         case .showActivity: "Show Activity"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
+        case .commitChanges: "Commit"
+        case .amendLastCommit: "Amend Last Commit"
+        case .toggleFileStaging: "Stage File"
+        case .toggleHunkStaging: "Stage Hunk"
+        case .discardFile: "Discard Changes…"
+        case .discardHunk: "Discard Hunk…"
+        case .stageAll: "Stage All"
+        case .unstageAll: "Unstage All"
         case .openCommitInNewWindow: "Open in New Window"
         case .copyCommitHash: "Copy Hash"
         case .copyCommitSubject: "Copy Subject"
@@ -155,7 +179,9 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .openSelectedRepositories: KeyShortcut(KeyShortcut.returnKey, [])
         case .removeSelectedRepositories: KeyShortcut(KeyShortcut.deleteKey)
         case .removeAllMissingRepositories: KeyShortcut(KeyShortcut.deleteKey, [.command, .option])
-        case .showRepositoryInFinder: KeyShortcut(KeyShortcut.returnKey)
+        // ⌘↩ is Commit, and AppKit shows a shortcut on only one item. ⌘R is Finder's Show in
+        // Enclosing Folder.
+        case .showRepositoryInFinder: KeyShortcut("r")
         case .openInEditor: KeyShortcut("e", [.command, .option])
         case .revealChangedFileInFinder: KeyShortcut("r", [.command, .option])
         case .copyAbsolutePath: KeyShortcut("c", [.command, .option])
@@ -173,6 +199,10 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .showSidebar: KeyShortcut("s", [.command, .control])
         case .filterSidebar: KeyShortcut("f", [.command, .option])
         case .showToolbar: KeyShortcut("t", [.command, .option])
+        // ⌘ and a number is often taken by Mission Control for switching spaces.
+        case .showAllChanges: KeyShortcut("1", [.command, .option])
+        case .showStagedChanges: KeyShortcut("2", [.command, .option])
+        case .showUnstagedChanges: KeyShortcut("3", [.command, .option])
         case .collapseFile: KeyShortcut(KeyShortcut.leftArrowKey, [.command, .option])
         case .expandFile: KeyShortcut(KeyShortcut.rightArrowKey, [.command, .option])
         case .collapseAllFiles: KeyShortcut(KeyShortcut.leftArrowKey, [.command, .option, .shift])
@@ -180,6 +210,10 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToNextFile: KeyShortcut(KeyShortcut.downArrowKey, [.command, .option])
         case .goToPreviousFile: KeyShortcut(KeyShortcut.upArrowKey, [.command, .option])
         case .showOnlyMissingRepositories: KeyShortcut("m", [.command, .shift])
+        case .goToUncommittedChanges: KeyShortcut("u", [.command, .shift])
+        case .commitChanges: KeyShortcut(KeyShortcut.returnKey)
+        case .stageAll: KeyShortcut("a", [.command, .shift])
+        case .unstageAll: KeyShortcut("a", [.command, .option, .shift])
         case .copyCommitHash: KeyShortcut("c", [.command, .shift])
         case .minimize: KeyShortcut("m")
         default: nil

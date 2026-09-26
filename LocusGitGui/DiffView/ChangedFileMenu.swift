@@ -3,6 +3,8 @@ import AppKit
 /// The menu for one file in a diff, from its header's "…" button or a right-click on its changes.
 /// Its commands act on that file, rather than on the one the menu bar's commands would pick.
 struct ChangedFileMenu {
+    /// What whoever shows the diff can do to the file, such as staging it, listed first.
+    var actions: [DiffAction] = []
     let isInWorkingTree: Bool
     let opensFileWindows: Bool
     let isCollapsed: Bool
@@ -19,6 +21,12 @@ struct ChangedFileMenu {
         menu.autoenablesItems = false
         if let copyTarget {
             menu.addItem(AppCommand.copy.makeMenuItem(target: copyTarget))
+            menu.addItem(.separator())
+        }
+        for action in actions {
+            menu.addItem(item(action))
+        }
+        if !actions.isEmpty {
             menu.addItem(.separator())
         }
         menu.addItem(item(.openInEditor, isEnabled: isInWorkingTree, perform: openInEditor))
@@ -39,6 +47,16 @@ struct ChangedFileMenu {
         item.action = #selector(ChangedFileMenuTarget.run(_:))
         item.representedObject = target
         item.isEnabled = isEnabled
+        return item
+    }
+
+    private func item(_ action: DiffAction) -> NSMenuItem {
+        let target = ChangedFileMenuTarget(perform: action.perform)
+        let item = NSMenuItem(title: action.menuTitle ?? action.title, action: #selector(ChangedFileMenuTarget.run(_:)), keyEquivalent: "")
+        item.target = target
+        item.representedObject = target
+        item.isEnabled = action.isEnabled
+        item.toolTip = action.toolTip
         return item
     }
 }

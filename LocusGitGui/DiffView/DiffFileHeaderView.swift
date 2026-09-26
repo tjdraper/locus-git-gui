@@ -10,6 +10,8 @@ final class DiffFileHeaderView: NSView {
         let removed: Int
         let isCollapsed: Bool
         let isInWorkingTree: Bool
+        /// The file the keyboard acts on, such as with Space in the working area.
+        var isCurrent = false
     }
 
     var onToggle: (() -> Void)?
@@ -27,6 +29,8 @@ final class DiffFileHeaderView: NSView {
     private let counts = NSTextField(labelWithString: "")
     private let editorButton = NSButton()
     private let moreButton = NSButton()
+    private let actionButtons = NSStackView()
+    private var actions: [DiffAction] = []
     private var content: Content?
 
     override init(frame: NSRect) {
@@ -54,9 +58,13 @@ final class DiffFileHeaderView: NSView {
         }
         editorButton.action = #selector(openInEditor(_:))
         moreButton.action = #selector(showMenu(_:))
+        actionButtons.orientation = .horizontal
+        actionButtons.spacing = 4
+        // Otherwise it ties with the path for the room between the two ends, and lands at either.
+        actionButtons.setHuggingPriority(.defaultHigh, for: .horizontal)
         let stack = NSStackView()
         stack.setViews([disclosure, changeSymbol, change, path, counts], in: .leading)
-        stack.setViews([editorButton, moreButton], in: .trailing)
+        stack.setViews([actionButtons, editorButton, moreButton], in: .trailing)
         stack.orientation = .horizontal
         stack.spacing = 6
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
@@ -84,6 +92,9 @@ final class DiffFileHeaderView: NSView {
 
     func show(_ content: Content) {
         guard content != self.content else { return }
+        if content.isCurrent != self.content?.isCurrent {
+            needsDisplay = true
+        }
         self.content = content
         let file = content.file
         disclosure.state = content.isCollapsed ? .off : .on
@@ -116,12 +127,45 @@ final class DiffFileHeaderView: NSView {
         disclosure.setAccessibilityLabel(path.stringValue)
     }
 
+    /// Buttons for what whoever shows the diff can do to the file, such as staging it.
+    func show(actions: [DiffAction]) {
+        self.actions = actions
+        let views = actionButtons.arrangedSubviews
+        for (index, action) in actions.enumerated() {
+            let existing = views.indices.contains(index) ? views[index] as? NSButton : nil
+            let button = existing ?? NSButton(title: "", target: self, action: #selector(runAction(_:)))
+            if existing == nil {
+                button.controlSize = .small
+                button.bezelStyle = .push
+                actionButtons.addArrangedSubview(button)
+            }
+            button.title = action.title
+            button.isEnabled = action.isEnabled
+            button.toolTip = action.toolTip
+            button.tag = index
+        }
+        for view in views.dropFirst(actions.count) {
+            view.removeFromSuperview()
+        }
+    }
+
+    @objc private func runAction(_ sender: NSButton) {
+        guard actions.indices.contains(sender.tag) else { return }
+        actions[sender.tag].perform()
+    }
+
     /// Opaque, since the diff scrolls under it while it's stuck at the top.
     override func draw(_: NSRect) {
         NSColor.windowBackgroundColor.setFill()
         bounds.fill()
         NSColor.quaternarySystemFill.setFill()
         bounds.fill()
+        if content?.isCurrent == true {
+            NSColor.controlAccentColor.withAlphaComponent(0.14).setFill()
+            bounds.fill()
+            NSColor.controlAccentColor.setFill()
+            NSRect(x: 0, y: 0, width: 3, height: bounds.height).fill()
+        }
         NSColor.separatorColor.setFill()
         NSRect(x: 0, y: bounds.maxY - 1, width: bounds.width, height: 1).fill()
     }

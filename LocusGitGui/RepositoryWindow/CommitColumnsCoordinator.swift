@@ -1,10 +1,13 @@
 import Foundation
 
 /// Keeps the history showing what the sidebar has selected, and the detail column showing what the
-/// history has selected, with each commit's branches and tags labelled in both.
+/// history has selected, with each commit's branches and tags labelled in both. The working area
+/// sits at the top of every history.
 final class CommitColumnsCoordinator {
     let history: HistoryViewController
     let detail: CommitDetailViewController
+    let workingArea: WorkingAreaViewController
+    let detailColumn: DetailColumnController
     var reveal: ((SidebarItemID) -> Void)?
     var open: ((Commit) -> Void)?
     var openFileWindow: ((FileWindowRequest) -> Void)?
@@ -17,14 +20,26 @@ final class CommitColumnsCoordinator {
     private var head: RepositoryStatus.Branch?
     private var shownSelection: SidebarItemID?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, commitDraft: CommitMessage?) {
         history = HistoryViewController(list: HistoryList { command, onOutput in
             try await commands.run(command, onOutput: onOutput)
         })
         detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions)
-        history.onSelect = { [weak self] commit in
+        workingArea = WorkingAreaViewController(commands: commands, diffOptions: diffOptions, draft: commitDraft)
+        detailColumn = DetailColumnController(commit: detail, workingArea: workingArea)
+        history.onSelect = { [weak self] item in
             guard let self else { return }
-            detail.show(commit, labels: commit.map(history.labels) ?? [])
+            switch item {
+            case .workingArea:
+                detail.show(nil, labels: [])
+                detailColumn.showWorkingArea(true)
+            case let .commit(commit):
+                detailColumn.showWorkingArea(false)
+                detail.show(commit, labels: history.labels(of: commit))
+            case nil:
+                detailColumn.showWorkingArea(false)
+                detail.show(nil, labels: [])
+            }
         }
         history.reveal = { [weak self] id in self?.reveal?(id) }
         history.onOpen = { [weak self] commit in self?.open?(commit) }
@@ -33,6 +48,15 @@ final class CommitColumnsCoordinator {
         detail.openFileWindow = { [weak self] request in self?.openFileWindow?(request) }
         history.showFailure = { [weak self] failure, retry in self?.present?(failure, retry) }
         detail.showFailure = { [weak self] failure, retry in self?.present?(failure, retry) }
+        workingArea.showFailure = { [weak self] failure, retry in self?.present?(failure, retry) }
+        workingArea.openFileWindow = { [weak self] request in self?.openFileWindow?(request) }
+    }
+
+    /// After each refresh, before the history is shown, so a repository with no commits yet still
+    /// has its working area to make the first one in.
+    func show(_ snapshot: RepositorySnapshot) {
+        history.showWorkingArea(WorkingAreaSummary(snapshot.status))
+        workingArea.show(snapshot)
     }
 
     /// After each refresh.
@@ -57,7 +81,8 @@ final class CommitColumnsCoordinator {
         }
     }
 
-    /// Commands for the history or the commit reach them from whichever column has focus.
+    /// Commands for the history, the commit or the working area reach them from whichever column
+    /// has focus.
     func target(forAction action: Selector) -> Any? {
         if HistoryViewController.windowActions.contains(action) {
             return history
@@ -65,8 +90,11 @@ final class CommitColumnsCoordinator {
         if CommitDetailViewController.windowActions.contains(action) {
             return detail
         }
+        if WorkingAreaViewController.windowActions.contains(action) {
+            return workingArea
+        }
         if DiffViewController.windowActions.contains(action) {
-            return detail.diff
+            return detailColumn.diff
         }
         return nil
     }

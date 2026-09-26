@@ -28,6 +28,8 @@ nonisolated struct ChildProcess: Sendable {
     let arguments: [String]
     let environment: [String: String]
     let currentDirectoryURL: URL?
+    /// Written to the process's standard input, which is then closed.
+    var input: Data?
 
     func run() async throws -> Result {
         var standardOutput = Data()
@@ -54,7 +56,8 @@ nonisolated struct ChildProcess: Sendable {
             process.arguments = arguments
             process.environment = environment
             process.currentDirectoryURL = currentDirectoryURL
-            process.standardInput = FileHandle.nullDevice
+            let standardInput = input.map { _ in Pipe() }
+            process.standardInput = standardInput ?? FileHandle.nullDevice
 
             let standardOutput = Pipe()
             let standardError = Pipe()
@@ -72,6 +75,10 @@ nonisolated struct ChildProcess: Sendable {
             } catch {
                 continuation.finish(throwing: Failure.couldNotStart(error))
                 return
+            }
+
+            if let standardInput, let input {
+                Self.write(input, to: standardInput)
             }
 
             finished.enter()
@@ -109,6 +116,19 @@ nonisolated struct ChildProcess: Sendable {
                 return
             }
             continuation.yield(event(data))
+        }
+    }
+
+    /// Away from the caller, since a process can fill its output pipe before it has read all its
+    /// input, and would wait on a write here that waits on it.
+    private static func write(_ input: Data, to pipe: Pipe) {
+        let handle = pipe.fileHandleForWriting
+        // Writing to a pipe whose reader has gone raises SIGPIPE, which would end the app.
+        _ = fcntl(handle.fileDescriptor, F_SETNOSIGPIPE, 1)
+        DispatchQueue.global().async {
+            // A process that exits without reading everything closes the pipe, which is no error here.
+            try? handle.write(contentsOf: input)
+            try? handle.close()
         }
     }
 

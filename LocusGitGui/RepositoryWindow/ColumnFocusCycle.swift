@@ -1,8 +1,9 @@
 import AppKit
 
 /// Tab and Shift-Tab move focus from column to column: the sidebar's filter and list, the history's
-/// Find field and list, and the commit's changes. The window handles Tab itself because AppKit's key
-/// view loop can only focus views, and the sidebar's list takes focus through SwiftUI.
+/// Find field and list, and the commit's changes, or the working area's subject, body and changes.
+/// The window handles Tab itself because AppKit's key view loop can only focus views, and the
+/// sidebar's list takes focus through SwiftUI.
 final class ColumnFocusCycle {
     struct Stop {
         /// False while it can't take focus, such as the sidebar while it's hidden.
@@ -23,8 +24,10 @@ final class ColumnFocusCycle {
         sidebarView: NSView,
         isSidebarShown: @escaping () -> Bool,
         history: HistoryViewController,
-        detail: CommitDetailViewController
+        detail: DetailColumnController
     ) {
+        let workingArea = detail.workingArea
+        let editor = workingArea.editor
         self.init(stops: [
             Stop(
                 isAvailable: isSidebarShown,
@@ -47,9 +50,24 @@ final class ColumnFocusCycle {
                 focus: { [weak history] in history?.focusList() }
             ),
             Stop(
-                isAvailable: { [weak detail] in detail?.focusableView != nil },
-                holds: { [weak detail] view in detail.map { view.isDescendant(of: $0.view) } ?? false },
-                focus: { [weak detail] in detail?.focusChanges() }
+                isAvailable: { [weak detail] in detail.map { !$0.showsWorkingArea && $0.commit.focusableView != nil } ?? false },
+                holds: { [weak detail] view in detail.map { view.isDescendant(of: $0.commit.view) } ?? false },
+                focus: { [weak detail] in detail?.commit.focusChanges() }
+            ),
+            Stop(
+                isAvailable: { [weak detail] in detail?.showsWorkingArea == true },
+                holds: { [weak editor] view in view === editor?.subjectField },
+                focus: { [weak editor] in editor?.focusSubject() }
+            ),
+            Stop(
+                isAvailable: { [weak detail] in detail?.showsWorkingArea == true },
+                holds: { [weak editor] view in view === editor?.bodyTextView },
+                focus: { [weak editor] in editor?.focusBody() }
+            ),
+            Stop(
+                isAvailable: { [weak detail] in detail.map { $0.showsWorkingArea && $0.workingArea.focusableChanges != nil } ?? false },
+                holds: { [weak workingArea] view in workingArea.map { view.isDescendant(of: $0.diff.view) } ?? false },
+                focus: { [weak workingArea] in workingArea?.focusChanges() }
             ),
         ])
     }

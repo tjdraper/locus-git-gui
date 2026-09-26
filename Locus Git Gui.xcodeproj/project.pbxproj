@@ -111,6 +111,16 @@
 				Sidebar/SidebarSection.swift,
 				Sidebar/SidebarTypeSelect.swift,
 				Updates/UpdateChannelPreference.swift,
+				WorkingArea/CommitMessage.swift,
+				WorkingArea/PartialPatch.swift,
+				WorkingArea/RawFilePatch.swift,
+				WorkingArea/UntrackedFile.swift,
+				WorkingArea/WorkingAreaDiff.swift,
+				WorkingArea/WorkingAreaFiles.swift,
+				WorkingArea/WorkingAreaFilter.swift,
+				WorkingArea/WorkingAreaGroup.swift,
+				WorkingArea/WorkingAreaStaging.swift,
+				WorkingArea/WorkingAreaSummary.swift,
 			);
 			target = 6C1B724A305F81D100DDFE7D /* Locus Git Gui Tests */;
 		};

@@ -31,6 +31,9 @@ nonisolated struct DiffDocument: Equatable, Sendable {
     }
 
     enum Block: Equatable, Sendable {
+        /// Above the first file of each group in a grouped diff, such as the working area's staged
+        /// changes. It belongs to that file.
+        case group(file: Int)
         case header(file: Int)
         case notice(file: Int, Notice)
         /// Before and after, for an image.
@@ -43,7 +46,8 @@ nonisolated struct DiffDocument: Equatable, Sendable {
 
         var file: Int {
             switch self {
-            case let .header(file), let .notice(file, _), let .images(file), let .hunk(file, _), let .lines(file, _, _, _): file
+            case let .group(file), let .header(file), let .notice(file, _), let .images(file), let .hunk(file, _),
+                 let .lines(file, _, _, _): file
             }
         }
     }
@@ -55,13 +59,23 @@ nonisolated struct DiffDocument: Equatable, Sendable {
     let blocks: [Block]
     /// The index of each file's header in `blocks`.
     let fileStarts: [Int]
+    /// The index of the block after each file's last one, which is the next group's heading when
+    /// the next file starts a group.
+    let fileEnds: [Int]
 
     init(files: [DiffFile], collapsed: Set<Int>, style: Style) {
         self.style = style
         fileStyles = files.map { Self.style(of: $0, in: style) }
         var blocks: [Block] = []
         var fileStarts: [Int] = []
+        var fileEnds: [Int] = []
         for (index, file) in files.enumerated() {
+            if index > 0 {
+                fileEnds.append(blocks.count)
+            }
+            if file.group != nil, index == 0 || files[index - 1].group != file.group {
+                blocks.append(.group(file: index))
+            }
             fileStarts.append(blocks.count)
             blocks.append(.header(file: index))
             guard !collapsed.contains(index) else { continue }
@@ -76,8 +90,12 @@ nonisolated struct DiffDocument: Equatable, Sendable {
                 Self.appendLines(of: hunk, file: index, hunk: hunkIndex, style: fileStyles[index], to: &blocks)
             }
         }
+        if !files.isEmpty {
+            fileEnds.append(blocks.count)
+        }
         self.blocks = blocks
         self.fileStarts = fileStarts
+        self.fileEnds = fileEnds
     }
 
     /// The file a block belongs to.

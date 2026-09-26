@@ -5,13 +5,22 @@ import AppKit
 final class HistoryCommitNavigator {
     private let list: HistoryList
     private let table: NSTableView
+    /// A commit's row, which comes after the working area's.
+    private let rowForCommit: (Int) -> Int
     private let focusList: () -> Void
     private let open: (Commit) -> Void
     private var going: Task<Void, Never>?
 
-    init(list: HistoryList, table: NSTableView, focusList: @escaping () -> Void, open: @escaping (Commit) -> Void) {
+    init(
+        list: HistoryList,
+        table: NSTableView,
+        rowForCommit: @escaping (Int) -> Int,
+        focusList: @escaping () -> Void,
+        open: @escaping (Commit) -> Void
+    ) {
         self.list = list
         self.table = table
+        self.rowForCommit = rowForCommit
         self.focusList = focusList
         self.open = open
     }
@@ -29,8 +38,8 @@ final class HistoryCommitNavigator {
             guard let result = await self?.list.find(hash), !Task.isCancelled, let self else { return }
             switch result {
             case let .found(index):
-                table.selectRowIndexes([index], byExtendingSelection: false)
-                table.scrollRowToVisible(index)
+                table.selectRowIndexes([rowForCommit(index)], byExtendingSelection: false)
+                table.scrollRowToVisible(rowForCommit(index))
                 focusList()
             case .tooFar:
                 showOutOfReach(hash, because: .tooFar)

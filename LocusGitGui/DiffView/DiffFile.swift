@@ -10,13 +10,28 @@ nonisolated struct DiffFile: Equatable, Sendable {
         case failed(summary: String)
     }
 
+    /// Tells files apart in a diff where the same path can show twice, such as its staged and its
+    /// unstaged changes.
+    struct Identity: Hashable, Sendable {
+        let group: Int?
+        let path: String
+    }
+
     let changed: ChangedFile
     var patch: FilePatch
     var reading = Reading.idle
+    /// Which of the diff's groups the file is in, such as staged changes. Nil in a diff that isn't
+    /// grouped, such as a commit's.
+    let group: Int?
 
-    init(changed: ChangedFile, patch: FilePatch) {
+    init(changed: ChangedFile, patch: FilePatch, group: Int? = nil) {
         self.changed = changed
         self.patch = Self.markingChangedWords(in: patch)
+        self.group = group
+    }
+
+    var id: Identity {
+        Identity(group: group, path: changed.path)
     }
 
     /// Where a line was removed and another added in its place, the words that differ. The removed

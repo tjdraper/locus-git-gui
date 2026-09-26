@@ -46,11 +46,11 @@ final class CommitDetailViewController: NSViewController {
             showFailure?(failure) { [weak self] in self?.read() }
         }
         diff.readImage = { [commands] file, isNew in
-            try await Self.readImage(isNew ? file.newObject : file.oldObject, running: commands.run)
+            try await Self.readImage(isNew ? file.changed.newObject : file.changed.oldObject, running: commands.run)
         }
         diff.openFileWindow = { [weak self] file in
             guard let self, let commit = header.commit else { return }
-            openFileWindow?(FileWindowRequest(commit: commit, file: file, files: diff.files.map(\.changed)))
+            openFileWindow?(FileWindowRequest(source: .commit(commit), file: file, files: diff.files))
         }
         diffOptions.observe(self) { [weak self] _ in self?.read(isSameDiff: true) }
     }
@@ -211,7 +211,7 @@ final class CommitDetailViewController: NSViewController {
     private func show(_ detail: CommitDetail, of hash: String, isSameDiff: Bool) {
         header.body = detail.body
         diff.readFile = { [commands, options = diff.options] file in
-            try await CommitDetail.readFile(file, of: hash, options: options.options, readingPatch: commands.readPatch)
+            try await CommitDetail.readFile(file.changed, of: hash, options: options.options, readingPatch: commands.readPatch)
         }
         diff.show(detail.files, emptyMessage: "This commit changes no files.", isSameDiff: isSameDiff)
         updatePlaceholder()
