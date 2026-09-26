@@ -144,7 +144,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
      - Done, along with which remotes are collapsed, whether the sidebar is hidden, and the window's size and place. The window opens where it was last closed, unless it joins another window's tabs, or that place is no longer on any screen. A frame in full screen isn't kept. Kept in `UserDefaults` for the 1,000 repositories changed most recently, saved a second after it stops changing and at quit. A selection that's gone, such as a deleted branch or a dropped stash, is cleared.
    - The sidebar lists local branches, remotes and their branches, tags and stashes, in collapsible sections
      - Done. Branches sort as Finder sorts names; tags list the highest version first. Each remote collapses on its own. A remote shows before anything has been fetched from it, and branches of a remote removed from the config still show under its name until they're pruned. A section with nothing in it is left out. Stashes show Git's own description ("On main: …"), which fills a narrow sidebar quickly. The sidebar is read on every refresh, and a failure to read it gets the same toolbar warning as a failed status.
-     - A refresh now runs four commands where it ran one: status, `for-each-ref` (which works out ahead and behind for every branch with an upstream), `remote` and `stash list`. It runs after every change to the working tree, not only to the Git directory. Slice 17's performance pass measures it on a repository with thousands of branches and tags.
+     - A refresh now runs four commands where it ran one: status, `for-each-ref` (which works out ahead and behind for every branch with an upstream), `remote` and `stash list`. It runs after every change to the working tree, not only to the Git directory. Slice 11's performance check measures it on a repository with thousands of branches and tags.
      - The sidebar has no context menus yet. They arrive with the commands they hold, in slice 11.
    - Ahead and behind counts next to branches that track an upstream
      - Done, shown only when the branch isn't level with its upstream. A branch whose upstream is gone from the remote gets a gray warning symbol, with a tooltip naming the upstream. It's a quiet cue on purpose; slice 11 decides whether it should say more once there's a way to act on it.
@@ -192,17 +192,43 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 7. **Commit history and commit detail**
 
+   Built and unit-tested, but not yet seen running. Everything below needs a look in the app, in light and dark mode, before this slice is done.
+
    - The middle column shows the history of whatever is selected in the sidebar: a branch, a remote branch, a tag, a stash. With nothing selected it shows the checked-out branch, or HEAD when detached. Selecting a remote shows the history of all its branches.
      - The selection is `SidebarModel.selection`, a `SidebarItemID`: a full ref name, a remote's name, or a stash's commit. It's remembered per repository, and cleared when what it names is gone.
+     - Built. `HistoryScope` turns the selection into the commits the history starts from, as hashes, so every page of one history reads from the same commits while a branch moves, and a refresh only reads the history again when they've moved. A remote with nothing fetched, or a repository with no commits, shows No Commits. The refs are read once per refresh and shared by the sidebar and the history.
+     - Reading a history again, such as after a commit, keeps the old rows until the new ones arrive, keeps the row at the top where it was, and keeps the selected commit selected when it's still there.
    - Tab and Shift-Tab move focus between the columns. Moved from slice 5, which had nothing in the history or detail column to take focus. The sidebar's list, the history's table and the detail column each need to be in the window's key view loop, and the sidebar's filter field too.
+     - Built as `ColumnFocusCycle`, which the window runs itself rather than AppKit's key view loop, since the sidebar's list takes focus through SwiftUI. The order is the sidebar's filter, the sidebar's list, the history's Find field, the history's list, and the commit's changes. A hidden sidebar and an empty detail column are skipped. Tab can't reach the buttons in the commit's header; each has a menu command instead.
    - The history and detail columns replace `ColumnPlaceholderController`. Their widths are already remembered per repository.
    - Each row shows the subject, author, relative date and short hash, with branch and tag labels on the commits they point at
+     - Built as a two-line row: labels and subject, then author and relative date with the short hash at the right. Three labels at most, then a +N label listing the rest in its tooltip. HEAD is labelled only when detached; the checked-out branch's label is bold.
+     - To change: the subject gets the first line to itself, and the second line becomes labels • author • date • short hash, so every row stays the same height. The line is cut from the right, so the least useful part goes first: the hash, then the date, then the author, and the labels last. The hash and date are dropped whole rather than cut, since a partial hash looks like a real one. The author can end in an ellipsis. Labels that don't fit collapse into the +N label, which replaces the cap of three.
+     - To change: each label gets its sidebar icon in front of its name: the branch icon, the checkmark for the checked-out branch, the tag icon, and a pin (`mappin`) for a detached HEAD, which has no sidebar row. Remote branches keep the sidebar's branch icon, and their `origin/` name and colour tell them from local ones. The detail column's labels get the same icons.
    - A commit graph beside the rows. Lane layout is a pure function of parent links, so it goes in the test target.
+     - Built as `CommitGraphLayout`, which lays out one commit at a time so each page carries on from the last. Lanes never shift sideways; a line that empties its lane frees it for the next, and a branch whose parent another lane already waits for joins that lane at once. Colours are system colours by lane. The graph is hidden during a search, whose commits aren't joined by their parents.
    - Load history lazily as the list scrolls. A repository with a million commits opens as fast as one with ten.
+     - Built: 200 commits first, then 1,000 at a time as the list nears the end, each page its own `git log --topo-order --skip`. That's only fast when the repository has a commit-graph file. Without one, `--topo-order` walks the whole history before printing anything, and each page walks it again. Git writes the file during `gc` but not on clone or fetch by default. This slice's performance check measures it with and without the file, and decides whether the app should offer to write it (`git commit-graph write --reachable`), since that changes the repository.
    - The detail column for a commit: author, committer if different, dates, hash, parents (clickable), refs, and the subject. When there's more to the message, the subject expands to show all of it.
+     - Built. The header is SwiftUI, measured at the column's width, since a hosting view's own size is its subject on one line. Parents and labels are clickable; a parent well down the history is read page by page until it's found. The expanded message scrolls within 240 points rather than pushing the changes out of the column, and stays expanded from one commit to the next. Commit > Show Full Message and Go to Parent reach the same things from the keyboard.
+   - The detail column says whether the selected commit is signed and whether the signature checks out on this Mac, from `%G?` and `%GS`, read for the selected commit only and never in the history's rows, since each check runs GPG or `ssh-keygen`. It's read on its own, so the header and changes don't wait for it.
+     - A good signature shows the signer with a quiet green checkmark seal. Everything else is worded calmly rather than as an error, since this Mac often can't check a coworker's signature: an untrusted key, a signature that can't be checked (no public key, or no `gpg.ssh.allowedSignersFile` for SSH), an expired signature or key, and a revoked key. Bad, a signature that doesn't match the commit, is the one that means something is wrong, and it gets a small warning mark in the secondary colour, not red. Unsigned commits say "Not signed" in the secondary colour.
+     - "Can't be checked on this Mac" gets a tooltip saying why, such as SSH signatures needing an allowed signers file
    - The changed files with their diffs below, read-only here (slice 8 builds the diff view itself)
+     - Built as a stand-in for slice 8: one text view with each file's name as a heading and its changes coloured below, from `git show --patch` without the user's colour, external diff and text conversion settings. A merge shows what it brought into its first parent. A commit's changes past 2 MB are cut off with a note. A file replaced by a symbolic link comes out of Git as two patches under one name, and is kept as one file.
    - Find in history (⌘F): by message, author, or hash. Searching for changes to a string (`-S`) is a menu option of Find.
+     - Built as a field above the history that filters it, and Edit > Find in History (⌘F), Find by Message or Hash, Find by Author, and Find in Changes (⇧⌘F), also in the field's magnifying glass menu. Git can't match a message or an author in one command (`--grep` and `--author` together match both), so each is its own search. A search for something that could be a hash also looks it up and lists that commit first. Searches ignore case and take the text as typed. Down Arrow or Return moves to the list.
+   - Performance check (see Decisions), with the test repositories this slice builds for every later slice to reuse:
+     - A script in `Scripts/` that generates a repository with `git fast-import`, given how many commits, branches and merges to make. It builds in seconds, needs no network, and reaches extremes a real repository doesn't, such as thousands of branches side by side for the graph's width or a remote with 5,000 branches. Later slices add options as they need them, such as many files or huge ones.
+     - Notes in `Scripts/README.md` on making a blobless clone of the Linux kernel (`git clone --filter=blob:none`), which has its whole history without file contents: 1.3 million commits, and octopus merges with dozens of parents.
+     - Measured on both, with and without a commit-graph file: time to the first rows, time per page deep in the history, memory after scrolling far, a search with `--grep` and with `-S`, Go to Parent from an old merge, and selecting a merge that changes thousands of files.
+     - Known weak spots to measure first: each page is its own `git log --skip`, so reading deep into a history walks the skipped commits again every page, and so does each page of a search. One long-running `git log` read a page at a time would avoid that, but needs a way to pause reading its output. Every commit read stays in memory, at roughly half a kilobyte each with its graph row, so scrolling to the end of the kernel holds hundreds of megabytes; rows could hold less and read the rest on demand. The numbers decide which of these is fixed here.
+   - A commit opens in a window of its own: double-click it in the history, press Return there, or choose Commit > Open in New Window. The window holds the same header and changes as the detail column, so it gets slice 8's diff view with no work of its own.
+     - Opening a commit that's already open brings its window forward, as repository windows do
+     - Commit windows close with their repository's window and aren't restored after a relaunch
+     - Undecided: whether clicking a parent in a commit window shows the parent in that window, or goes to it in the repository window's history
    - Copy Hash, Copy Subject, and Reveal in Sidebar for a commit's refs
+     - Built in a new Commit menu and a row's context menu, with Go to Parent and Show Full Message. Copy Hash is ⇧⌘C, and ⌘C copies the hash while the history has focus. Go to Parent and Reveal in Sidebar act straight away with one choice, and ask in the palette's next step with several, the way Go to Branch… does. The Commit and Find commands reach the history from whichever column has focus.
 
 8. **Diff view**
 
@@ -212,19 +238,24 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - A large file's diff is collapsed with a line count and a button to show it, so one generated file doesn't stall the view
    - Open in Editor from a file's header and from the menu, opening at the line when the editor supports it
    - Reveal in Finder, Copy Path
+   - Open in Editor, Reveal in Finder and Copy Path work wherever a file's changes show: the commit detail column, commit windows, file windows and slice 9's working area. They act on the file as it is in the working tree now, so Open in Editor and Reveal in Finder are disabled when it isn't there, such as a file a commit deleted or one renamed since. Copy Path still works.
+   - A file's changes open in a window of their own: double-click the file's header, or use a menu command. From a commit, the window shows that file's changes in that commit. From the working area, it shows the file's staged or unstaged changes, and keeps up as they change.
    - Ignore whitespace and the number of context lines, in the View menu and remembered per repository
    - AppKit and TextKit 2 rather than SwiftUI (see Decisions)
+   - Performance check (see Decisions): a diff of a very large file, a file with one enormous line, a commit changing thousands of files, and a large image, using slice 7's test repositories
 
 9. **Working area and committing**
 
    - Pinned at the top of the history: a row for uncommitted work, showing counts of staged, unstaged and untracked files. Whether it stays there whatever the sidebar has selected is undecided (see Open questions).
    - Selecting it fills the detail column with a commit message field at the top, then staged files, then unstaged and untracked files, each with its diff
+   - Every staged, unstaged and untracked file has slice 8's Open in Editor, Reveal in Finder, Copy Path and file window
    - Stage and unstage a whole file, a hunk, or selected lines. Space toggles the selected file between staged and unstaged. Stage All and Unstage All in the menu.
    - Discard changes to a file, hunk, or lines, after a confirmation. Delete an untracked file moves it to the Trash, not to oblivion.
    - The message field keeps the subject and body apart, with a quiet guide at the usual subject length. ⌘Return commits.
    - Amend Last Commit loads the previous message and shows what the amend will change
    - Hook output is shown when a hook fails, and the message is kept so nothing has to be retyped
    - A jump back to the working area from anywhere (a menu item and shortcut), since it's the place most often returned to
+   - Performance check (see Decisions): status and the working area with tens of thousands of changed and untracked files, and staging or unstaging thousands at once
 
 10. **Remotes, clone and create**
 
@@ -274,6 +305,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
       - Stash apply or pop that conflicts: open the conflict window, and say the stash was kept
     - Drag a branch onto another to merge or rebase, with a menu of which
     - Every destructive command asks first, says what will be lost, and names the commit that can bring it back (see Decisions)
+    - Performance check (see Decisions): the sidebar and its refresh with thousands of branches and tags, moved here from slice 5, and the palette's Go to Branch… over them
 
 12. **Merge conflict window**
 
@@ -283,6 +315,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Mark Resolved stages the file. When every file is resolved, the window offers to continue the operation that stopped.
     - Conflicts that aren't about content, such as deleted on one side and changed on the other, get a plain choice between the two
     - Open in Editor, for anyone who would rather resolve in their own tool
+    - Performance check (see Decisions): a conflict in a very large file, and a merge that stops with many conflicted files
 
 13. **Settings**
 
@@ -344,7 +377,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
     - Keyboard audit: walk every feature with the mouse unplugged. Anything that can't be reached is a bug.
     - VoiceOver pass on all three columns, the palette and the conflict window
-    - Performance pass against a large repository (the Linux kernel is the usual test), on history, status and diff
+    - Performance pass over the whole app on the Linux kernel. Each slice has already checked its own part (see Decisions), so this looks at the parts together: a fetch refreshing the sidebar and the history while the history is paging, a checkout changing thousands of files with the working area open, and several large repositories open at once.
     - Light and dark mode checked on every window. The repository window's sidebar hasn't been seen in dark mode yet.
     - Website download page, built outside this repository
 
@@ -377,6 +410,8 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 - **Destructive commands say how to undo them.** Hard reset, discard, branch deletion and force push confirm first. After one runs, the app names the commit it left behind (from the reflog) so it can be restored. A general undo built on the reflog is in Future versions.
 
 - **Git's words are always shown.** A GUI that paraphrases a failure hides the one piece of text people know how to search for. Every failure shows Git's full output. A recognized failure adds a plain explanation and a next step above it. An unrecognized one shows a plain "Git couldn't finish" summary above the output. Git's messages are recognized in English, so the app runs Git with its messages set to English and leaves the rest of the locale alone, which keeps non-ASCII file names and commit messages working. Which variable does that depends on what the user's shell sets (`LC_ALL` overrides `LC_MESSAGES`, and gettext's `LANGUAGE` overrides both), so verify it against a Git whose messages are translated. A failure's severity follows who started it: a sheet for something the user asked for, a quiet toolbar warning for something the app did on its own.
+
+- **Performance is checked in the slice that builds it.** A slice whose work grows with the size of a repository, whether its commits, files, branches or diffs, is tried against a large one before it's done. What that finds is fixed then, or written down with the reason it waits. A problem is cheapest to fix while the code is fresh and before other code is built on it, and slice 17's pass over the whole app stays a look at how the parts behave together rather than a first look at each. Slice 7 builds the test repositories the later slices reuse.
 
 - **Refresh follows the file system, quietly.** FSEvents on the working tree and the Git directory, debounced, plus a refresh when the window becomes key. Read-only commands never take optional locks, so the app can't cause an `index.lock` error in someone's terminal.
 
@@ -438,7 +473,7 @@ Git clients tend to grow things that aren't Git. These stay out on purpose:
 - **Undo through the reflog.** ⌘Z after a commit, reset, checkout or rebase, restoring the previous state. Needs care to never lose work, so it waits until the rest is solid.
 - **Side-by-side diff and syntax highlighting**
 - **Submodules, worktrees and LFS** shown in the sidebar and handled in their own terms. Until then they work, because Git does the work, but aren't shown specially.
-- **Commit signing status** shown on commits
+- **Commit signing status in the history's rows.** The selected commit's shows in its detail from slice 7; checking every row needs GPG or `ssh-keygen` once per commit.
 
 ## Public repo
 
