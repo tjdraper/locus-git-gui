@@ -50,8 +50,8 @@ nonisolated struct SidebarContents: Equatable, Sendable {
     let tags: [Tag]
     let stashes: [StashEntry]
 
-    static func read(running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> SidebarContents {
-        let refs = try await GitReadFailure.read("branches and tags", with: Ref.listCommand, running: run, parse: Ref.parseList)
+    /// With the refs already read, since the history needs them too.
+    static func read(refs: [Ref], running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> SidebarContents {
         let remotes = try await GitReadFailure.read("remotes", with: RemoteName.listCommand, running: run, parse: RemoteName.parseList)
         let stashes = try await GitReadFailure.read("stashes", with: Stash.listCommand, running: run, parse: Stash.parseList)
         return SidebarContents(refs: refs, remoteNames: remotes, stashes: stashes)

@@ -60,7 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dashboardFile: dashboard.fileMenuItems,
             dashboardView: dashboard.viewMenuItems,
             commandPalette: commandPalette.paletteMenuItems,
-            goTo: commandPalette.goToMenuItems
+            goTo: commandPalette.goToMenuItems,
+            commitGoTo: commandPalette.commitGoToMenuItems
         ))
         // Settled before Sparkle starts, which marks every install as launched before.
         let isFirstRun = FirstRunStatus().settleAtLaunch() == .pending

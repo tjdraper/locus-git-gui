@@ -1,14 +1,22 @@
 import AppKit
+import Carbon.HIToolbox
 
 /// Takes a ⌘-click on the title before the title bar does. The title lets the window be dragged by
 /// it, which makes the title bar handle its clicks without the title ever seeing them.
 final class RepositoryWindow: NSWindow {
     var onCommandClick: ((NSEvent) -> Bool)?
+    /// Given whether Shift was held. True when it moved focus.
+    var onTab: ((_ backward: Bool) -> Bool)?
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown,
            event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command,
            onCommandClick?(event) == true {
+            return
+        }
+        if event.type == .keyDown, Int(event.keyCode) == kVK_Tab,
+           event.modifierFlags.isDisjoint(with: [.command, .option, .control]),
+           onTab?(event.modifierFlags.contains(.shift)) == true {
             return
         }
         let editing = event.type == .leftMouseDown || event.type == .rightMouseDown ? editingField : nil

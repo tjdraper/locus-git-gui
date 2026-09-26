@@ -27,6 +27,10 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case copy
     case paste
     case selectAll
+    case findInHistory
+    case findByMessage
+    case findByAuthor
+    case findInChanges
 
     case commandPalette
     case showSidebar
@@ -38,6 +42,12 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case goToStash
     case showGitLog
     case showOnlyMissingRepositories
+
+    case copyCommitHash
+    case copyCommitSubject
+    case goToParentCommit
+    case revealCommitInSidebar
+    case showFullMessage
 
     case minimize
     case zoom
@@ -68,6 +78,10 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .copy: "Copy"
         case .paste: "Paste"
         case .selectAll: "Select All"
+        case .findInHistory: "Find in History"
+        case .findByMessage: "Find by Message or Hash"
+        case .findByAuthor: "Find by Author"
+        case .findInChanges: "Find in Changes"
         case .commandPalette: "Command Palette…"
         case .showSidebar: "Show Sidebar"
         case .filterSidebar: "Filter Sidebar"
@@ -78,6 +92,11 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToStash: "Go to Stash…"
         case .showGitLog: "Show Git Log"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
+        case .copyCommitHash: "Copy Hash"
+        case .copyCommitSubject: "Copy Subject"
+        case .goToParentCommit: "Go to Parent"
+        case .revealCommitInSidebar: "Reveal in Sidebar"
+        case .showFullMessage: "Show Full Message"
         case .minimize: "Minimize"
         case .zoom: "Zoom"
         case .bringAllToFront: "Bring All to Front"
@@ -114,11 +133,14 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .copy: KeyShortcut("c")
         case .paste: KeyShortcut("v")
         case .selectAll: KeyShortcut("a")
+        case .findInHistory: KeyShortcut("f")
+        case .findInChanges: KeyShortcut("f", [.command, .shift])
         case .commandPalette: KeyShortcut("p")
         case .showSidebar: KeyShortcut("s", [.command, .control])
         case .filterSidebar: KeyShortcut("f", [.command, .option])
         case .showToolbar: KeyShortcut("t", [.command, .option])
         case .showOnlyMissingRepositories: KeyShortcut("m", [.command, .shift])
+        case .copyCommitHash: KeyShortcut("c", [.command, .shift])
         case .minimize: KeyShortcut("m")
         default: nil
         }

@@ -103,4 +103,20 @@ struct RefTests {
             try Ref.parseList(output)
         }
     }
+
+    @Test
+    func aFailedReadSaysWhatWasBeingRead() async throws {
+        // Arrange
+        let folder = try TestGit.makeScratchFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let runner = GitRunner(executableURL: TestGit.executableURL, environment: FixtureRepository.environment)
+
+        // Act & Assert
+        let failure = await #expect(throws: GitReadFailure.self) {
+            try await Ref.readList { try await runner.run($0, in: folder) }
+        }
+        #expect(failure?.subject == "branches and tags")
+        #expect(failure?.command == Ref.listCommand)
+        #expect(failure?.outputWasUnreadable == false)
+    }
 }

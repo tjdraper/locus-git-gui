@@ -48,6 +48,10 @@ final class RepositorySplitViewController: NSSplitViewController {
         )
     }
 
+    var isSidebarCollapsed: Bool {
+        sidebarItem.isCollapsed
+    }
+
     func showSidebar() {
         guard sidebarItem.isCollapsed else { return }
         sidebarItem.animator().isCollapsed = false

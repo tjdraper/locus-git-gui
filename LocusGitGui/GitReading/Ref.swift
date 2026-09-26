@@ -52,6 +52,10 @@ nonisolated struct Ref: Equatable, Sendable {
         }
     }
 
+    static func readList(running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> [Ref] {
+        try await GitReadFailure.read("branches and tags", with: listCommand, running: run, parse: parseList)
+    }
+
     /// One ref per line. A ref name can't contain a newline or NUL, so neither can any field.
     static func parseList(_ output: Data) throws -> [Ref] {
         try output.split(separator: UInt8(ascii: "\n")).map { line in

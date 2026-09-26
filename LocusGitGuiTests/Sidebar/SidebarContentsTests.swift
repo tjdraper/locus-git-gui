@@ -212,7 +212,8 @@ struct SidebarContentsTests {
         try await clone.git("stash", "--quiet")
 
         // Act
-        let contents = try await SidebarContents.read { try await clone.run($0) }
+        let refs = try await Ref.readList { try await clone.run($0) }
+        let contents = try await SidebarContents.read(refs: refs) { try await clone.run($0) }
 
         // Assert
         #expect(contents.branches.map(\.name) == ["main"])
@@ -220,22 +221,6 @@ struct SidebarContentsTests {
         #expect(contents.remotes.first?.branches.map(\.name) == ["main"])
         #expect(contents.tags.map(\.name) == ["v1"])
         #expect(contents.stashes.count == 1)
-    }
-
-    @Test
-    func aFailedReadSaysWhatWasBeingRead() async throws {
-        // Arrange
-        let folder = try TestGit.makeScratchFolder()
-        defer { try? FileManager.default.removeItem(at: folder) }
-        let runner = GitRunner(executableURL: TestGit.executableURL, environment: FixtureRepository.environment)
-
-        // Act & Assert
-        let failure = await #expect(throws: GitReadFailure.self) {
-            try await SidebarContents.read { try await runner.run($0, in: folder) }
-        }
-        #expect(failure?.subject == "branches and tags")
-        #expect(failure?.command == Ref.listCommand)
-        #expect(failure?.outputWasUnreadable == false)
     }
 
     @Test

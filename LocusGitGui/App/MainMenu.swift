@@ -12,6 +12,7 @@ enum MainMenu {
         let dashboardView: [NSMenuItem]
         let commandPalette: [NSMenuItem]
         let goTo: [NSMenuItem]
+        let commitGoTo: [NSMenuItem]
     }
 
     static func install(appName: String, items owned: OwnedItems) {
@@ -41,6 +42,8 @@ enum MainMenu {
             items(.undo, .redo),
             [.separator()],
             items(.cut, .copy, .paste, .selectAll),
+            [.separator()],
+            items(.findInHistory, .findByMessage, .findByAuthor, .findInChanges),
         ]))
 
         // AppKit adds the tab bar and full screen items, and retitles the sidebar and toolbar items
@@ -56,6 +59,8 @@ enum MainMenu {
             owned.dashboardView,
         ]))
 
+        main.addItem(commitMenu(owned))
+
         let windowMenu = submenu(named: "Window", items: [
             items(.minimize, .zoom),
             [.separator()],
@@ -70,6 +75,16 @@ enum MainMenu {
         NSApp.mainMenu = main
         NSApp.windowsMenu = windowMenu.submenu
         NSApp.helpMenu = help.submenu
+    }
+
+    private static func commitMenu(_ owned: OwnedItems) -> NSMenuItem {
+        submenu(named: "Commit", items: [
+            items(.copyCommitHash, .copyCommitSubject),
+            [.separator()],
+            owned.commitGoTo,
+            [.separator()],
+            items(.showFullMessage),
+        ])
     }
 
     private static func items(_ commands: AppCommand...) -> [NSMenuItem] {

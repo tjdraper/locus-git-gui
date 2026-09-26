@@ -9,6 +9,7 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
 
     let paletteMenuItems: [NSMenuItem]
     let goToMenuItems: [NSMenuItem]
+    let commitGoToMenuItems: [NSMenuItem]
 
     private let defaults: UserDefaults
     private var history: SearchPickHistory
@@ -23,8 +24,9 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         history = SearchPickHistory(defaults: defaults, key: Self.historyKey)
         paletteMenuItems = AppCommand.commandPalette.makeMenuItems()
         goToMenuItems = [AppCommand.goToBranch, .goToTag, .goToStash].map { $0.makeMenuItem() }
+        commitGoToMenuItems = [AppCommand.goToParentCommit, .revealCommitInSidebar].map { $0.makeMenuItem() }
         super.init()
-        for item in paletteMenuItems + goToMenuItems {
+        for item in paletteMenuItems + goToMenuItems + commitGoToMenuItems {
             item.target = self
         }
         panel.onKeyCommand = { [weak self] command in self?.perform(command) ?? false }
@@ -59,16 +61,24 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         goTo(.goToStash)
     }
 
+    @objc func goToParentCommit(_: Any?) {
+        goTo(.goToParentCommit)
+    }
+
+    @objc func revealCommitInSidebar(_: Any?) {
+        goTo(.revealCommitInSidebar)
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard NSApp.modalWindow == nil else { return false }
         // A sheet or another panel is in front only for a moment, and its commands aren't the app's.
         if let window = windowInFront, window.isSheet || window.attachedSheet != nil || window is NSPanel {
             return false
         }
-        guard let command = AppCommand(menuItem: menuItem), let kinds = Self.destinationKinds(for: command) else {
+        guard let command = AppCommand(menuItem: menuItem), Self.asksForChoice(command) else {
             return true
         }
-        return destinations.contains { kinds.contains($0.kind) }
+        return !choices(for: command).isEmpty
     }
 
     /// While the palette is open, the window it was opened over rather than the palette itself.
@@ -76,16 +86,28 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         session == nil ? NSApp.keyWindow : sourceWindow
     }
 
-    private var destinations: [CommandPaletteDestination] {
-        (windowInFront?.windowController as? CommandPaletteDestinationSource)?.paletteDestinations ?? []
+    private var source: CommandPaletteDestinationSource? {
+        windowInFront?.windowController as? CommandPaletteDestinationSource
     }
 
+    private func choices(for command: AppCommand) -> [CommandPaletteDestination] {
+        source?.paletteChoices(for: command) ?? []
+    }
+
+    /// A command acting on one commit, such as Go to Parent, goes straight there when there's only
+    /// one place to go. Go to Branch… always asks, since it's a way to search the branches.
     private func goTo(_ command: AppCommand) {
-        if let session {
-            session.push(destinationStep(for: command, among: destinations))
+        let choices = choices(for: command)
+        if let only = choices.first, choices.count == 1, Self.goesStraightToOnlyChoice(command) {
+            if session != nil {
+                dismiss(restoringFocus: true)
+            }
+            only.reveal()
+        } else if let session {
+            session.push(choiceStep(for: command, among: choices))
         } else {
             sourceWindow = NSApp.keyWindow
-            open(with: destinationStep(for: command, among: destinations))
+            open(with: choiceStep(for: command, among: choices))
         }
     }
 
@@ -106,12 +128,16 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
     /// for a search. Read while `sourceWindow` still has focus, since the menus validate against the
     /// window that has it.
     private func commandStep() -> CommandPaletteStep {
-        let destinations = destinations
+        let destinations = source?.paletteDestinations ?? []
         let commands = MenuBarCommandReader.read(excluding: [.commandPalette]).map { entry in
-            guard let command = AppCommand(rawValue: entry.item.id), Self.destinationKinds(for: command) != nil else {
+            guard let command = AppCommand(rawValue: entry.item.id), Self.asksForChoice(command) else {
                 return entry
             }
-            let step = destinationStep(for: command, among: destinations)
+            let choices = choices(for: command)
+            if let only = choices.first, choices.count == 1, Self.goesStraightToOnlyChoice(command) {
+                return CommandPaletteEntry(item: entry.item, action: .perform(only.reveal))
+            }
+            let step = choiceStep(for: command, among: choices)
             return CommandPaletteEntry(item: entry.item, action: .ask { step })
         }
         return CommandPaletteStep(
@@ -120,11 +146,11 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         )
     }
 
-    private func destinationStep(for command: AppCommand, among destinations: [CommandPaletteDestination]) -> CommandPaletteStep {
-        let kinds = Self.destinationKinds(for: command) ?? []
-        return CommandPaletteStep(
-            placeholder: Self.destinationPlaceholder(for: command),
-            entries: destinations.filter { kinds.contains($0.kind) }.map { $0.entry(isListedBeforeTyping: true) }
+    /// Asked with the command's own title, such as Go to Branch.
+    private func choiceStep(for command: AppCommand, among choices: [CommandPaletteDestination]) -> CommandPaletteStep {
+        CommandPaletteStep(
+            placeholder: command.title.trimmingCharacters(in: CharacterSet(charactersIn: "…")),
+            entries: choices.map { $0.entry(isListedBeforeTyping: true) }
         )
     }
 
@@ -195,20 +221,11 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         panel.setFrame(NSRect(x: midX - size.width / 2, y: top - size.height, width: size.width, height: size.height), display: false)
     }
 
-    private static func destinationKinds(for command: AppCommand) -> Set<CommandPaletteDestination.Kind>? {
-        switch command {
-        case .goToBranch: [.branch, .remoteBranch]
-        case .goToTag: [.tag]
-        case .goToStash: [.stash]
-        default: nil
-        }
+    private static func asksForChoice(_ command: AppCommand) -> Bool {
+        [.goToBranch, .goToTag, .goToStash, .goToParentCommit, .revealCommitInSidebar].contains(command)
     }
 
-    private static func destinationPlaceholder(for command: AppCommand) -> String {
-        switch command {
-        case .goToTag: "Go to Tag"
-        case .goToStash: "Go to Stash"
-        default: "Go to Branch"
-        }
+    private static func goesStraightToOnlyChoice(_ command: AppCommand) -> Bool {
+        command == .goToParentCommit || command == .revealCommitInSidebar
     }
 }

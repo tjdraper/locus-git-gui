@@ -11,6 +11,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let commands: RepositoryCommandRunner
     private let viewStates: RepositoryViewStateStore
     private let sidebar: SidebarModel
+    private let sidebarView: NSView
+    private let commitColumns: CommitColumnsCoordinator
     private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
     private let titleItem: RepositoryTitleItem
@@ -25,6 +27,13 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private var backgroundFailure: GitFailure?
     /// The frame outside full screen, which is the one worth coming back to.
     private var windowFrame: String?
+    private lazy var focusCycle = ColumnFocusCycle(
+        sidebar: sidebar,
+        sidebarView: sidebarView,
+        isSidebarShown: { [weak self] in self?.columns.isSidebarCollapsed == false },
+        history: commitColumns.history,
+        detail: commitColumns.detail
+    )
 
     init(commands: RepositoryCommandRunner, displayName: String?, viewStates: RepositoryViewStateStore) {
         self.commands = commands
@@ -37,10 +46,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
         // The split view sets the columns' sizes, not SwiftUI.
         sidebarController.sizingOptions = []
+        sidebarView = sidebarController.view
+        commitColumns = CommitColumnsCoordinator(run: commands.run)
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
-            history: ColumnPlaceholderController(),
-            detail: ColumnPlaceholderController(),
+            history: commitColumns.history,
+            detail: commitColumns.detail,
             columns: viewState.columns
         )
         let window = RepositoryWindow(
@@ -63,9 +74,18 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         // Setting the content resizes the window to it, so the size is set again after.
         window.contentViewController = columns
         window.setContentSize(NSSize(width: 1200, height: 760))
-        sidebar.onChange = { [weak self] in self?.saveViewState() }
+        sidebar.onChange = { [weak self] in
+            guard let self else { return }
+            saveViewState()
+            commitColumns.show(selection: sidebar.selection, contents: sidebar.contents)
+        }
         columns.onColumnsChange = { [weak self] in self?.saveViewState() }
+        commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
+        commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
+        window.onTab = { [weak self, weak window] backward in
+            self?.focusCycle.move(from: window?.firstResponder, backward: backward) ?? false
+        }
         window.toolbar = toolbar.toolbar
         window.toolbarStyle = .unified
         window.delegate = self
@@ -87,6 +107,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     @objc func filterSidebar(_: Any?) {
         columns.showSidebar()
         sidebar.requestFilterFocus()
+    }
+
+    /// Commands for the history or the commit reach them from whichever column has focus.
+    override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
+        commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
     }
 
     /// Shows the sidebar first if it's hidden.
@@ -157,7 +182,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
                 titleItem.setDisplayName(displayName)
                 onDisplayNameRead?(displayName)
             }
-            sidebar.show(try await SidebarContents.read(running: commands.run))
+            let refs = try await Ref.readList(running: commands.run)
+            sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run))
+            commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
             clearBackgroundFailure()
             let elapsed = ContinuousClock.now - started
             let files = snapshot.status.files.count
@@ -232,10 +259,16 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func showBackgroundFailure() {
-        guard let backgroundFailure, let window else { return }
-        failureSheet.present(backgroundFailure, repository: repository, on: window, wasOpenedByUser: true) { [weak self] in
+        guard let backgroundFailure else { return }
+        present(backgroundFailure) { [weak self] in
             self?.scheduler.requestNow(because: .retried)
         }
+    }
+
+    /// Opened by the user from a warning or a column's Show Details, so it has a Try Again.
+    private func present(_ failure: GitFailure, retry: @escaping () -> Void) {
+        guard let window else { return }
+        failureSheet.present(failure, repository: repository, on: window, wasOpenedByUser: true, retry: retry)
     }
 }
 
@@ -243,5 +276,18 @@ extension RepositoryWindowController: CommandPaletteDestinationSource {
     var paletteDestinations: [CommandPaletteDestination] {
         guard let contents = sidebar.contents else { return [] }
         return SidebarPaletteDestinations.make(from: contents) { [weak self] id in self?.revealInSidebar(id) }
+    }
+
+    func paletteChoices(for command: AppCommand) -> [CommandPaletteDestination]? {
+        let kinds: Set<CommandPaletteDestination.Kind>
+        switch command {
+        case .goToBranch: kinds = [.branch, .remoteBranch]
+        case .goToTag: kinds = [.tag]
+        case .goToStash: kinds = [.stash]
+        case .goToParentCommit: return commitColumns.history.parentChoices
+        case .revealCommitInSidebar: return commitColumns.history.labelChoices
+        default: return nil
+        }
+        return paletteDestinations.filter { kinds.contains($0.kind) }
     }
 }
