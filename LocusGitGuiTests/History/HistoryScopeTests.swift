@@ -81,4 +81,21 @@ struct HistoryScopeTests {
         // Assert
         #expect(scope.tips == ["m1"])
     }
+
+    @Test
+    func onlyTheCheckedOutBranchsHistoryIsTheOneACommitAddsTo() {
+        // Assert
+        #expect(HistoryScope.isCheckedOut(selection: nil, branch: "main"))
+        #expect(HistoryScope.isCheckedOut(selection: .ref("refs/heads/main"), branch: "main"))
+        #expect(!HistoryScope.isCheckedOut(selection: .ref("refs/heads/other"), branch: "main"))
+        #expect(!HistoryScope.isCheckedOut(selection: .ref("refs/remotes/origin/main"), branch: "main"))
+        #expect(!HistoryScope.isCheckedOut(selection: .remote("origin"), branch: "main"))
+    }
+
+    @Test
+    func aDetachedHeadsHistoryIsOnlyTheOneWithNothingSelected() {
+        // Assert
+        #expect(HistoryScope.isCheckedOut(selection: nil, branch: nil))
+        #expect(!HistoryScope.isCheckedOut(selection: .ref("refs/heads/main"), branch: nil))
+    }
 }

@@ -19,6 +19,8 @@ final class CommitColumnsCoordinator {
     private var refs: [Ref]?
     private var head: RepositoryStatus.Branch?
     private var shownSelection: SidebarItemID?
+    /// As of the last refresh.
+    private var workingAreaSummary: WorkingAreaSummary?
 
     init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, commitDraft: CommitMessage?) {
         history = HistoryViewController(list: HistoryList { command, onOutput in
@@ -55,7 +57,7 @@ final class CommitColumnsCoordinator {
     /// After each refresh, before the history is shown, so a repository with no commits yet still
     /// has its working area to make the first one in.
     func show(_ snapshot: RepositorySnapshot) {
-        history.showWorkingArea(WorkingAreaSummary(snapshot.status))
+        workingAreaSummary = WorkingAreaSummary(snapshot.status)
         workingArea.show(snapshot)
     }
 
@@ -74,6 +76,7 @@ final class CommitColumnsCoordinator {
             isSameSelection: selection == shownSelection
         )
         shownSelection = selection
+        history.showWorkingArea(HistoryScope.isCheckedOut(selection: selection, branch: head.name) ? workingAreaSummary : nil)
         labels = CommitRefLabel.byCommit(refs: refs, detachedHead: head.name == nil ? head.commit : nil)
         history.showLabels(labels)
         if let commit = detail.commit {

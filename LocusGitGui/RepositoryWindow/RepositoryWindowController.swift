@@ -326,8 +326,12 @@ extension RepositoryWindowController {
         sidebar.requestFilterFocus()
     }
     /// Reached through the responder chain from View > Go to Uncommitted Changes, from anywhere in
-    /// the window. The subject takes focus, since writing the message is usually what's next.
+    /// the window. From another branch's history it goes back to the checked-out branch's, where the
+    /// working area is. The subject takes focus, since writing the message is usually what's next.
     @objc func goToUncommittedChanges(_: Any?) {
+        if commitColumns.history.workingArea == nil {
+            sidebar.selection = nil
+        }
         guard commitColumns.history.workingArea != nil else {
             NSSound.beep()
             return

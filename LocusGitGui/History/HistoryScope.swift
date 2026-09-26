@@ -31,6 +31,14 @@ nonisolated struct HistoryScope: Equatable, Sendable {
         return HistoryScope(tips: head.map { [$0] } ?? [])
     }
 
+    /// Whether the history is the one a commit would be added to: the checked-out branch, or HEAD
+    /// when it's detached. Only then does the working area sit at its top, since above another
+    /// branch's history it would read as part of it. `branch` is the checked-out branch's name.
+    static func isCheckedOut(selection: SidebarItemID?, branch: String?) -> Bool {
+        guard let selection else { return true }
+        return branch.map { selection == .ref("refs/heads/" + $0) } ?? false
+    }
+
     /// Several branches of a remote often point at the same commit.
     private static func unique(_ tips: [String]) -> [String] {
         var seen: Set<String> = []

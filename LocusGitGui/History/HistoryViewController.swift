@@ -31,7 +31,7 @@ final class HistoryViewController: NSViewController {
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
     private(set) var selectedCommit: Commit?
-    private(set) var isWorkingAreaSelected = false
+    var isWorkingAreaSelected = false
     /// Nil until the repository's status has been read, and the history has no working area row.
     var workingArea: WorkingAreaSummary?
     let table = HistoryTableView()
