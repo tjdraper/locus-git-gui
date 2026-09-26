@@ -4,6 +4,9 @@ import AppKit
 /// it's the one selected.
 final class HistoryContextMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu()
+    /// The working area's row, whose menu only opens it in a window of its own.
+    var isWorkingAreaForMenu: (() -> Bool)?
+    var openWorkingArea: (() -> Void)?
     private let commitForMenu: () -> Commit?
     private let labels: (String) -> [CommitRefLabel]
     private let parentTitle: (String) -> String
@@ -31,6 +34,10 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        if isWorkingAreaForMenu?() == true {
+            menu.addItem(item(.openCommitInNewWindow, #selector(openWorkingAreaWindow(_:)), true))
+            return
+        }
         guard let commit = commitForMenu() else { return }
         menu.addItem(item(.openCommitInNewWindow, #selector(openCommit(_:)), commit.hash))
         menu.addItem(.separator())
@@ -75,6 +82,10 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
         guard let text = sender.representedObject as? String else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    @objc private func openWorkingAreaWindow(_: NSMenuItem) {
+        openWorkingArea?()
     }
 
     @objc private func openCommit(_ sender: NSMenuItem) {

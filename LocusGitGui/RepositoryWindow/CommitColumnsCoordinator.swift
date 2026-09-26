@@ -7,9 +7,12 @@ final class CommitColumnsCoordinator {
     let history: HistoryViewController
     let detail: CommitDetailViewController
     let workingArea: WorkingAreaViewController
+    /// Shared with the working area window.
+    let workingAreaSession: WorkingAreaSession
     let detailColumn: DetailColumnController
     var reveal: ((SidebarItemID) -> Void)?
     var open: ((Commit) -> Void)?
+    var openWorkingArea: (() -> Void)?
     var openFileWindow: ((FileWindowRequest) -> Void)?
     /// Every labelled commit's labels, as of the last refresh.
     private(set) var labels: [String: [CommitRefLabel]] = [:]
@@ -27,7 +30,8 @@ final class CommitColumnsCoordinator {
             try await commands.run(command, onOutput: onOutput)
         })
         detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions)
-        workingArea = WorkingAreaViewController(commands: commands, diffOptions: diffOptions, draft: commitDraft)
+        workingAreaSession = WorkingAreaSession(commands: commands, draft: commitDraft)
+        workingArea = WorkingAreaViewController(commands: commands, diffOptions: diffOptions, session: workingAreaSession)
         detailColumn = DetailColumnController(commit: detail, workingArea: workingArea)
         history.onSelect = { [weak self] item in
             guard let self else { return }
@@ -45,6 +49,7 @@ final class CommitColumnsCoordinator {
         }
         history.reveal = { [weak self] id in self?.reveal?(id) }
         history.onOpen = { [weak self] commit in self?.open?(commit) }
+        history.onOpenWorkingArea = { [weak self] in self?.openWorkingArea?() }
         detail.reveal = { [weak self] id in self?.reveal?(id) }
         detail.goToCommit = { [weak self] hash in self?.history.goToCommit(hash) }
         detail.openFileWindow = { [weak self] request in self?.openFileWindow?(request) }

@@ -27,7 +27,7 @@ final class ColumnFocusCycle {
         detail: DetailColumnController
     ) {
         let workingArea = detail.workingArea
-        let editor = workingArea.editor
+        let focus = workingArea.messageFocus
         self.init(stops: [
             Stop(
                 isAvailable: isSidebarShown,
@@ -56,13 +56,13 @@ final class ColumnFocusCycle {
             ),
             Stop(
                 isAvailable: { [weak detail] in detail?.showsWorkingArea == true },
-                holds: { [weak editor] view in view === editor?.subjectField },
-                focus: { [weak editor] in editor?.focusSubject() }
+                holds: { [weak focus] view in view === focus?.subject },
+                focus: { [weak focus] in focus?.focusSubject() }
             ),
             Stop(
                 isAvailable: { [weak detail] in detail?.showsWorkingArea == true },
-                holds: { [weak editor] view in view === editor?.bodyTextView },
-                focus: { [weak editor] in editor?.focusBody() }
+                holds: { [weak focus] view in view === focus?.body },
+                focus: { [weak focus] in focus?.focusBody() }
             ),
             Stop(
                 isAvailable: { [weak detail] in detail.map { $0.showsWorkingArea && $0.workingArea.focusableChanges != nil } ?? false },

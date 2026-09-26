@@ -7,7 +7,22 @@ extension HistoryViewController {
         copyCommitHash(nil)
     }
 
+    /// A double-click, on a commit or the working area.
+    @objc func openClickedCommit(_: Any?) {
+        if isWorkingAreaRow(table.clickedRow) {
+            onOpenWorkingArea?()
+            return
+        }
+        guard let commit = commit(at: table.clickedRow) else { return }
+        onOpen?(commit)
+    }
+
+    /// The working area too, when its row is selected.
     @objc func openCommitInNewWindow(_: Any?) {
+        if isWorkingAreaSelected {
+            onOpenWorkingArea?()
+            return
+        }
         guard let selectedCommit else { return }
         onOpen?(selectedCommit)
     }
@@ -42,8 +57,10 @@ extension HistoryViewController {
 extension HistoryViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(copy(_:)), #selector(copyCommitHash(_:)), #selector(copyCommitSubject(_:)), #selector(openCommitInNewWindow(_:)):
+        case #selector(copy(_:)), #selector(copyCommitHash(_:)), #selector(copyCommitSubject(_:)):
             return selectedCommit != nil
+        case #selector(openCommitInNewWindow(_:)):
+            return selectedCommit != nil || isWorkingAreaSelected
         case #selector(findByMessage(_:)):
             menuItem.state = find.searchField == .message ? .on : .off
         case #selector(findByAuthor(_:)):

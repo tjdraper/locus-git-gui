@@ -9,18 +9,6 @@ import SwiftUI
 final class WorkingAreaViewController: NSViewController {
     private static let log = Logger(subsystem: "com.buzzingpixel.LocusGitGui", category: "WorkingArea")
 
-    /// Asks the window to read the repository again, after a command changed it.
-    var requestRefresh: (() -> Void)? {
-        get { queue.didRun }
-        set { queue.didRun = newValue }
-    }
-
-    /// For a command the user ran that failed.
-    var presentCommandFailure: ((GitFailure) -> Void)? {
-        get { queue.presentFailure }
-        set { queue.presentFailure = newValue }
-    }
-
     /// For a failure the user asks to see, with a way to try again.
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)? {
         didSet { diff.showFailure = showFailure }
@@ -29,12 +17,11 @@ final class WorkingAreaViewController: NSViewController {
     var openFileWindow: ((FileWindowRequest) -> Void)?
 
     let diff: DiffViewController
-    let editor = CommitMessageEditor()
+    let session: WorkingAreaSession
+    let messageFocus = CommitMessageFocus()
     let staging: StagingWorkflow
     let commands: RepositoryCommandRunner
-    private let queue = WorkingAreaCommandQueue()
-    private lazy var committing = CommitWorkflow(commands: commands, editor: editor, queue: queue)
-    private lazy var messageController = NSHostingController(rootView: CommitMessageView(editor: editor))
+    private lazy var messageController = NSHostingController(rootView: CommitMessageView(editor: editor, focus: messageFocus))
     /// Set from the message's height at the column's width, as the commit header's is.
     private lazy var messageHeight = messageController.view.heightAnchor.constraint(equalToConstant: 0)
     private let placeholder = WorkingAreaPlaceholder()
@@ -63,12 +50,12 @@ final class WorkingAreaViewController: NSViewController {
     private var reading: Task<Void, Never>?
     private var failure: GitFailure?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, draft: CommitMessage?) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, session: WorkingAreaSession) {
         self.commands = commands
+        self.session = session
         diff = DiffViewController(options: diffOptions, workTree: commands.repository.workTree)
-        staging = StagingWorkflow(commands: commands, options: diffOptions, queue: queue)
+        staging = StagingWorkflow(commands: commands, options: diffOptions, queue: session.queue)
         super.init(nibName: nil, bundle: nil)
-        editor.message = draft ?? CommitMessage()
         staging.window = { [weak self] in self?.view.window }
         placeholder.showDetails = { [weak self] in
             guard let self, let failure else { return }
@@ -83,9 +70,12 @@ final class WorkingAreaViewController: NSViewController {
         nil
     }
 
-    var onDraftChange: ((CommitMessage) -> Void)? {
-        get { editor.onDraftChange }
-        set { editor.onDraftChange = newValue }
+    var editor: CommitMessageEditor {
+        session.editor
+    }
+
+    private var committing: CommitWorkflow {
+        session.committing
     }
 
     /// The message kept for the next commit, which while amending is the one set aside.
@@ -229,7 +219,7 @@ final class WorkingAreaViewController: NSViewController {
     }
 
     func focusSubject() {
-        editor.focusSubject()
+        messageFocus.focusSubject()
     }
 
     /// What Tab moves focus to in the changes, which is nothing while there are none.

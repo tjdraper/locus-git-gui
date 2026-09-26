@@ -203,16 +203,34 @@ final class CommitBodyTextView: NSTextView {
     }
 }
 
+/// One view's subject and body, for Tab and Go to Uncommitted Changes to put the cursor in. The
+/// detail column and the working area window each have their own, while they share the message.
+final class CommitMessageFocus {
+    weak var subject: NSTextField?
+    weak var body: NSTextView?
+
+    func focusSubject() {
+        guard let subject else { return }
+        subject.window?.makeFirstResponder(subject)
+    }
+
+    func focusBody() {
+        guard let body else { return }
+        body.window?.makeFirstResponder(body)
+    }
+}
+
 /// The fields in SwiftUI, kept in step with the editor's message both ways.
 struct CommitMessageFieldsView: NSViewRepresentable {
     let editor: CommitMessageEditor
+    let focus: CommitMessageFocus
 
     func makeNSView(context _: Context) -> CommitMessageFields {
         let fields = CommitMessageFields()
         fields.onSubjectChange = { [editor] subject in editor.message.subject = subject }
         fields.onBodyChange = { [editor] body in editor.message.body = body }
-        editor.subjectField = fields.subject
-        editor.bodyTextView = fields.body
+        focus.subject = fields.subject
+        focus.body = fields.body
         fields.show(editor.message)
         return fields
     }

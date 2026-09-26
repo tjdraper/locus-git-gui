@@ -3,10 +3,11 @@ import SwiftUI
 /// The top of the working area: the message, whether to amend the last commit, and Commit.
 struct CommitMessageView: View {
     let editor: CommitMessageEditor
+    let focus: CommitMessageFocus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CommitMessageFieldsView(editor: editor)
+            CommitMessageFieldsView(editor: editor, focus: focus)
                 .frame(height: CommitMessageFields.height)
             HStack(spacing: 8) {
                 Toggle("Amend Last Commit", isOn: Binding(get: { editor.isAmending }, set: { _ in editor.toggleAmend?() }))

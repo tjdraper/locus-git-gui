@@ -42,8 +42,6 @@ final class CommitMessageEditor {
     @ObservationIgnored var onDraftChange: ((CommitMessage) -> Void)?
     @ObservationIgnored var commit: (() -> Void)?
     @ObservationIgnored var toggleAmend: (() -> Void)?
-    @ObservationIgnored weak var subjectField: NSTextField?
-    @ObservationIgnored weak var bodyTextView: NSTextView?
     /// What was being written before an amend replaced it, put back when the amend is turned off.
     @ObservationIgnored private var draftBeforeAmend: CommitMessage?
 
@@ -129,13 +127,4 @@ final class CommitMessageEditor {
         externalChanges += 1
     }
 
-    func focusSubject() {
-        guard let subjectField else { return }
-        subjectField.window?.makeFirstResponder(subjectField)
-    }
-
-    func focusBody() {
-        guard let bodyTextView else { return }
-        bodyTextView.window?.makeFirstResponder(bodyTextView)
-    }
 }

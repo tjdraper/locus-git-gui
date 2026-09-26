@@ -27,6 +27,8 @@ final class HistoryViewController: NSViewController {
 
     var onSelect: ((Item?) -> Void)?
     var onOpen: ((Commit) -> Void)?
+    /// The working area in a window of its own.
+    var onOpenWorkingArea: (() -> Void)?
     var reveal: ((SidebarItemID) -> Void)?
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
@@ -102,6 +104,8 @@ final class HistoryViewController: NSViewController {
         table.dataSource = self
         table.delegate = self
         table.menu = contextMenu.menu
+        contextMenu.isWorkingAreaForMenu = { [weak self] in self.map { $0.isWorkingAreaRow($0.table.clickedRow) } ?? false }
+        contextMenu.openWorkingArea = { [weak self] in self?.onOpenWorkingArea?() }
         table.target = self
         table.doubleAction = #selector(openClickedCommit(_:))
         table.onReturn = { [weak self] in self?.openCommitInNewWindow(nil) }
@@ -199,12 +203,7 @@ final class HistoryViewController: NSViewController {
         onOpen?(list.commits[index])
     }
 
-    @objc private func openClickedCommit(_: Any?) {
-        guard let commit = commit(at: table.clickedRow) else { return }
-        onOpen?(commit)
-    }
-
-    private func commit(at row: Int) -> Commit? {
+    func commit(at row: Int) -> Commit? {
         let index = row - commitRowOffset
         return list.commits.indices.contains(index) ? list.commits[index] : nil
     }

@@ -16,6 +16,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let diffOptions: DiffOptionsStore
     private lazy var commitWindows = CommitWindowCoordinator(commands: commands, diffOptions: diffOptions)
     private lazy var fileWindows = FileWindowCoordinator(commands: commands, diffOptions: diffOptions)
+    private lazy var workingAreaWindow = WorkingAreaWindowCoordinator(
+        commands: commands,
+        diffOptions: diffOptions,
+        session: commitColumns.workingAreaSession
+    )
     private lazy var commitGraph = CommitGraphWriter(repository: repository, run: commands.run)
     private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
@@ -105,17 +110,6 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         nil
     }
 
-    private func connectCommitColumns() {
-        commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
-        commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
-        commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
-        commitColumns.openFileWindow = { [weak self] request in self?.openFileWindow(request, from: self?.window) }
-        let workingArea = commitColumns.workingArea
-        workingArea.requestRefresh = { [weak self] in self?.scheduler.requestNow(because: .commandRan) }
-        workingArea.presentCommandFailure = { [weak self] failure in self?.presentCommandFailure(failure) }
-        workingArea.onDraftChange = { [weak self] _ in self?.saveViewState() }
-    }
-
     /// Commands for the history or the commit reach them from whichever column has focus.
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
         commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
@@ -191,6 +185,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         activityWindow.close()
         commitWindows.closeAll()
         fileWindows.closeAll()
+        workingAreaWindow.close()
     }
 
     private func refresh(because reason: RefreshScheduler.Reason) async {
@@ -199,6 +194,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             let snapshot = try await RepositorySnapshot.read(repository, running: commands.run)
             show(RepositoryTitleBar(status: snapshot.status, operation: snapshot.operation))
             commitColumns.show(snapshot)
+            workingAreaWindow.show(snapshot)
             if fileWindows.showsWorkingArea {
                 fileWindows.showWorkingArea(commitColumns.workingArea.files(in: Set(WorkingAreaGroup.allCases)))
             }
@@ -299,12 +295,38 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
 
 }
 
+/// How the columns and the windows opened from them reach the window.
+extension RepositoryWindowController {
+    fileprivate func connectCommitColumns() {
+        commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
+        commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
+        commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
+        commitColumns.openFileWindow = { [weak self] request in self?.openFileWindow(request, from: self?.window) }
+        let session = commitColumns.workingAreaSession
+        session.queue.didRun = { [weak self] in self?.scheduler.requestNow(because: .commandRan) }
+        session.queue.presentFailure = { [weak self] failure in self?.presentCommandFailure(failure) }
+        session.editor.onDraftChange = { [weak self] _ in self?.saveViewState() }
+        commitColumns.openWorkingArea = { [weak self] in self?.openWorkingAreaWindow() }
+        workingAreaWindow.openFileWindow = { [weak self] request, window in self?.openFileWindow(request, from: window) }
+        workingAreaWindow.showFailure = { [weak self] failure, window, retry in
+            guard let self else { return }
+            failureSheet.present(failure, repository: repository, on: window, wasOpenedByUser: true, retry: retry)
+        }
+    }
+}
+
 /// Failures shown as a sheet on the window.
 extension RepositoryWindowController {
-    /// A command the user ran, such as a commit, that failed. They acknowledge it with OK.
+    /// A command the user ran, such as a commit, that failed, on the window it was run from. They
+    /// acknowledge it with OK.
     fileprivate func presentCommandFailure(_ failure: GitFailure) {
-        guard let window else { return }
-        failureSheet.present(failure, repository: repository, on: window, wasOpenedByUser: false, retry: nil)
+        let windows = [workingAreaWindow.window, window].compactMap(\.self)
+        guard let target = windows.first(where: \.isKeyWindow) ?? window else { return }
+        failureSheet.present(failure, repository: repository, on: target, wasOpenedByUser: false, retry: nil)
+    }
+
+    fileprivate func openWorkingAreaWindow() {
+        workingAreaWindow.show(from: window, repositoryName: displayName ?? repository.workTree.lastPathComponent)
     }
 
     /// Opened by the user from a warning or a column's Show Details, so it has a Try Again.
