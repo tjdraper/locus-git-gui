@@ -222,7 +222,7 @@ final class DiffViewController: NSViewController {
         let layout = DiffLayout(document: document, files: files, metrics: metrics, width: width, numberColumns: numberColumns)
         let isSameShape = canvas.content.map { $0.document == document } ?? false
         canvas.show(
-            DiffCanvasView.Content(files: files, document: document, layout: layout, painter: painter),
+            DiffCanvasView.Content(files: files, document: document, layout: layout, painter: painter, tintsHunkBands: hunkActions == nil),
             keepingSelection: isSameShape
         )
         canvas.frame = NSRect(x: 0, y: 0, width: width, height: layout.height)

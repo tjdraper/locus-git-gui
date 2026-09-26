@@ -27,7 +27,10 @@ struct DiffRowPainter {
         paragraph.tabStops = []
         textAttributes = [.font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: paragraph]
         numberAttributes = [.font: font, .foregroundColor: NSColor.secondaryLabelColor]
-        sectionAttributes = [.font: font, .foregroundColor: NSColor.secondaryLabelColor]
+        sectionAttributes = [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
         wrapMarkerAttributes = [.font: font, .foregroundColor: NSColor.tertiaryLabelColor]
         noteAttributes = [
             .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
@@ -40,13 +43,49 @@ struct DiffRowPainter {
         ((metrics.lineHeight - (font.ascender - font.descender + font.leading)) / 2).rounded(.down)
     }
 
-    func drawHunk(_ hunk: DiffHunk, in rect: NSRect) {
-        NSColor.quaternarySystemFill.setFill()
-        rect.fill()
+    /// Lighter than a file's header, so the two don't read as one. `below` is the row under the
+    /// band, whose colours it takes when given, as in a diff with no buttons on its bands. The ellipsis
+    /// in the line numbers' column says lines were skipped, and what Git found the hunk to be inside
+    /// is smaller than a line, so neither reads as a line without a number.
+    func drawHunk(_ hunk: DiffHunk, in rect: NSRect, columns: Columns, below: (left: DiffLine?, right: DiffLine?)?) {
+        if let below {
+            fillRow(left: below.left, right: below.right, in: rect, sides: columns.sides, unchanged: .quinarySystemFill)
+        } else {
+            NSColor.quinarySystemFill.setFill()
+            rect.fill()
+        }
+        let side = columns.sides[0]
+        // Only where lines were skipped, which isn't so above a hunk starting at the top of the file.
+        if hunk.oldStart > 1 || hunk.newStart > 1 {
+            let ellipsis = typeset("⋯", attributes: numberAttributes)
+            let numberX = (side.numberXs.last ?? side.minX) + Double(max(columns.numberColumns - 1, 0)) * metrics.advance
+            let baseline = rect.minY + (rect.height - (font.ascender - font.descender)) / 2 + font.ascender
+            draw(ellipsis, at: NSPoint(x: numberX, y: baseline), clippedTo: rect)
+        }
         guard !hunk.section.isEmpty else { return }
         let line = typeset(hunk.section, attributes: sectionAttributes)
-        let baseline = rect.minY + (rect.height - (font.ascender - font.descender)) / 2 + font.ascender
-        draw(line, at: NSPoint(x: rect.minX + metrics.margin, y: baseline), clippedTo: rect)
+        let sectionFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        let baseline = rect.minY + (rect.height - (sectionFont.ascender - sectionFont.descender)) / 2 + sectionFont.ascender
+        let clip = NSRect(x: side.textX, y: rect.minY, width: side.maxX - side.textX, height: rect.height)
+        draw(line, at: NSPoint(x: side.textX, y: baseline), clippedTo: clip)
+    }
+
+    /// A row's colours without its text, for the space that runs on from it: a changed line's tint,
+    /// `unchanged` for an unchanged one, and the shade of a side with no line.
+    func fillRow(left: DiffLine?, right: DiffLine?, in rect: NSRect, sides: [DiffLayout.Side], unchanged: NSColor? = nil) {
+        let lines = sides.count == 1 ? [left] : [left, right]
+        for (side, line) in zip(sides, lines) {
+            let sideRect = NSRect(x: side.minX, y: rect.minY, width: side.maxX - side.minX, height: rect.height)
+            let fill = line.map { Self.colors(for: $0.kind).row ?? unchanged } ?? NSColor.quaternarySystemFill
+            fill?.setFill()
+            if fill != nil {
+                sideRect.fill()
+            }
+        }
+        if sides.count > 1 {
+            NSColor.separatorColor.setFill()
+            NSRect(x: sides[1].minX, y: rect.minY, width: 1, height: rect.height).fill()
+        }
     }
 
     /// One side of a row as it's drawn.

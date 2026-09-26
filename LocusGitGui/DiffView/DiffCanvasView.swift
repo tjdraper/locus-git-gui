@@ -9,6 +9,8 @@ final class DiffCanvasView: NSView {
         let document: DiffDocument
         let layout: DiffLayout
         let painter: DiffRowPainter
+        /// Hunk bands take the colours of the row below them when there are no buttons on them.
+        var tintsHunkBands = false
     }
 
     var onSelectionChange: (() -> Void)?
@@ -82,7 +84,17 @@ final class DiffCanvasView: NSView {
             let rect = NSRect(x: 0, y: frame.minY, width: bounds.width, height: frame.maxY - frame.minY)
             switch content.document.blocks[block] {
             case let .hunk(file, hunk):
-                content.painter.drawHunk(content.files[file].patch.hunks[hunk], in: rect)
+                content.painter.drawHunk(
+                    content.files[file].patch.hunks[hunk],
+                    in: rect,
+                    columns: DiffRowPainter.Columns(sides: layout.sides(forFile: file), numberColumns: layout.numberColumns),
+                    below: content.tintsHunkBands ? lines(of: block + 1, content: content) : nil
+                )
+            case .gap:
+                // The space above a file runs on from the last row of the file before.
+                if let above = lines(of: block - 1, content: content), case let .lines(file, _, _, _) = content.document.blocks[block - 1] {
+                    content.painter.fillRow(left: above.left, right: above.right, in: rect, sides: layout.sides(forFile: file))
+                }
             case let .lines(file, hunk, left, right):
                 let lines = content.files[file].patch.hunks[hunk].lines
                 content.painter.drawLines(
@@ -104,6 +116,14 @@ final class DiffCanvasView: NSView {
                 break
             }
         }
+    }
+
+    /// The lines a row of lines shows, and nil for any other block.
+    private func lines(of block: Int, content: Content) -> (left: DiffLine?, right: DiffLine?)? {
+        guard content.document.blocks.indices.contains(block),
+              case let .lines(file, hunk, left, right) = content.document.blocks[block] else { return nil }
+        let lines = content.files[file].patch.hunks[hunk].lines
+        return (left.map { lines[$0] }, right.map { lines[$0] })
     }
 
     private func wrapped(block: Int, side: Int, line: DiffLine, content: Content) -> DiffRowPainter.Wrapped {

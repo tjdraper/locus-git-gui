@@ -19,8 +19,9 @@ nonisolated struct DiffScrollAnchor: Equatable, Sendable {
     func top(in document: DiffDocument, layout: DiffLayout, files: [DiffFile]) -> Double? {
         guard let index = files.firstIndex(where: { $0.id == file }) else { return nil }
         let header = document.fileStarts[index]
-        // The group heading above the file, when it still starts a group.
-        let start = header > 0 && document.blocks[header - 1] == .group(file: index) ? header - 1 : header
+        // The group heading or space above the file.
+        let isAbove = header > 0 && [.group(file: index), .gap(file: index)].contains(document.blocks[header - 1])
+        let start = isAbove ? header - 1 : header
         let end = document.fileEnds[index]
         var target = header
         for index in start ..< end where Self.position(of: document.blocks[index]) <= Self.position(of: block) {
@@ -33,7 +34,7 @@ nonisolated struct DiffScrollAnchor: Equatable, Sendable {
     /// Orders a file's rows the same way in every style: by hunk, then by line.
     private static func position(of block: DiffDocument.Block) -> (Int, Int) {
         switch block {
-        case .group: (-2, 0)
+        case .group, .gap: (-2, 0)
         case .header: (-1, 0)
         case .notice, .images: (-1, 1)
         case let .hunk(_, hunk): (hunk, -1)

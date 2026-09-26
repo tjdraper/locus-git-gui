@@ -54,6 +54,7 @@ final class DiffHunkBarView: NSView {
 
     private func makeButton() -> NSButton {
         let button = NSButton(title: "", target: self, action: #selector(runAction(_:)))
+        // Smaller than the buttons in the file's header, since they act on less of it.
         button.controlSize = .mini
         button.bezelStyle = .push
         button.font = .systemFont(ofSize: NSFont.systemFontSize(for: .mini))

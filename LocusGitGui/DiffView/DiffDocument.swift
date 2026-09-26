@@ -34,6 +34,9 @@ nonisolated struct DiffDocument: Equatable, Sendable {
         /// Above the first file of each group in a grouped diff, such as the working area's staged
         /// changes. It belongs to that file.
         case group(file: Int)
+        /// Space above a file's header, which sets it apart from the file before when that one is
+        /// expanded. It belongs to the file below it.
+        case gap(file: Int)
         case header(file: Int)
         case notice(file: Int, Notice)
         /// Before and after, for an image.
@@ -46,8 +49,8 @@ nonisolated struct DiffDocument: Equatable, Sendable {
 
         var file: Int {
             switch self {
-            case let .group(file), let .header(file), let .notice(file, _), let .images(file), let .hunk(file, _),
-                 let .lines(file, _, _, _): file
+            case let .group(file), let .gap(file), let .header(file), let .notice(file, _), let .images(file),
+                 let .hunk(file, _), let .lines(file, _, _, _): file
             }
         }
     }
@@ -59,8 +62,8 @@ nonisolated struct DiffDocument: Equatable, Sendable {
     let blocks: [Block]
     /// The index of each file's header in `blocks`.
     let fileStarts: [Int]
-    /// The index of the block after each file's last one, which is the next group's heading when
-    /// the next file starts a group.
+    /// The index of the block after each file's last one, which is the group heading or the space
+    /// above the next file.
     let fileEnds: [Int]
 
     init(files: [DiffFile], collapsed: Set<Int>, style: Style) {
@@ -75,6 +78,8 @@ nonisolated struct DiffDocument: Equatable, Sendable {
             }
             if file.group != nil, index == 0 || files[index - 1].group != file.group {
                 blocks.append(.group(file: index))
+            } else if index > 0, !collapsed.contains(index - 1) {
+                blocks.append(.gap(file: index))
             }
             fileStarts.append(blocks.count)
             blocks.append(.header(file: index))

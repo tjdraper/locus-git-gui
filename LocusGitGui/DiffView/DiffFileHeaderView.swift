@@ -42,7 +42,7 @@ final class DiffFileHeaderView: NSView {
         disclosure.action = #selector(toggle(_:))
         change.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
         change.textColor = .secondaryLabelColor
-        path.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        path.font = .systemFont(ofSize: NSFont.systemFontSize + 1, weight: .semibold)
         path.lineBreakMode = .byTruncatingHead
         path.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         counts.font = .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
@@ -154,12 +154,16 @@ final class DiffFileHeaderView: NSView {
         actions[sender.tag].perform()
     }
 
-    /// Opaque, since the diff scrolls under it while it's stuck at the top.
+    /// Opaque, since the diff scrolls under it while it's stuck at the top. A stronger fill than the
+    /// hunk bands below it, and a line at the top as well as the bottom, so it reads as the start of
+    /// a file rather than another band.
     override func draw(_: NSRect) {
         NSColor.windowBackgroundColor.setFill()
         bounds.fill()
-        NSColor.quaternarySystemFill.setFill()
+        NSColor.tertiarySystemFill.setFill()
         bounds.fill()
+        NSColor.separatorColor.setFill()
+        NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
         if content?.isCurrent == true {
             NSColor.controlAccentColor.withAlphaComponent(0.14).setFill()
             bounds.fill()

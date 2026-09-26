@@ -60,12 +60,13 @@ struct DiffDocumentTests {
     }
 
     @Test
-    func aFileEndsWhereTheNextOneStarts() {
+    func aFileEndsWhereTheSpaceAboveTheNextOneStarts() {
         // Act
         let document = DiffDocument(files: [file(edit), file(edit)], collapsed: [], style: .inline)
 
         // Assert
-        #expect(document.fileEnds == [document.fileStarts[1], document.blocks.count])
+        #expect(document.fileEnds == [document.fileStarts[1] - 1, document.blocks.count])
+        #expect(document.blocks[document.fileEnds[0]] == .gap(file: 1))
     }
 
     @Test
@@ -113,7 +114,7 @@ struct DiffDocumentTests {
         )
 
         // Assert
-        #expect(document.blocks == [.header(file: 0), .images(file: 0), .header(file: 1), .notice(file: 1, .binary)])
+        #expect(document.blocks == [.header(file: 0), .images(file: 0), .gap(file: 1), .header(file: 1), .notice(file: 1, .binary)])
     }
 
     @Test
