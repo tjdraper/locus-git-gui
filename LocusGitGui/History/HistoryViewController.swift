@@ -7,6 +7,7 @@ final class HistoryViewController: NSViewController {
     /// Commands the window passes on to the history from whichever column has focus, since they
     /// act on the history wherever the user is.
     static let windowActions: Set<Selector> = [
+        #selector(openCommitInNewWindow(_:)),
         #selector(copyCommitHash(_:)),
         #selector(copyCommitSubject(_:)),
         #selector(findInHistory(_:)),
@@ -15,15 +16,20 @@ final class HistoryViewController: NSViewController {
         #selector(findInChanges(_:)),
     ]
 
+    /// A history of hundreds of branches side by side would push every subject off the row. Past
+    /// this, the graph is cut off at the right.
+    private static let widestGraph = 12
+
     /// Waits for a pause in typing, since each search is a `git log` over the whole history.
     private static let searchDelay: Duration = .milliseconds(300)
 
     var onSelect: ((Commit?) -> Void)?
+    var onOpen: ((Commit) -> Void)?
     var reveal: ((SidebarItemID) -> Void)?
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
     private(set) var selectedCommit: Commit?
-    let table = NSTableView()
+    let table = HistoryTableView()
     private let list: HistoryList
     private let scrollView = NSScrollView()
     private lazy var find = HistoryFindField(menuItems: [AppCommand.findByMessage, .findByAuthor, .findInChanges].map { command in
@@ -36,6 +42,7 @@ final class HistoryViewController: NSViewController {
         labels: { [weak self] hash in self?.labels[hash] ?? [] },
         parentTitle: { [weak self] hash in self?.title(ofCommit: hash) ?? hash },
         goToCommit: { [weak self] hash in self?.goToCommit(hash) },
+        open: { [weak self] hash in self?.open(hash) },
         reveal: { [weak self] id in self?.reveal?(id) }
     )
     private var labels: [String: [CommitRefLabel]] = [:]
@@ -44,6 +51,7 @@ final class HistoryViewController: NSViewController {
     private var isRestoringSelection = false
     private var pendingSearch: Task<Void, Never>?
     private var goingToCommit: Task<Void, Never>?
+    private var shownGraphLanes = 0
 
     init(list: HistoryList) {
         self.list = list
@@ -79,6 +87,9 @@ final class HistoryViewController: NSViewController {
         table.dataSource = self
         table.delegate = self
         table.menu = contextMenu.menu
+        table.target = self
+        table.doubleAction = #selector(openClickedCommit(_:))
+        table.onReturn = { [weak self] in self?.openCommitInNewWindow(nil) }
         table.setAccessibilityLabel("History")
         scrollView.documentView = table
         scrollView.hasVerticalScroller = true
@@ -121,6 +132,11 @@ final class HistoryViewController: NSViewController {
     func showLabels(_ labels: [String: [CommitRefLabel]]) {
         guard labels != self.labels else { return }
         self.labels = labels
+        reloadVisibleRows()
+    }
+
+    private func reloadVisibleRows() {
+        shownGraphLanes = list.graphLanes
         let visible = table.rows(in: table.visibleRect)
         guard visible.length > 0 else { return }
         table.reloadData(forRowIndexes: IndexSet(integersIn: visible.location ..< NSMaxRange(visible)), columnIndexes: [0])
@@ -162,27 +178,12 @@ final class HistoryViewController: NSViewController {
 
     /// The selected commit's parents, for Go to Parent.
     var parentChoices: [CommandPaletteDestination] {
-        (selectedCommit?.parents ?? []).map { hash in
-            CommandPaletteDestination(id: "commit:\(hash)", kind: .commit, title: title(ofCommit: hash)) { [weak self] in
-                self?.goToCommit(hash)
-            }
-        }
+        CommitPaletteChoices.parents(of: selectedCommit, title: title(ofCommit:)) { [weak self] hash in self?.goToCommit(hash) }
     }
 
     /// The selected commit's branches and tags, for Reveal in Sidebar.
     var labelChoices: [CommandPaletteDestination] {
-        guard let selectedCommit else { return [] }
-        return labels(of: selectedCommit).compactMap { label in
-            guard case let .ref(name) = label.sidebarItem else { return nil }
-            let kind: CommandPaletteDestination.Kind = switch label.kind {
-            case .remoteBranch: .remoteBranch
-            case .tag: .tag
-            case .head, .checkedOutBranch, .branch: .branch
-            }
-            return CommandPaletteDestination(id: "ref:\(name)", kind: kind, title: label.name) { [weak self] in
-                self?.reveal?(.ref(name))
-            }
-        }
+        CommitPaletteChoices.labels(selectedCommit.map(labels(of:)) ?? []) { [weak self] item in self?.reveal?(item) }
     }
 
     func focusFind() {
@@ -194,6 +195,16 @@ final class HistoryViewController: NSViewController {
             table.selectRowIndexes([0], byExtendingSelection: false)
         }
         view.window?.makeFirstResponder(table)
+    }
+
+    private func open(_ hash: String) {
+        guard let index = list.index(of: hash) else { return }
+        onOpen?(list.commits[index])
+    }
+
+    @objc private func openClickedCommit(_: Any?) {
+        guard let commit = commit(at: table.clickedRow) else { return }
+        onOpen?(commit)
     }
 
     private func commit(at row: Int) -> Commit? {
@@ -212,23 +223,36 @@ final class HistoryViewController: NSViewController {
     private func listChanged(_ change: HistoryList.Change) {
         switch change {
         case let .replaced(previous):
-            showReplacement(of: previous)
-        case .appended:
+            showReplacement(sameHistoryAs: previous)
+        case let .appended(range):
+            let shownRows = table.numberOfRows
             table.noteNumberOfRowsChanged()
+            // A page further down can reach wider than those before it, which moves every subject.
+            if list.graphLanes != shownGraphLanes {
+                reloadVisibleRows()
+            } else if range.lowerBound < shownRows {
+                // The loading row the page's first commit takes the place of.
+                table.reloadData(forRowIndexes: [range.lowerBound], columnIndexes: [0])
+            }
         case .state:
-            break
+            // A read that failed partway down takes the loading row away.
+            if table.numberOfRows != numberOfRows(in: table) {
+                table.noteNumberOfRowsChanged()
+            }
         }
         updatePlaceholder()
     }
 
     /// The selected commit stays selected when it's in the history read again, such as after a new
-    /// commit arrives, and the detail column empties when it isn't. The row at the top stays at the
-    /// top when it's still there, so a refresh doesn't move the list under the user.
-    private func showReplacement(of previous: [Commit]) {
+    /// commit arrives, and the detail column empties when it isn't. When it's the same history, the
+    /// row at the top stays at the top, so a refresh doesn't move the list under the user. A
+    /// different history, or a search started or cleared, starts at the selection or the top.
+    private func showReplacement(sameHistoryAs previous: [Commit]?) {
         let topRow = table.rows(in: table.visibleRect).location
-        let topHash = previous.indices.contains(topRow) ? previous[topRow].hash : nil
+        let topHash = previous.flatMap { $0.indices.contains(topRow) ? $0[topRow].hash : nil }
         let selected = selectedCommit.flatMap { list.index(of: $0.hash) }
         isRestoringSelection = true
+        shownGraphLanes = list.graphLanes
         table.reloadData()
         table.selectRowIndexes(selected.map { IndexSet(integer: $0) } ?? [], byExtendingSelection: false)
         isRestoringSelection = false
@@ -250,19 +274,8 @@ final class HistoryViewController: NSViewController {
     }
 
     private func updatePlaceholder() {
-        let state: HistoryPlaceholder.State = if let failure = list.failure {
-            .failed(summary: failure.summary)
-        } else if !list.commits.isEmpty {
-            .hidden
-        } else if list.isLoading || list.scope == nil {
-            .loading
-        } else if let search = list.search {
-            .noMatches(search.text)
-        } else {
-            .noCommits
-        }
-        placeholder.state = state
-        placeholderView.isHidden = state == .hidden
+        placeholder.show(list)
+        placeholderView.isHidden = placeholder.state == .hidden
     }
 
     private func putOnPasteboard(_ text: String) {
@@ -276,10 +289,18 @@ final class HistoryViewController: NSViewController {
         }
         focusFind()
     }
+}
 
+/// The Commit and Find commands, which reach the history from whichever column has focus.
+extension HistoryViewController {
     /// Edit > Copy with the list focused copies the selected commit's hash.
     @objc func copy(_: Any?) {
         copyCommitHash(nil)
+    }
+
+    @objc func openCommitInNewWindow(_: Any?) {
+        guard let selectedCommit else { return }
+        onOpen?(selectedCommit)
     }
 
     @objc func copyCommitHash(_: Any?) {
@@ -312,7 +333,7 @@ final class HistoryViewController: NSViewController {
 extension HistoryViewController: NSMenuItemValidation {
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
-        case #selector(copy(_:)), #selector(copyCommitHash(_:)), #selector(copyCommitSubject(_:)):
+        case #selector(copy(_:)), #selector(copyCommitHash(_:)), #selector(copyCommitSubject(_:)), #selector(openCommitInNewWindow(_:)):
             return selectedCommit != nil
         case #selector(findByMessage(_:)):
             menuItem.state = find.searchField == .message ? .on : .off
@@ -328,16 +349,42 @@ extension HistoryViewController: NSMenuItemValidation {
 }
 
 extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
+    /// One more row than there are commits while the history has more to read, holding a spinner,
+    /// so the end of what's been read never looks like the end of the history.
     func numberOfRows(in _: NSTableView) -> Int {
-        list.commits.count
+        list.commits.count + (hasLoadingRow ? 1 : 0)
+    }
+
+    private var hasLoadingRow: Bool {
+        !list.commits.isEmpty && !list.isComplete && list.failure == nil
     }
 
     func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
-        guard let commit = commit(at: row) else { return nil }
+        guard let commit = commit(at: row) else {
+            loadMoreSoon(near: row)
+            return tableView.makeView(withIdentifier: HistoryLoadingRowView.identifier, owner: nil) ?? HistoryLoadingRowView()
+        }
         let view = tableView.makeView(withIdentifier: HistoryRowView.identifier, owner: nil) as? HistoryRowView ?? HistoryRowView()
-        view.show(commit, graphRow: list.graph.indices.contains(row) ? list.graph[row] : nil, labels: labels[commit.hash] ?? [])
-        list.loadMore(near: row)
+        view.show(
+            commit,
+            graphRow: list.graph.indices.contains(row) ? list.graph[row] : nil,
+            graphLanes: min(list.graphLanes, Self.widestGraph),
+            labels: labels[commit.hash] ?? []
+        )
+        loadMoreSoon(near: row)
         return view
+    }
+
+    /// Once the table has finished laying out its rows. Reading the next page changes how many it
+    /// has, and a table told that while it's asking for a row's view throws an exception.
+    private func loadMoreSoon(near row: Int) {
+        DispatchQueue.main.async { [weak self] in
+            self?.list.loadMore(near: row)
+        }
+    }
+
+    func tableView(_: NSTableView, shouldSelectRow row: Int) -> Bool {
+        commit(at: row) != nil
     }
 
     func tableViewSelectionDidChange(_: Notification) {

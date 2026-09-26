@@ -5,9 +5,9 @@ import os
 final class HistoryList {
     enum Change {
         /// A different history, or the same one read again from the start, once its first page
-        /// has been read. The commits shown until then are handed over, so the list can keep its
-        /// place.
-        case replaced(previous: [Commit])
+        /// has been read. For the same history, the commits shown until then are handed over, so
+        /// the list can keep its place.
+        case replaced(sameHistoryAs: [Commit]?)
         case appended(Range<Int>)
         /// Loading started or stopped, or a read failed, with the commits unchanged.
         case state
@@ -27,6 +27,8 @@ final class HistoryList {
     /// One per commit while the whole history is shown, and none during a search, whose commits
     /// aren't joined by their parents.
     private(set) var graph: [CommitGraphRow] = []
+    /// The widest any row's graph reaches, in lanes, so every row's subject starts in the same place.
+    private(set) var graphLanes = 0
     private(set) var scope: HistoryScope?
     private(set) var search: HistorySearch?
     private(set) var isComplete = false
@@ -43,6 +45,7 @@ final class HistoryList {
     /// The commits shown stay until the first page of what replaces them has been read, so a
     /// history read again after a commit doesn't empty and refill.
     private var isReplacing = false
+    private var isReplacingSameHistory = false
     /// Counted so `find` can tell a read that added a page from one that ended without.
     private var pagesRead = 0
 
@@ -59,13 +62,13 @@ final class HistoryList {
         self.scope = scope
         self.search = search
         let count = isSameHistory ? min(max(commits.count, Self.firstPageSize), Self.longestReread) : Self.firstPageSize
-        start(reading: count)
+        start(reading: count, isSameHistory: isSameHistory)
     }
 
     /// After a failure, from the start.
     func reload() {
         guard scope != nil else { return }
-        start(reading: max(commits.count, Self.firstPageSize))
+        start(reading: max(commits.count, Self.firstPageSize), isSameHistory: true)
     }
 
     /// Called as rows come into view.
@@ -98,7 +101,7 @@ final class HistoryList {
         return nil
     }
 
-    private func start(reading count: Int) {
+    private func start(reading count: Int, isSameHistory: Bool) {
         loading?.cancel()
         loading = nil
         layout = CommitGraphLayout()
@@ -107,6 +110,7 @@ final class HistoryList {
         isComplete = false
         failure = nil
         isReplacing = true
+        isReplacingSameHistory = isSameHistory
         loadNextPage(count: count)
     }
 
@@ -149,12 +153,14 @@ final class HistoryList {
         loggedCount += page.count
         commits += page.filter { $0.hash != hashMatch }
         if search == nil {
-            graph += commits[start...].map { layout.add($0.hash, parents: $0.parents) }
+            let rows = commits[start...].map { layout.add($0.hash, parents: $0.parents) }
+            graph += rows
+            graphLanes = rows.reduce(graphLanes) { max($0, $1.width) }
         }
         isComplete = isLast
         loading = nil
         isLoading = false
-        onChange?(previous.map { .replaced(previous: $0) } ?? .appended(start ..< commits.count))
+        onChange?(previous.map { .replaced(sameHistoryAs: isReplacingSameHistory ? $0 : nil) } ?? .appended(start ..< commits.count))
     }
 
     /// The commits shown before, when this is the first page of what replaces them.
@@ -164,6 +170,7 @@ final class HistoryList {
         let previous = commits
         commits = []
         graph = []
+        graphLanes = 0
         return previous
     }
 
@@ -194,7 +201,7 @@ final class HistoryList {
             Self.log.error("Reading history failed: \(String(describing: type(of: error)), privacy: .public)")
         }
         if let previous = takeReplacedCommits() {
-            onChange?(.replaced(previous: previous))
+            onChange?(.replaced(sameHistoryAs: isReplacingSameHistory ? previous : nil))
         }
         finishLoading()
     }

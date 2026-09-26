@@ -6,6 +6,9 @@ final class CommitColumnsCoordinator {
     let history: HistoryViewController
     let detail: CommitDetailViewController
     var reveal: ((SidebarItemID) -> Void)?
+    var open: ((Commit) -> Void)?
+    /// Every labelled commit's labels, as of the last refresh.
+    private(set) var labels: [String: [CommitRefLabel]] = [:]
     var present: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
     /// As of the last refresh. Nil until the first.
@@ -21,6 +24,7 @@ final class CommitColumnsCoordinator {
             detail.show(commit, labels: commit.map(history.labels) ?? [])
         }
         history.reveal = { [weak self] id in self?.reveal?(id) }
+        history.onOpen = { [weak self] commit in self?.open?(commit) }
         detail.reveal = { [weak self] id in self?.reveal?(id) }
         detail.goToCommit = { [weak self] hash in self?.history.goToCommit(hash) }
         history.showFailure = { [weak self] failure, retry in self?.present?(failure, retry) }
@@ -42,7 +46,7 @@ final class CommitColumnsCoordinator {
             isSameSelection: selection == shownSelection
         )
         shownSelection = selection
-        let labels = CommitRefLabel.byCommit(refs: refs, detachedHead: head.name == nil ? head.commit : nil)
+        labels = CommitRefLabel.byCommit(refs: refs, detachedHead: head.name == nil ? head.commit : nil)
         history.showLabels(labels)
         if let commit = detail.commit {
             detail.showLabels(labels[commit.hash] ?? [])

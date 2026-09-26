@@ -1,65 +1,47 @@
 import AppKit
 
-/// One commit in the history: its place in the graph, its labels and subject on the first line, and
-/// its author, date and short hash on the second.
+/// One commit in the history: its place in the graph, its subject on the first line, and its
+/// labels, author, date and short hash on the second. Every row is the same height, and the second
+/// line gives up what matters least as the column narrows (see `HistoryRowDetails`).
 final class HistoryRowView: NSTableCellView {
     static let identifier = NSUserInterfaceItemIdentifier("HistoryRow")
     static let height: CGFloat = 40
 
-    /// More would push the subject out of a narrow column. The rest are counted in one more label.
-    private static let visibleLabelLimit = 3
     private static let graphPadding: CGFloat = 4
+    private static let trailingPadding: CGFloat = 8
+    private static let verticalPadding: CGFloat = 4
+    private static let labelSpacing: CGFloat = 4
+    private static let detailsFont = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+    /// Measures text as the details field will draw it, inset from its edges.
+    private static let measuringCell: NSTextFieldCell = {
+        let cell = NSTextFieldCell(textCell: "")
+        cell.font = detailsFont
+        return cell
+    }()
 
     private let graph = CommitGraphView()
-    private let labels = NSStackView()
     private let subject = NSTextField(labelWithString: "")
     private let details = NSTextField(labelWithString: "")
-    private let shortHash = NSTextField(labelWithString: "")
-    private var graphWidth: NSLayoutConstraint?
-    private var subjectLeading: NSLayoutConstraint?
+    private var labels: [RefLabelView] = []
+    private let more = RefLabelView(text: "", kind: nil, description: "")
+    private var commitLabels: [CommitRefLabel] = []
+    private var author = ""
+    private var date = ""
+    private var shortHash = ""
+    private var graphWidth: CGFloat = 0
 
     init() {
         super.init(frame: .zero)
         identifier = Self.identifier
         subject.lineBreakMode = .byTruncatingTail
-        subject.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        details.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        details.font = Self.detailsFont
         details.textColor = .secondaryLabelColor
         details.lineBreakMode = .byTruncatingTail
-        details.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        shortHash.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
-        shortHash.textColor = .secondaryLabelColor
-        shortHash.setContentCompressionResistancePriority(.required, for: .horizontal)
-        labels.orientation = .horizontal
-        labels.spacing = 4
-        labels.setHuggingPriority(.required, for: .horizontal)
         graph.setAccessibilityElement(false)
         textField = subject
-
-        for view in [graph, labels, subject, details, shortHash] {
-            view.translatesAutoresizingMaskIntoConstraints = false
+        for view in [graph, subject, details, more] {
             addSubview(view)
         }
-        let graphWidth = graph.widthAnchor.constraint(equalToConstant: 0)
-        self.graphWidth = graphWidth
-        let subjectLeading = subject.leadingAnchor.constraint(equalTo: labels.trailingAnchor)
-        self.subjectLeading = subjectLeading
-        NSLayoutConstraint.activate([
-            graph.leadingAnchor.constraint(equalTo: leadingAnchor),
-            graph.topAnchor.constraint(equalTo: topAnchor),
-            graph.bottomAnchor.constraint(equalTo: bottomAnchor),
-            graphWidth,
-            labels.leadingAnchor.constraint(equalTo: graph.trailingAnchor, constant: Self.graphPadding),
-            labels.centerYAnchor.constraint(equalTo: subject.centerYAnchor),
-            subjectLeading,
-            subject.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -8),
-            subject.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            details.leadingAnchor.constraint(equalTo: graph.trailingAnchor, constant: Self.graphPadding),
-            details.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-            shortHash.leadingAnchor.constraint(greaterThanOrEqualTo: details.trailingAnchor, constant: 8),
-            shortHash.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            shortHash.firstBaselineAnchor.constraint(equalTo: details.firstBaselineAnchor),
-        ])
     }
 
     @available(*, unavailable)
@@ -67,48 +49,94 @@ final class HistoryRowView: NSTableCellView {
         nil
     }
 
-    /// Nil `graphRow` during a search, whose commits aren't joined by lines.
-    func show(_ commit: Commit, graphRow: CommitGraphRow?, labels commitLabels: [CommitRefLabel]) {
+    override var isFlipped: Bool {
+        true
+    }
+
+    /// Nil `graphRow` during a search, whose commits aren't joined by lines. `graphLanes` is the
+    /// same for every row, so their subjects line up.
+    func show(_ commit: Commit, graphRow: CommitGraphRow?, graphLanes: Int, labels commitLabels: [CommitRefLabel]) {
         graph.row = graphRow
-        graphWidth?.constant = graphRow.map { CGFloat($0.width) * CommitGraphView.laneWidth } ?? 0
+        graphWidth = graphRow == nil ? 0 : CGFloat(graphLanes) * CommitGraphView.laneWidth
         subject.stringValue = commit.subject.isEmpty ? "(No message)" : commit.subject
         subject.textColor = commit.subject.isEmpty ? .secondaryLabelColor : .labelColor
         let date = commit.author.date
-        details.stringValue = "\(commit.author.name) · \(date.formatted(.relative(presentation: .named)))"
+        author = commit.author.name
+        self.date = date.formatted(.relative(presentation: .named))
+        shortHash = String(commit.hash.prefix(7))
         details.toolTip = date.formatted(date: .complete, time: .shortened)
-        shortHash.stringValue = String(commit.hash.prefix(7))
 
-        labels.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        for label in commitLabels.prefix(Self.visibleLabelLimit) {
-            labels.addArrangedSubview(RefLabelView(label))
+        if commitLabels != self.commitLabels {
+            self.commitLabels = commitLabels
+            labels.forEach { $0.removeFromSuperview() }
+            labels = commitLabels.map(RefLabelView.init)
+            labels.forEach(addSubview)
         }
-        let hidden = commitLabels.dropFirst(Self.visibleLabelLimit)
-        if !hidden.isEmpty {
-            let more = RefLabelView(
-                text: "+\(hidden.count)",
-                kind: nil,
-                description: hidden.map(RefLabelView.describe).joined(separator: ", ")
-            )
-            more.toolTip = hidden.map(\.name).joined(separator: "\n")
-            labels.addArrangedSubview(more)
-        }
-        subjectLeading?.constant = commitLabels.isEmpty ? 0 : labels.spacing
         applyBackgroundStyle()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        graph.frame = NSRect(x: 0, y: 0, width: graphWidth, height: bounds.height)
+        let start = graphWidth + Self.graphPadding
+        let width = max(bounds.width - start - Self.trailingPadding, 0)
+
+        let subjectHeight = subject.intrinsicContentSize.height
+        subject.frame = NSRect(x: start, y: Self.verticalPadding, width: width, height: subjectHeight)
+
+        let fit = HistoryRowDetails.fit(
+            HistoryRowDetails.Labels(widths: labels.map(\.intrinsicContentSize.width), spacing: Self.labelSpacing) { [more] count in
+                more.text = "+\(count)"
+                return more.intrinsicContentSize.width
+            },
+            HistoryRowDetails.Parts(author: author, date: date, hash: shortHash),
+            width: width
+        ) { text in
+            Self.measuringCell.stringValue = text
+            return Self.measuringCell.cellSize.width
+        }
+        let lineHeight = details.intrinsicContentSize.height
+        let lineTop = bounds.height - Self.verticalPadding - lineHeight
+        var x = start
+        for (index, label) in labels.enumerated() {
+            label.isHidden = index >= fit.labelCount
+            guard !label.isHidden else { continue }
+            x = place(label, at: x, lineTop: lineTop, lineHeight: lineHeight)
+        }
+        more.isHidden = fit.hiddenLabelCount == 0
+        if !more.isHidden {
+            let hidden = commitLabels.suffix(fit.hiddenLabelCount)
+            more.text = "+\(fit.hiddenLabelCount)"
+            more.toolTip = hidden.map(\.name).joined(separator: "\n")
+            more.setAccessibilityLabel(hidden.map(RefLabelView.describe).joined(separator: ", "))
+            x = place(more, at: x, lineTop: lineTop, lineHeight: lineHeight)
+        }
+        // Straight after the last label, since the text starts with its own separator.
+        let detailsStart = x > start ? x - Self.labelSpacing : start
+        details.stringValue = fit.text ?? ""
+        details.isHidden = fit.text == nil
+        details.frame = NSRect(x: detailsStart, y: lineTop, width: max(start + width - detailsStart, 0), height: lineHeight)
+    }
+
+    /// Centred on the line, and returns where the next thing on the line starts.
+    private func place(_ label: RefLabelView, at x: CGFloat, lineTop: CGFloat, lineHeight: CGFloat) -> CGFloat {
+        let size = label.intrinsicContentSize
+        label.frame = NSRect(x: x, y: lineTop + (lineHeight - size.height) / 2, width: size.width, height: size.height)
+        return x + size.width + Self.labelSpacing
     }
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet { applyBackgroundStyle() }
     }
 
-    /// The fields only follow the row's selection colours when told, since they aren't the cell's
+    /// The details only follow the row's selection colours when told, since they aren't the cell's
     /// own text field.
     private func applyBackgroundStyle() {
         let isEmphasized = backgroundStyle == .emphasized
-        for field in [subject, details, shortHash] {
-            field.cell?.backgroundStyle = backgroundStyle
-        }
+        details.cell?.backgroundStyle = backgroundStyle
         graph.isEmphasized = isEmphasized
-        for case let label as RefLabelView in labels.arrangedSubviews {
+        for label in labels + [more] {
             label.isEmphasized = isEmphasized
         }
     }

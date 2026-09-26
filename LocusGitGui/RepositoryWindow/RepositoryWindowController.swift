@@ -13,6 +13,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private let sidebar: SidebarModel
     private let sidebarView: NSView
     private let commitColumns: CommitColumnsCoordinator
+    private lazy var commitWindows = CommitWindowCoordinator(repository: repository, run: commands.run)
     private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
     private let titleItem: RepositoryTitleItem
@@ -82,6 +83,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         columns.onColumnsChange = { [weak self] in self?.saveViewState() }
         commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
         commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
+        commitColumns.open = { [weak self] commit in self?.openCommitWindow(commit) }
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
         window.onTab = { [weak self, weak window] backward in
             self?.focusCycle.move(from: window?.firstResponder, backward: backward) ?? false
@@ -112,6 +114,15 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     /// Commands for the history or the commit reach them from whichever column has focus.
     override func supplementalTarget(forAction action: Selector, sender: Any?) -> Any? {
         commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
+    }
+
+    /// Revealing a label from a commit's window brings this window forward to show it.
+    private func openCommitWindow(_ commit: Commit) {
+        commitWindows.reveal = { [weak self] id in
+            self?.showWindow(nil)
+            self?.revealInSidebar(id)
+        }
+        commitWindows.show(commit, from: window, repositoryName: displayName ?? repository.workTree.lastPathComponent)
     }
 
     /// Shows the sidebar first if it's hidden.
@@ -168,6 +179,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         watcher.stop()
         scheduler.cancel()
         gitLogWindow.close()
+        commitWindows.closeAll()
     }
 
     private func refresh(because reason: RefreshScheduler.Reason) async {
@@ -185,6 +197,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             let refs = try await Ref.readList(running: commands.run)
             sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run))
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
+            commitWindows.showLabels(commitColumns.labels)
             clearBackgroundFailure()
             let elapsed = ContinuousClock.now - started
             let files = snapshot.status.files.count

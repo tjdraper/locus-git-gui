@@ -28,6 +28,35 @@ It needs `trash`, which is not part of macOS: `brew install trash`.
 
 The build keeps whatever version the project currently has, so Sparkle may offer to replace it with a newer release.
 
+## Large repositories for performance checks
+
+Each slice whose work grows with a repository's size is tried against a large one before it's done (see Decisions in `Plans/HighLevelPlan.md`). Two kinds are worth having.
+
+A generated repository, built in about a minute without the network:
+
+```
+swift Scripts/GenerateTestRepository.swift ~/Scratch/million --commits 1000000
+```
+
+It makes `main` and several lanes of work beside it (`--lanes`), each merged back into `main` in turn, plus extra branches (`--branches`), remote branches (`--remote-branches`) and tags (`--tags`). `--commit-graph` writes a commit-graph file afterwards; without it, the repository is in the state a fresh clone is usually in. Add or remove the file later with `git commit-graph write --reachable` and `rm .git/objects/info/commit-graph`. Run it with `--help` for the defaults.
+
+A real one, for the shapes a generator doesn't make, such as octopus merges with dozens of parents. A blobless clone of the Linux kernel has its whole history, 1.3 million commits, without the file contents, which it fetches only when a diff needs them:
+
+```
+git clone --filter=blob:none https://github.com/torvalds/linux.git ~/Scratch/linux
+```
+
+The history's reading and graph layout can be timed against either without opening the app. The test suite skips these tests unless it's given a repository:
+
+```
+TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/million xcodebuild -project "Locus Git Gui.xcodeproj" -scheme "Locus Git Gui" -destination "platform=macOS" test -only-testing:"Locus Git Gui Tests/HistoryPerformanceTests"
+cat ~/Scratch/million-performance.txt
+```
+
+The timings go in a file beside the repository, since a test's printed output doesn't reach `xcodebuild`. Each run adds to it.
+
+In the app, the history logs how long each page took under the `History` category (see Reading the app's log in `AGENTS.md`).
+
 ## Versions and the beta channel
 
 Versions are `YYYY.N` for a release and `YYYY.N.B` for a beta. Betas leading to `2026.4` are numbered `2026.3.1`, `2026.3.2` and so on: each sits above the `2026.3` release and below the `2026.4` it becomes. A year starts its betas at `YYYY.0.1` and its first release at `YYYY.1`.

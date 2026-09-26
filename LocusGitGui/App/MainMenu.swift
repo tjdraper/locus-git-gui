@@ -79,6 +79,8 @@ enum MainMenu {
 
     private static func commitMenu(_ owned: OwnedItems) -> NSMenuItem {
         submenu(named: "Commit", items: [
+            items(.openCommitInNewWindow),
+            [.separator()],
             items(.copyCommitHash, .copyCommitSubject),
             [.separator()],
             owned.commitGoTo,

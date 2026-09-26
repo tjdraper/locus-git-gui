@@ -14,6 +14,21 @@ final class HistoryPlaceholder {
 
     var state = State.hidden
     @ObservationIgnored var showDetails: (() -> Void)?
+
+    /// Nothing once there are commits to show. Before the first read, the column is loading.
+    func show(_ list: HistoryList) {
+        state = if let failure = list.failure {
+            .failed(summary: failure.summary)
+        } else if !list.commits.isEmpty {
+            .hidden
+        } else if list.isLoading || list.scope == nil {
+            .loading
+        } else if let search = list.search {
+            .noMatches(search.text)
+        } else {
+            .noCommits
+        }
+    }
 }
 
 struct HistoryPlaceholderView: View {

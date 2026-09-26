@@ -7,6 +7,10 @@ final class CommitHeader {
     /// Nil until it's been read, and for a message that's only a subject.
     var body: String?
     var labels: [CommitRefLabel] = []
+    /// Nil while it's being checked, which can take GPG a moment.
+    var signature: CommitSignature?
+    /// The signature couldn't be read, so the header leaves it out rather than guess.
+    var isSignatureUnavailable = false
     /// Kept from one commit to the next, for someone who reads every message in full.
     var isMessageExpanded = false
     @ObservationIgnored var goToCommit: ((String) -> Void)?
@@ -75,11 +79,15 @@ struct CommitHeaderView: View {
                 model.reveal?(item)
             }
         } label: {
-            Text(label.name)
-                .font(.caption.weight(label.kind == .checkedOutBranch ? .semibold : .regular))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 1)
-                .background(Capsule().fill(Color(nsColor: RefLabelView.tint(for: label.kind)).opacity(0.2)))
+            HStack(spacing: 3) {
+                Image(systemName: RefLabelView.symbolName(for: label.kind))
+                    .imageScale(.small)
+                Text(label.name)
+            }
+            .font(.caption.weight(label.kind == .checkedOutBranch ? .semibold : .regular))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color(nsColor: RefLabelView.tint(for: label.kind)).opacity(0.2)))
         }
         .buttonStyle(.plain)
         .disabled(label.sidebarItem == nil)
@@ -98,6 +106,9 @@ struct CommitHeaderView: View {
                 row("Committed", Text(commit.committer.date.formatted(date: .long, time: .shortened)))
             }
             row("Hash", Text(commit.hash).monospaced())
+            if !model.isSignatureUnavailable {
+                row("Signature", CommitSignatureText(signature: model.signature))
+            }
             if !commit.parents.isEmpty {
                 row(commit.parents.count == 1 ? "Parent" : "Parents", HStack(spacing: 8) {
                     ForEach(commit.parents, id: \.self) { parent in
@@ -167,5 +178,70 @@ private struct RefLabelFlow: Layout {
             rowHeight = max(rowHeight, size.height)
         }
         return rows
+    }
+}
+
+/// A good signature gets a quiet green seal. Nothing else is shown as an error, since this Mac often
+/// can't check a coworker's signature. Only a signature that doesn't match its commit gets a
+/// warning mark, and even that stays in the secondary colour.
+private struct CommitSignatureText: View {
+    let signature: CommitSignature?
+
+    var body: some View {
+        if let signature {
+            Label {
+                Text(Self.describe(signature))
+                    .foregroundStyle(signature.status == .good ? .primary : .secondary)
+            } icon: {
+                icon(for: signature.status)
+            }
+            .labelStyle(SignatureLabelStyle(hasIcon: signature.status != .unsigned))
+            .help(signature.report ?? "")
+        } else {
+            Text("Checking…")
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    @ViewBuilder
+    private func icon(for status: CommitSignature.Status) -> some View {
+        switch status {
+        case .good:
+            Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+        case .bad, .revokedKey:
+            Image(systemName: "exclamationmark.triangle").foregroundStyle(.secondary)
+        case .untrusted, .uncheckable, .expiredSignature, .expiredKey:
+            Image(systemName: "seal").foregroundStyle(.secondary)
+        case .unsigned:
+            EmptyView()
+        }
+    }
+
+    private static func describe(_ signature: CommitSignature) -> String {
+        let signed = signature.signer.map { "Signed by \($0)" } ?? "Signed"
+        return switch signature.status {
+        case .good: signed
+        case .untrusted: "\(signed) · key not trusted on this Mac"
+        case .uncheckable: "Signed, but can’t be checked on this Mac"
+        case .expiredSignature: "\(signed) · signature expired"
+        case .expiredKey: "\(signed) · key expired"
+        case .revokedKey: "\(signed) · key revoked"
+        case .bad: "Signature doesn’t match this commit"
+        case .unsigned: "Not signed"
+        }
+    }
+}
+
+/// "Not signed" has no icon, and shouldn't be indented as if it had one.
+private struct SignatureLabelStyle: LabelStyle {
+    let hasIcon: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if hasIcon {
+                configuration.icon
+            }
+            configuration.title
+        }
     }
 }

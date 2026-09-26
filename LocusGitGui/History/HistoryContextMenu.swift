@@ -8,6 +8,7 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
     private let labels: (String) -> [CommitRefLabel]
     private let parentTitle: (String) -> String
     private let goToCommit: (String) -> Void
+    private let open: (String) -> Void
     private let reveal: (SidebarItemID) -> Void
 
     init(
@@ -15,12 +16,14 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
         labels: @escaping (String) -> [CommitRefLabel],
         parentTitle: @escaping (String) -> String,
         goToCommit: @escaping (String) -> Void,
+        open: @escaping (String) -> Void,
         reveal: @escaping (SidebarItemID) -> Void
     ) {
         self.commitForMenu = commitForMenu
         self.labels = labels
         self.parentTitle = parentTitle
         self.goToCommit = goToCommit
+        self.open = open
         self.reveal = reveal
         super.init()
         menu.delegate = self
@@ -29,6 +32,8 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         guard let commit = commitForMenu() else { return }
+        menu.addItem(item(.openCommitInNewWindow, #selector(openCommit(_:)), commit.hash))
+        menu.addItem(.separator())
         menu.addItem(item(.copyCommitHash, #selector(copyText(_:)), commit.hash))
         menu.addItem(item(.copyCommitSubject, #selector(copyText(_:)), commit.subject))
         menu.addItem(.separator())
@@ -70,6 +75,11 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
         guard let text = sender.representedObject as? String else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    @objc private func openCommit(_ sender: NSMenuItem) {
+        guard let hash = sender.representedObject as? String else { return }
+        open(hash)
     }
 
     @objc private func goToParent(_ sender: NSMenuItem) {

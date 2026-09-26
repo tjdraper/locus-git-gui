@@ -26,6 +26,7 @@ final class CommitDetailViewController: NSViewController {
     private lazy var placeholderView = NSHostingView(rootView: CommitDetailPlaceholderView(model: placeholder))
     private var failure: GitFailure?
     private var reading: Task<Void, Never>?
+    private var readingSignature: Task<Void, Never>?
 
     init(run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
         self.run = run
@@ -53,6 +54,10 @@ final class CommitDetailViewController: NSViewController {
 
     var commit: Commit? {
         header.commit
+    }
+
+    var labels: [CommitRefLabel] {
+        header.labels
     }
 
     /// What Tab moves focus to, which is nothing while no commit is shown.
@@ -118,8 +123,14 @@ final class CommitDetailViewController: NSViewController {
         guard commit?.hash != header.commit?.hash else { return }
         header.commit = commit
         header.body = nil
+        header.signature = nil
+        header.isSignatureUnavailable = false
         changesView?.string = ""
         read()
+        readingSignature?.cancel()
+        if let hash = commit?.hash {
+            readSignature(of: hash)
+        }
     }
 
     /// Kept up to date as refreshes move branches and tags onto or off the commit.
@@ -158,6 +169,28 @@ final class CommitDetailViewController: NSViewController {
         }
     }
 
+    /// Read on its own, since GPG can take a moment and the rest shouldn't wait for it. A signature
+    /// that can't be read is left out of the header, not reported, since it's never what the user
+    /// was looking for.
+    private func readSignature(of hash: String) {
+        readingSignature?.cancel()
+        readingSignature = Task { [weak self, run] in
+            try? await Task.sleep(for: Self.settleDelay)
+            guard !Task.isCancelled else { return }
+            do {
+                let signature = try await CommitSignature.read(hash, running: run)
+                guard !Task.isCancelled else { return }
+                self?.header.signature = signature
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                self?.header.isSignatureUnavailable = true
+                Self.log.error("Reading a signature failed: \(String(describing: type(of: error)), privacy: .public)")
+            }
+        }
+    }
+
     private func show(_ detail: CommitDetail) {
         header.body = detail.body
         changesView?.textStorage?.setAttributedString(CommitChangesText.make(detail))
@@ -178,6 +211,8 @@ final class CommitDetailViewController: NSViewController {
             _ = header.body
             _ = header.labels
             _ = header.isMessageExpanded
+            _ = header.signature
+            _ = header.isSignatureUnavailable
         } onChange: { [weak self] in
             // Called before the change is made, so the header is measured once it has been.
             Task { @MainActor in
