@@ -28,8 +28,13 @@ enum DiscardConfirmation {
             alert.informativeText = "The file as it is now goes to the Trash first, so it can be put back."
             alert.addButton(withTitle: scope == .hunk ? "Discard Change" : "Discard Lines")
         }
-        alert.buttons[0].hasDestructiveAction = true
-        alert.addButton(withTitle: "Cancel")
+        present(alert, on: window, then: discard)
+    }
+
+    /// Return discards and Escape cancels. The button isn't marked destructive, since macOS then
+    /// keeps Return off it whatever its key equivalent says, and Return only beeped.
+    private static func present(_ alert: NSAlert, on window: NSWindow, then discard: @escaping () -> Void) {
+        alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
         alert.beginSheetModal(for: window) { response in
             guard response == .alertFirstButtonReturn else { return }
             discard()
@@ -43,11 +48,6 @@ enum DiscardConfirmation {
         alert.messageText = "“\(name)” can’t be moved to the Trash."
         alert.informativeText = "\(error.localizedDescription) Discard the changes anyway? They can’t be recovered."
         alert.addButton(withTitle: "Discard Anyway")
-        alert.buttons[0].hasDestructiveAction = true
-        alert.addButton(withTitle: "Cancel")
-        alert.beginSheetModal(for: window) { response in
-            guard response == .alertFirstButtonReturn else { return }
-            discard()
-        }
+        present(alert, on: window, then: discard)
     }
 }
