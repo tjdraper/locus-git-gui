@@ -506,6 +506,14 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
       - A refresh after a file change took 0.34 s in the Debug build, and typing in the sidebar's filter kept up.
     - Slice 9's merge message kept Git's comment lines when `core.commentChar` isn't `#`, as it's `;` on this Mac. It now reads the setting, and for `auto` takes the character from the list of conflicts.
 
+    Addendum, asked for on 2026-09-27, not started:
+
+    - Render Markdown in commit bodies where a message is read: the expanded message in the commit detail column and in commit windows, which share slice 7's header
+      - A View menu toggle, Show Message as Markdown, remembered per repository like Ignore Whitespace and on to begin with. Plenty of bodies are plain text wrapped at 72 characters, with `*` bullets, indented output or names like `some_function_name`, which Markdown would turn into stray italics or run together.
+      - Lists, headings, code blocks and quotes as well as bold, italics, inline code and links, since bulleted lists are the Markdown most often found in a body. SwiftUI renders only the inline styles, so the blocks need rendering of their own, parsed with Apple's `swift-markdown` package. The package's license notice goes in `About/ThirdPartyNotices.txt`.
+      - Links are clickable and open in the browser. Issue references such as `#123` stay plain text, since linking them needs a hosting service (see Not planned).
+      - The subject stays plain, as Git and every host show it. The message field, the Reword sheet and Copy Subject stay plain text, since there the message is the text itself.
+
 12. **Merge conflict window**
 
     - Conflicted files get their own window, opened from the working area or automatically when an operation stops on conflicts. One window per repository, listing the conflicted files.
