@@ -53,11 +53,11 @@ enum OperationPaletteChoices {
         let context = operations.context
         guard context.checkedOutBranch != nil else { return [] }
         return narrowed(mergeCandidates(context), operations) { id in
-            guard let name = context.revisionName(id) else { return }
+            guard let revision = context.revision(id) else { return }
             if command == .mergeIntoCurrentBranch {
-                operations.merging.merge(name, from: operations.actingWindow)
+                operations.merging.merge(revision, from: operations.actingWindow)
             } else {
-                operations.merging.rebase(onto: name, from: operations.actingWindow)
+                operations.merging.rebase(onto: revision, from: operations.actingWindow)
             }
         }
     }
@@ -154,7 +154,8 @@ enum OperationPaletteChoices {
             .filter { $0.title != branch.upstream }
             .map { remote in
                 CommandPaletteDestination(id: remote.id, kind: .remoteBranch, title: remote.title) { [weak operations] in
-                    operations?.branches.setUpstream(of: branch.name, to: remote.title, from: operations?.actingWindow)
+                    let fullName = String(remote.id.dropFirst("ref:".count))
+                    operations?.branches.setUpstream(of: branch.name, to: fullName, named: remote.title, from: operations?.actingWindow)
                 }
             }
     }

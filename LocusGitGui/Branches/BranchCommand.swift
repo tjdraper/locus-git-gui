@@ -30,7 +30,6 @@ nonisolated enum BranchCommand {
         .changing(["branch", force ? "-D" : "-d", branch])
     }
 
-    /// `upstream` is short, such as `origin/main`.
     static func setUpstream(of branch: String, to upstream: String) -> GitCommand {
         .changing(["branch", "--set-upstream-to=\(upstream)", branch])
     }

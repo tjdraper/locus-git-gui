@@ -40,11 +40,13 @@ final class BranchWorkflow {
         let context = context()
         guard case let .ref(fullName) = id, let (remote, branch) = context.remoteBranch(id) else { return }
         let short = "\(remote)/\(branch.name)"
+        // The full name, since a local branch can be named like a remote one.
+        let tracked = Revision(argument: fullName, name: short)
         switch RemoteBranchCheckout.plan(remoteBranch: fullName, remote: remote, nameOnRemote: branch.name, refs: context.refs) {
         case let .switchTo(local):
             checkOut(local, from: window)
         case let .create(name):
-            checkOutTracking(short, as: name, from: window)
+            checkOutTracking(tracked, as: name, from: window)
         case let .askForName(suggested):
             Task { [weak self] in
                 guard let self, let window = window ?? repositoryWindow() else { return }
@@ -63,7 +65,7 @@ final class BranchWorkflow {
                     )
                 }
                 guard let result else { return }
-                checkOutTracking(short, as: result.name, from: window)
+                checkOutTracking(tracked, as: result.name, from: window)
             }
         }
     }
@@ -132,11 +134,12 @@ final class BranchWorkflow {
         }
     }
 
-    func setUpstream(of branch: String, to upstream: String, from window: NSWindow?) {
+    /// `upstream` is the remote branch's full name, and `name` its short one.
+    func setUpstream(of branch: String, to upstream: String, named name: String, from window: NSWindow?) {
         runner.perform(from: window) { steps in
             try await steps.run(
                 BranchCommand.setUpstream(of: branch, to: upstream),
-                failing: "Git couldn’t make “\(upstream)” the upstream of “\(branch)”."
+                failing: "Git couldn’t make “\(name)” the upstream of “\(branch)”."
             )
         }
     }
@@ -147,11 +150,11 @@ final class BranchWorkflow {
         }
     }
 
-    private func checkOutTracking(_ remoteBranch: String, as name: String, from window: NSWindow?) {
+    private func checkOutTracking(_ remoteBranch: Revision, as name: String, from window: NSWindow?) {
         run(
-            BranchCommand.checkOutTracking(remoteBranch, as: name),
-            purpose: "checking out “\(remoteBranch)”",
-            failing: "Git couldn’t check out “\(remoteBranch)”.",
+            BranchCommand.checkOutTracking(remoteBranch.argument, as: name),
+            purpose: "checking out “\(remoteBranch.name)”",
+            failing: "Git couldn’t check out “\(remoteBranch.name)”.",
             from: window
         )
     }

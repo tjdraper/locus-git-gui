@@ -179,3 +179,27 @@ struct HistoryOperationCommandTests {
         #expect(feature.status == 1)
     }
 }
+
+struct MergeCountTests {
+    @Test
+    func countsTheMergesAfterACommit() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("One", writing: "1", to: "one.txt")
+        let one = try await repository.git("rev-parse", "HEAD")
+        try await repository.git("switch", "--quiet", "--create", "side")
+        try await repository.commit("Side", writing: "s", to: "side.txt")
+        try await repository.git("switch", "--quiet", "main")
+        try await repository.commit("Two", writing: "2", to: "two.txt")
+        try await repository.git("merge", "--quiet", "--no-edit", "side")
+
+        // Act
+        let afterOne = try await repository.run(HistoryOperationCommand.mergeCount(after: one))
+        let afterHead = try await repository.run(HistoryOperationCommand.mergeCount(after: "HEAD"))
+
+        // Assert
+        #expect(String(bytes: afterOne.standardOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) == "1")
+        #expect(String(bytes: afterHead.standardOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) == "0")
+    }
+}

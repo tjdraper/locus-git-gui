@@ -116,6 +116,16 @@ final class CommitOperationWorkflow {
             guard let newMessage, newMessage != current, await confirmRewriting(commit, from: window) else { return }
             if isLast {
                 runner.perform(from: window) { steps in
+                    // A commit made since the sheet opened would be the one amended.
+                    let head = try await steps.run(HistoryOperationCommand.head, failing: "Git couldn’t read the last commit.")
+                    let hash = String(bytes: head.standardOutput, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard hash == commit.hash else {
+                        throw OperationRunner.Failed(failure: GitFailure(
+                            summary: "The last commit changed while its message was being written, so nothing was reworded.",
+                            arguments: HistoryOperationCommand.head.arguments,
+                            result: head
+                        ))
+                    }
                     try await steps.run(CommitRewrite.reword(message: newMessage.text), failing: "Git couldn’t reword the last commit.")
                 }
             } else {
@@ -177,6 +187,7 @@ final class CommitOperationWorkflow {
             NSSound.beep()
             return false
         }
+        guard await refuseIfMergesFollow(commit, from: window) else { return false }
         guard let upstream = context().head?.upstream,
               let result = try? await runner.commands.run(HistoryOperationCommand.isAncestor(commit.hash, of: "@{upstream}")),
               result.status == 0
@@ -188,6 +199,24 @@ final class CommitOperationWorkflow {
             confirmTitle: "Continue",
             on: window ?? repositoryWindow()
         )
+    }
+
+    /// Every commit after this one is made again, and a merge made again loses how its conflicts
+    /// were resolved and anything else it changed, so a commit with merges after it isn't rewritten.
+    /// False once it has said so.
+    private func refuseIfMergesFollow(_ commit: Commit, from window: NSWindow?) async -> Bool {
+        guard let result = try? await runner.commands.run(HistoryOperationCommand.mergeCount(after: commit.hash)), result.status == 0,
+              let text = String(bytes: result.standardOutput, encoding: .utf8),
+              let count = Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
+        else { return false }
+        guard count > 0 else { return true }
+        let alert = NSAlert()
+        alert.messageText = "“\(commit.subject)” can’t be changed here."
+        alert.informativeText = (count == 1 ? "A merge comes after it. " : "\(count) merges come after it. ")
+            + "Changing it means making every commit after it again, and a merge made again loses how its "
+            + "conflicts were resolved and anything else it changed."
+        _ = await AlertPresentation.run(alert, on: window ?? repositoryWindow())
+        return false
     }
 
     private func message(of commit: Commit) async -> CommitMessage? {

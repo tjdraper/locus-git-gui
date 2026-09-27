@@ -8,6 +8,6 @@ nonisolated enum TagCommand {
     }
 
     static func delete(_ name: String) -> GitCommand {
-        .changing(["tag", "--delete", name])
+        .changing(["tag", "--delete", "--", name])
     }
 }

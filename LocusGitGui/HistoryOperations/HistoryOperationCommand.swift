@@ -98,6 +98,13 @@ nonisolated enum HistoryOperationCommand {
         .changing([stopped.name, "--abort"])
     }
 
+    static let head = GitCommand.reading(["rev-parse", "--verify", "HEAD"])
+
+    /// How many merges are in the checked-out branch's history after `commit`.
+    static func mergeCount(after commit: String) -> GitCommand {
+        .reading(["rev-list", "--merges", "--count", "\(commit)..HEAD"])
+    }
+
     /// Exits 0 when `commit` is in the history of `revision`.
     static func isAncestor(_ commit: String, of revision: String) -> GitCommand {
         .reading(["merge-base", "--is-ancestor", commit, revision])

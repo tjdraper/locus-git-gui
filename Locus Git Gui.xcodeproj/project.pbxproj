@@ -66,6 +66,7 @@
 				HistoryOperations/CommitRewrite.swift,
 				HistoryOperations/HistoryOperationCommand.swift,
 				HistoryOperations/StoppedOperation.swift,
+				RepositoryOperations/OperationContext.swift,
 				RepositoryOperations/RefNameCheck.swift,
 				RepositoryOperations/RestorePoint.swift,
 				Stashes/StashCommand.swift,

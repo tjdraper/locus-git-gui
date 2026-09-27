@@ -156,7 +156,9 @@ final class RepositoryOperationsCoordinator {
     /// A branch, remote branch or tag dropped on a branch: merge it in, or rebase it onto that
     /// branch, checking out whichever branch changes first, from a menu at the pointer.
     func drop(_ dragged: SidebarItemID, on target: SidebarItemID) {
-        guard let draggedName = context.revisionName(dragged), let targetName = context.revisionName(target) else { return }
+        guard let draggedRevision = context.revision(dragged), let targetRevision = context.revision(target) else { return }
+        let draggedName = draggedRevision.name
+        let targetName = targetRevision.name
         let checkedOut = context.checkedOutBranch
         let window = actingWindow
         var items: [NSMenuItem] = []
@@ -165,7 +167,7 @@ final class RepositoryOperationsCoordinator {
                 ? "Merge “\(draggedName)” into “\(targetName)”"
                 : "Check Out “\(targetName)” and Merge “\(draggedName)” into It"
             items.append(ActionMenuItem.make(title: title) { [weak self] in
-                self?.merging.merge(draggedName, into: targetName == checkedOut ? nil : targetName, from: window)
+                self?.merging.merge(draggedRevision, into: targetName == checkedOut ? nil : targetName, from: window)
             })
         }
         if context.branch(dragged) != nil {
@@ -173,7 +175,7 @@ final class RepositoryOperationsCoordinator {
                 ? "Rebase “\(draggedName)” onto “\(targetName)”"
                 : "Check Out “\(draggedName)” and Rebase It onto “\(targetName)”"
             items.append(ActionMenuItem.make(title: title) { [weak self] in
-                self?.merging.rebase(draggedName == checkedOut ? nil : draggedName, onto: targetName, from: window)
+                self?.merging.rebase(draggedName == checkedOut ? nil : draggedName, onto: targetRevision, from: window)
             })
         }
         guard !items.isEmpty else {

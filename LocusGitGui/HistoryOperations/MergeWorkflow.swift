@@ -12,27 +12,26 @@ final class MergeWorkflow {
         self.runner = runner
     }
 
-    /// `revision` as Git names it, such as `feature` or `origin/main`. `target` is checked out
-    /// first when it's given.
-    func merge(_ revision: String, into target: String? = nil, from window: NSWindow?) {
+    /// `target` is a local branch, checked out first when it's given.
+    func merge(_ revision: Revision, into target: String? = nil, from window: NSWindow?) {
         let into = target.map { " into “\($0)”" } ?? ""
-        let summary = "Git couldn’t merge “\(revision)”\(into)."
-        perform(from: window, purpose: "merging “\(revision)”\(into)", nextToCheckOut: target) { steps, autostash in
+        let summary = "Git couldn’t merge “\(revision.name)”\(into)."
+        perform(from: window, purpose: "merging “\(revision.name)”\(into)", nextToCheckOut: target) { steps, autostash in
             if let target {
                 try await steps.run(BranchCommand.checkOut(target), failing: "Git couldn’t check out “\(target)” to merge into it.")
             }
-            try await steps.run(HistoryOperationCommand.merge(revision, autostash: autostash), failing: summary)
+            try await steps.run(HistoryOperationCommand.merge(revision.argument, autostash: autostash), failing: summary)
         }
     }
 
     /// Rebases `branch`, or the checked-out branch when it's nil, onto `upstream`. Git checks
     /// `branch` out itself.
-    func rebase(_ branch: String? = nil, onto upstream: String, from window: NSWindow?) {
+    func rebase(_ branch: String? = nil, onto upstream: Revision, from window: NSWindow?) {
         let name = (branch ?? context().checkedOutBranch).map { "“\($0)”" } ?? "HEAD"
-        perform(from: window, purpose: "rebasing \(name) onto “\(upstream)”", nextToCheckOut: nil) { steps, autostash in
+        perform(from: window, purpose: "rebasing \(name) onto “\(upstream.name)”", nextToCheckOut: nil) { steps, autostash in
             try await steps.run(
-                HistoryOperationCommand.rebase(onto: upstream, branch: branch, autostash: autostash),
-                failing: "Git couldn’t rebase \(name) onto “\(upstream)”."
+                HistoryOperationCommand.rebase(onto: upstream.argument, branch: branch, autostash: autostash),
+                failing: "Git couldn’t rebase \(name) onto “\(upstream.name)”."
             )
         }
     }

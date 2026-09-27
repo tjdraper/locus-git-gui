@@ -7,11 +7,11 @@ enum OperationSidebarMenu {
         if let branch = context.branch(id) {
             return branchItems(branch, operations)
         }
-        if let (remote, branch) = context.remoteBranch(id) {
-            return remoteBranchItems(id, name: "\(remote)/\(branch.name)", operations)
+        if context.remoteBranch(id) != nil, let revision = context.revision(id) {
+            return remoteBranchItems(id, revision, operations)
         }
-        if let tag = context.tag(id) {
-            return tagItems(tag.name, operations)
+        if let tag = context.tag(id), let revision = context.revision(id) {
+            return tagItems(tag.name, revision, operations)
         }
         if case let .stash(commit) = id, context.stash(id) != nil {
             let window = { operations.actingWindow }
@@ -30,13 +30,14 @@ enum OperationSidebarMenu {
     ) -> [[SidebarMenuItem]] {
         let window = { operations.actingWindow }
         let name = branch.name
+        let revision = operations.context.revision(branch.id) ?? Revision(argument: name, name: name)
         var groups: [[SidebarMenuItem]] = [[
             SidebarMenuItem(title: "Check Out", isEnabled: !branch.isCheckedOut) { operations.branches.checkOut(name, from: window()) },
-            newBranch(from: name, operations),
+            newBranch(from: revision, operations),
             newTag(on: "refs/heads/\(name)", named: "the tip of “\(name)”", operations),
         ]]
         if let current = operations.context.checkedOutBranch, !branch.isCheckedOut {
-            groups.append(mergeAndRebase(name, into: current, operations))
+            groups.append(mergeAndRebase(revision, into: current, operations))
         }
         groups.append([
             SidebarMenuItem(title: "Rename…") { operations.branches.rename(name, from: window()) },
@@ -55,38 +56,44 @@ enum OperationSidebarMenu {
 
     private static func remoteBranchItems(
         _ id: SidebarItemID,
-        name: String,
+        _ revision: Revision,
         _ operations: RepositoryOperationsCoordinator
     ) -> [[SidebarMenuItem]] {
         var groups: [[SidebarMenuItem]] = [[
             SidebarMenuItem(title: "Check Out") { operations.branches.checkOut(remoteBranch: id, from: operations.actingWindow) },
-            newBranch(from: name, operations),
-            newTag(on: "refs/remotes/\(name)", named: "the tip of “\(name)”", operations),
+            newBranch(from: revision, operations),
+            newTag(on: "refs/remotes/\(revision.name)", named: "the tip of “\(revision.name)”", operations),
         ]]
         if let current = operations.context.checkedOutBranch {
-            groups.append(mergeAndRebase(name, into: current, operations))
+            groups.append(mergeAndRebase(revision, into: current, operations))
         }
         return groups
     }
 
-    private static func tagItems(_ tag: String, _ operations: RepositoryOperationsCoordinator) -> [[SidebarMenuItem]] {
+    private static func tagItems(
+        _ tag: String,
+        _ revision: Revision,
+        _ operations: RepositoryOperationsCoordinator
+    ) -> [[SidebarMenuItem]] {
         let window = { operations.actingWindow }
         var groups: [[SidebarMenuItem]] = [[
             SidebarMenuItem(title: "Check Out") {
                 operations.branches.checkOutDetached("refs/tags/\(tag)", named: "the tag “\(tag)”", from: window())
             },
-            newBranch(from: tag, operations),
+            newBranch(from: revision, operations),
         ]]
         if let current = operations.context.checkedOutBranch {
-            groups.append([SidebarMenuItem(title: "Merge “\(tag)” into “\(current)”") { operations.merging.merge(tag, from: window()) }])
+            groups.append([SidebarMenuItem(title: "Merge “\(tag)” into “\(current)”") {
+                operations.merging.merge(revision, from: window())
+            }])
         }
         groups.append([SidebarMenuItem(title: "Delete Tag…") { operations.tags.delete(tag, from: window()) }])
         return groups
     }
 
-    private static func newBranch(from start: String, _ operations: RepositoryOperationsCoordinator) -> SidebarMenuItem {
+    private static func newBranch(from start: Revision, _ operations: RepositoryOperationsCoordinator) -> SidebarMenuItem {
         SidebarMenuItem(title: "New Branch from Here…") {
-            operations.branches.newBranch(at: start, startTitle: "“\(start)”", from: operations.actingWindow)
+            operations.branches.newBranch(at: start.argument, startTitle: "“\(start.name)”", from: operations.actingWindow)
         }
     }
 
@@ -97,14 +104,16 @@ enum OperationSidebarMenu {
     }
 
     private static func mergeAndRebase(
-        _ name: String,
+        _ revision: Revision,
         into current: String,
         _ operations: RepositoryOperationsCoordinator
     ) -> [SidebarMenuItem] {
         let window = { operations.actingWindow }
         return [
-            SidebarMenuItem(title: "Merge “\(name)” into “\(current)”") { operations.merging.merge(name, from: window()) },
-            SidebarMenuItem(title: "Rebase “\(current)” onto “\(name)”") { operations.merging.rebase(onto: name, from: window()) },
+            SidebarMenuItem(title: "Merge “\(revision.name)” into “\(current)”") { operations.merging.merge(revision, from: window()) },
+            SidebarMenuItem(title: "Rebase “\(current)” onto “\(revision.name)”") {
+                operations.merging.rebase(onto: revision, from: window())
+            },
         ]
     }
 }
@@ -138,11 +147,14 @@ enum OperationHistoryMenu {
             },
             ActionMenuItem.make(title: AppCommand.revertCommit.title) { operations.commits.revert(commit, from: window()) },
         ])
-        if let current, !isHead {
+        // Merging a commit already on the branch does nothing, and rebasing onto one flattens the
+        // merges after it, so both are only for a commit from elsewhere.
+        let isOnBranch = isInCheckedOutHistory || operations.commits.ancestry.isOnCheckedOutBranch(commit.hash) != false
+        if let current, !isOnBranch {
             groups.append([
-                ActionMenuItem.make(title: "Merge into “\(current)”") { operations.merging.merge(commit.hash, from: window()) },
+                ActionMenuItem.make(title: "Merge into “\(current)”") { operations.merging.merge(.commit(commit.hash), from: window()) },
                 ActionMenuItem.make(title: "Rebase “\(current)” onto Here") {
-                    operations.merging.rebase(onto: commit.hash, from: window())
+                    operations.merging.rebase(onto: .commit(commit.hash), from: window())
                 },
             ])
         }

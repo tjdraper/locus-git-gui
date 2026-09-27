@@ -29,7 +29,7 @@ enum LocalChangesStash {
         } catch let failed as OperationRunner.Failed {
             // A command that stopped on conflicts has changed the files, which the changes can't come
             // back into until it's finished.
-            if failed.failure.recognized != .stoppedOnConflicts, try await pop(stash, steps: steps) {
+            if failed.failure.recognized != .stoppedOnConflicts, (try? await pop(stash, steps: steps)) == true {
                 throw failed
             }
             throw OperationRunner.Failed(failure: GitFailure(
@@ -37,6 +37,11 @@ enum LocalChangesStash {
                 arguments: failed.failure.arguments,
                 result: failed.failure.result
             ))
+        } catch {
+            // Such as the command being cancelled from the Activity window, which would otherwise
+            // leave the changes in the stash list without a word.
+            _ = try? await pop(stash, steps: steps)
+            throw error
         }
         guard let index = try await StashCommand.index(of: stash, running: steps.commands.run) else { return }
         try await steps.run(StashCommand.pop(at: index), failing: "Git couldn’t bring back the changes it put aside.")
