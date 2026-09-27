@@ -107,7 +107,7 @@
 				RepositoryWindow/RepositorySnapshot.swift,
 				RepositoryWindow/RepositoryTitleBar.swift,
 				RepositoryWindow/RepositoryViewState.swift,
-				RepositoryWindow/RepositoryViewStateList.swift,
+				RepositoryWindow/RepositoryViewStateFiles.swift,
 				RepositoryWindow/RepositoryWindowNames.swift,
 				Shared/DistinctFolderNames.swift,
 				Shared/FuzzyMatcher.swift,

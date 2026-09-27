@@ -83,8 +83,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func applicationWillTerminate(_: Notification) {
-        viewStates.saveNow()
+    /// Waits for the repositories' view state to be written, which happens off the main actor.
+    func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
+        Task { [viewStates] in
+            await viewStates.finish()
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     /// Catches a Git uninstalled or moved while the app was in the background.

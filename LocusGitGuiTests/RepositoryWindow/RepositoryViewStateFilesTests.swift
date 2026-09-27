@@ -1,13 +1,13 @@
 import Foundation
 import Testing
 
-struct RepositoryViewStateListTests {
-    private let suiteName = "RepositoryViewStateListTests-\(UUID().uuidString)"
+struct RepositoryViewStateFilesTests {
+    private func makeFiles() throws -> RepositoryViewStateFiles {
+        RepositoryViewStateFiles(folder: FileManager.default.temporaryDirectory.appending(path: "ViewStates-\(UUID().uuidString)"))
+    }
 
-    private func makeDefaults() throws -> UserDefaults {
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
+    private func remove(_ files: RepositoryViewStateFiles) {
+        try? FileManager.default.removeItem(at: files.folder)
     }
 
     private func state(selecting branch: String) -> RepositoryViewState {
@@ -17,56 +17,39 @@ struct RepositoryViewStateListTests {
     }
 
     @Test
-    func aRepositoryNeverSeenHasTheDefaultState() {
+    func aRepositoryNeverSeenHasNoState() throws {
         // Arrange
-        let list = RepositoryViewStateList()
+        let files = try makeFiles()
+        defer { remove(files) }
 
         // Act
-        let state = list.state(for: "/work/website")
+        let state = files.read("/work/website")
 
         // Assert
-        #expect(state == RepositoryViewState())
-        #expect(state.columns == nil)
+        #expect(state == nil)
     }
 
     @Test
-    func eachRepositoryKeepsItsOwnState() {
+    func eachRepositoryKeepsItsOwnState() throws {
         // Arrange
-        var list = RepositoryViewStateList()
+        let files = try makeFiles()
+        defer { remove(files) }
 
         // Act
-        list.set(state(selecting: "main"), for: "/work/website")
-        list.set(state(selecting: "develop"), for: "/work/api")
+        try files.write(state(selecting: "main"), for: "/work/website")
+        try files.write(state(selecting: "develop"), for: "/work/api")
+        try files.write(state(selecting: "release"), for: "/work/website")
 
         // Assert
-        #expect(list.state(for: "/work/website") == state(selecting: "main"))
-        #expect(list.state(for: "/work/api") == state(selecting: "develop"))
-        #expect(list.entries.map(\.repository) == ["/work/api", "/work/website"])
-    }
-
-    @Test
-    func theLeastRecentlyChangedAreForgottenPastTheLimit() {
-        // Arrange
-        var list = RepositoryViewStateList()
-        for index in 0 ..< RepositoryViewStateList.maxEntries {
-            list.set(state(selecting: "main"), for: "/work/\(index)")
-        }
-
-        // Act
-        list.set(state(selecting: "main"), for: "/work/0")
-        list.set(state(selecting: "main"), for: "/work/new")
-
-        // Assert
-        #expect(list.entries.count == RepositoryViewStateList.maxEntries)
-        #expect(list.entries.first?.repository == "/work/new")
-        #expect(list.entries.contains { $0.repository == "/work/0" })
-        #expect(!list.entries.contains { $0.repository == "/work/1" })
+        #expect(files.read("/work/website") == state(selecting: "release"))
+        #expect(files.read("/work/api") == state(selecting: "develop"))
     }
 
     @Test
     func savedStateReadsBack() throws {
         // Arrange
-        let defaults = try makeDefaults()
+        let files = try makeFiles()
+        defer { remove(files) }
         var state = RepositoryViewState()
         state.selection = .stash("abc")
         state.collapsedSections = [.tags]
@@ -86,15 +69,12 @@ struct RepositoryViewStateListTests {
             workingArea: .init(frame: nil, filter: .unstaged),
             isActivityShown: true
         )
-        var list = RepositoryViewStateList()
-        list.set(state, for: "/work/website")
 
         // Act
-        list.save(to: defaults)
-        let read = RepositoryViewStateList(defaults: defaults)
+        try files.write(state, for: "/work/website")
 
         // Assert
-        #expect(read == list)
+        #expect(files.read("/work/website") == state)
     }
 
     @Test
@@ -128,5 +108,25 @@ struct RepositoryViewStateListTests {
         #expect(windows.commits.map(\.commit) == ["abc"])
         #expect(windows.histories.isEmpty)
         #expect(windows.isActivityShown)
+    }
+
+    @Test
+    func pruningForgetsTheLeastRecentlyWritten() throws {
+        // Arrange
+        let files = try makeFiles()
+        defer { remove(files) }
+        for (index, repository) in ["/work/a", "/work/b", "/work/c"].enumerated() {
+            try files.write(state(selecting: "main"), for: repository)
+            let written = Date(timeIntervalSince1970: Double(index))
+            try FileManager.default.setAttributes([.modificationDate: written], ofItemAtPath: files.url(for: repository).path)
+        }
+
+        // Act
+        files.prune(keeping: 2)
+
+        // Assert
+        #expect(files.read("/work/a") == nil)
+        #expect(files.read("/work/b") != nil)
+        #expect(files.read("/work/c") != nil)
     }
 }
