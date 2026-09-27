@@ -112,7 +112,9 @@ enum OperationSidebarMenu {
 /// The commands in a commit's context menu in the history, which act on that commit whether or not
 /// it's the one selected.
 enum OperationHistoryMenu {
-    static func items(for commit: Commit, in operations: RepositoryOperationsCoordinator) -> [[NSMenuItem]] {
+    /// `isInCheckedOutHistory` when the history the commit was picked in is the checked-out
+    /// branch's, which settles whether it can be reworded or edited.
+    static func items(for commit: Commit, isInCheckedOutHistory: Bool, in operations: RepositoryOperationsCoordinator) -> [[NSMenuItem]] {
         let context = operations.context
         let window = { operations.actingWindow }
         let current = context.checkedOutBranch
@@ -145,7 +147,7 @@ enum OperationHistoryMenu {
             ])
         }
         groups.append(resetItems(commit, isHead: isHead, operations))
-        let problem = operations.commits.rewriteProblem(commit, isInCheckedOutHistory: operations.historyShowsCheckedOutBranch())
+        let problem = operations.commits.rewriteProblem(commit, isInCheckedOutHistory: isInCheckedOutHistory)
         groups.append([
             ActionMenuItem.make(title: "Reword…", isEnabled: problem == nil, toolTip: problem) {
                 operations.commits.reword(commit, from: window())

@@ -168,7 +168,15 @@ final class CommitOperationWorkflow {
     }
 
     /// Asks when the commit is already on the upstream, since the branch will need a force push.
+    /// Checks with Git first that the commit is on the checked-out branch, since the rebase would
+    /// otherwise move the branch onto it.
     private func confirmRewriting(_ commit: Commit, from window: NSWindow?) async -> Bool {
+        guard let onBranch = try? await runner.commands.run(HistoryOperationCommand.isAncestor(commit.hash, of: "HEAD")),
+              onBranch.status == 0
+        else {
+            NSSound.beep()
+            return false
+        }
         guard let upstream = context().head?.upstream,
               let result = try? await runner.commands.run(HistoryOperationCommand.isAncestor(commit.hash, of: "@{upstream}")),
               result.status == 0

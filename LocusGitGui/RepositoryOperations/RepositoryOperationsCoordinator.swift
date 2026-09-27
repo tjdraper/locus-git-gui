@@ -97,9 +97,9 @@ final class RepositoryOperationsCoordinator {
         // The working area's row shows only above the checked-out branch's history.
         historyShowsCheckedOutBranch = { [weak history] in history?.workingArea != nil }
         commitColumns.onCommitSelected = { [weak self] commit in self?.commitSelected(commit) }
-        history.operationMenuItems = { [weak self] commit in
+        history.operationMenuItems = { [weak self, weak history] commit in
             guard let self else { return [] }
-            return OperationHistoryMenu.items(for: commit, in: self)
+            return OperationHistoryMenu.items(for: commit, isInCheckedOutHistory: history?.workingArea != nil, in: self)
         }
         sidebar.menuItems = { [weak self, weak remotes] id in
             guard let self else { return [] }
@@ -131,7 +131,7 @@ final class RepositoryOperationsCoordinator {
     }
 
     /// Looked up ahead, so the menus know whether it can be reworded or edited as they open.
-    private func commitSelected(_ commit: Commit?) {
+    func commitSelected(_ commit: Commit?) {
         if let commit {
             commits.ancestry.lookUp(commit.hash)
         }

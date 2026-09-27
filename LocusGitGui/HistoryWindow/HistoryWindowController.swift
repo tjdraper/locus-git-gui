@@ -111,11 +111,17 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
             guard let self else { return }
             if case let .commit(commit) = selected {
                 detail.show(commit, labels: history.labels(of: commit))
+                repositoryWindow?.operations.commitSelected(commit)
             } else {
                 detail.show(nil, labels: [])
             }
         }
         history.onPlaceChange = { [weak self] _ in self?.onChange?() }
+        // This window's history is never the checked-out branch's, so Git says which commits are on it.
+        history.operationMenuItems = { [weak self] commit in
+            guard let operations = self?.repositoryWindow?.operations else { return [] }
+            return OperationHistoryMenu.items(for: commit, isInCheckedOutHistory: false, in: operations)
+        }
         detail.goToCommit = { [weak self] hash in self?.history.goToCommit(hash) }
         let showFailure: (GitFailure, @escaping () -> Void) -> Void = { [weak self] failure, retry in
             guard let self, let window else { return }
