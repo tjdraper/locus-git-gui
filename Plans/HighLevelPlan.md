@@ -513,6 +513,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
       - Lists, headings, code blocks and quotes as well as bold, italics, inline code and links, since bulleted lists are the Markdown most often found in a body. SwiftUI renders only the inline styles, so the blocks need rendering of their own, parsed with Apple's `swift-markdown` package. The package's license notice goes in `About/ThirdPartyNotices.txt`.
       - Links are clickable and open in the browser. Issue references such as `#123` stay plain text, since linking them needs a hosting service (see Not planned).
       - The subject stays plain, as Git and every host show it. The message field, the Reword sheet and Copy Subject stay plain text, since there the message is the text itself.
+    - Fix, in this slice: the line between the history and detail columns runs up through the toolbar to the top of the window again, as slice 8 once fixed for the diff's scroll view. Seen on 2026-09-27, in a window with three repositories as tabs: in one tab the line reached the top, in another it didn't. Where it did, a notice sat above the history (“Deleted “asdf”…”) and the working area had no changes, so it showed “No uncommitted changes” with no diff. Where it didn't, there was no bar, and the working area had a file and its diff. Not yet known whether the bars above the history, the empty working area, or something else brings it back, or whether slice 8's fix never covered this case.
 
 12. **Merge conflict window**
 
