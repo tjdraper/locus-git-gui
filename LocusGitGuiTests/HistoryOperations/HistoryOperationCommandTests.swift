@@ -38,7 +38,7 @@ struct HistoryOperationCommandTests {
         // Arrange
         let repository = try await divergedRepository()
         defer { repository.remove() }
-        try await repository.run(HistoryOperationCommand.merge("feature"))
+        _ = try await repository.run(HistoryOperationCommand.merge("feature"))
 
         // Act
         let continued = try await repository.run(HistoryOperationCommand.continueOperation(.merge))

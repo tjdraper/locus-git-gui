@@ -50,6 +50,7 @@ final class RepositoryOperationsCoordinator {
         commits.notice = notice
         stopped.context = context
         merging.context = context
+        runner.willPerform = { [weak self] in self?.status.dismissNotice() }
         status.continueOperation = { [weak self] in self?.stopped.continueOperation(from: self?.actingWindow) }
         status.skip = { [weak self] in self?.stopped.skip(from: self?.actingWindow) }
         status.abort = { [weak self] in self?.stopped.abort(from: self?.actingWindow) }

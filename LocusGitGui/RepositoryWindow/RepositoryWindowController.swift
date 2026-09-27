@@ -44,6 +44,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     private lazy var watcher = RepositoryFileWatcher(repository: repository) { [weak self] in
         self?.scheduler.requestSoon(because: .filesChanged)
     }
+    /// As of the last refresh, whose ahead and behind counts the next can reuse.
+    private var lastRefs: [Ref]?
     /// The frame outside full screen, which is the one worth coming back to.
     private var windowFrame: String?
     /// As the tab shows it, which the coordinator works out with the other open repositories'.
@@ -213,7 +215,12 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
                 titleItem.setDisplayName(displayName)
                 onDisplayNameRead?(displayName)
             }
-            let refs = try await Ref.readList(running: commands.run)
+            let refs = if let lastRefs {
+                try await Ref.readList(reusingCountsFrom: lastRefs, running: commands.run)
+            } else {
+                try await Ref.readList(running: commands.run)
+            }
+            lastRefs = refs
             sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run), pins: await Self.pins(in: repository.workTree))
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
             if let contents = sidebar.contents {

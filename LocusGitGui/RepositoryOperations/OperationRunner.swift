@@ -33,6 +33,8 @@ final class OperationRunner {
     var present: ((GitFailure, NSWindow?, _ retry: (() -> Void)?, GitFailureNextSteps) -> Void)?
     /// What every failure offers: Show Conflicts, which takes the repository's window to them.
     var showConflicts: (() -> Void)?
+    /// As each operation starts, which takes away the notice the one before it left.
+    var willPerform: (() -> Void)?
     let commands: RepositoryCommandRunner
     private let queue: WorkingAreaCommandQueue
 
@@ -49,6 +51,7 @@ final class OperationRunner {
         _ body: @escaping (Steps) async throws -> Void
     ) {
         let steps = Steps(commands: commands)
+        willPerform?()
         queue.run("") { [weak self] in
             do {
                 try await body(steps)

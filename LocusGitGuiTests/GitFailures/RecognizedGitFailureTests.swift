@@ -78,3 +78,39 @@ struct RecognizedGitFailureTests {
         #expect(recognized == nil)
     }
 }
+
+struct RecognizedLocalOperationFailureTests {
+    @Test
+    func recognizesUntrackedFilesACheckoutWouldOverwrite() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("First", writing: "a", to: "a.txt")
+        try await repository.git("switch", "--quiet", "--create", "feature")
+        try await repository.commit("Add b", writing: "b", to: "b.txt")
+        try await repository.git("switch", "--quiet", "main")
+        try repository.write("untracked", to: "b.txt")
+
+        // Act
+        let result = try await repository.run(BranchCommand.checkOut("feature"))
+
+        // Assert
+        #expect(RecognizedGitFailure.recognize(result) == .localChangesWouldBeOverwritten(files: ["b.txt"], includesUntracked: true))
+    }
+
+    @Test
+    func recognizesARebaseRefusedForUncommittedChanges() async throws {
+        // Arrange
+        let repository = try await FixtureRepository.make()
+        defer { repository.remove() }
+        try await repository.commit("First", writing: "a", to: "a.txt")
+        try await repository.commit("Second", writing: "b", to: "b.txt")
+        try repository.write("changed", to: "a.txt")
+
+        // Act
+        let result = try await repository.run(HistoryOperationCommand.rebase(onto: "HEAD~1"))
+
+        // Assert
+        #expect(RecognizedGitFailure.recognize(result) == .localChangesWouldBeOverwritten(files: [], includesUntracked: false))
+    }
+}

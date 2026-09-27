@@ -120,3 +120,27 @@ struct RefTests {
         #expect(failure?.outputWasUnreadable == false)
     }
 }
+
+struct RefCountReuseTests {
+    @Test
+    func reusesCountsUntilABranchOrItsUpstreamMoves() async throws {
+        // Arrange
+        let origin = try await FixtureRepository.make()
+        defer { origin.remove() }
+        try await origin.commit("First", writing: "a", to: "a.txt")
+        let clone = try await origin.clone()
+        defer { clone.remove() }
+        try await clone.commit("Second", writing: "b", to: "b.txt")
+        let run = { (command: GitCommand) in try await clone.run(command) }
+        let first = try await Ref.readList(running: run)
+
+        // Act
+        let unchanged = try await Ref.readList(reusingCountsFrom: first, running: run)
+        try await clone.commit("Third", writing: "c", to: "c.txt")
+        let moved = try await Ref.readList(reusingCountsFrom: unchanged, running: run)
+
+        // Assert
+        #expect(unchanged == first)
+        #expect(moved.first { $0.name == "refs/heads/main" }?.ahead == 2)
+    }
+}

@@ -67,8 +67,8 @@ struct CommitRewriteTests {
         let one = try await repository.git("rev-list", "--max-parents=0", "HEAD")
 
         // Act
-        try await repository.run(CommitRewrite.start(marking: one, parent: nil))
-        try await repository.run(CommitRewrite.reword(message: "Uno"))
+        _ = try await repository.run(CommitRewrite.start(marking: one, parent: nil))
+        _ = try await repository.run(CommitRewrite.reword(message: "Uno"))
         let continued = try await repository.run(HistoryOperationCommand.continueOperation(.rebase))
 
         // Assert

@@ -10,7 +10,12 @@ struct RemoteBranchCheckoutTests {
         ]
 
         // Act
-        let plan = RemoteBranchCheckout.plan(remoteBranch: "refs/remotes/origin/feature", remote: "origin", nameOnRemote: "feature", refs: refs)
+        let plan = RemoteBranchCheckout.plan(
+            remoteBranch: "refs/remotes/origin/feature",
+            remote: "origin",
+            nameOnRemote: "feature",
+            refs: refs
+        )
 
         // Assert
         #expect(plan == .switchTo(branch: "mine"))
@@ -22,7 +27,12 @@ struct RemoteBranchCheckoutTests {
         let refs = [Ref(name: "refs/heads/main", commit: "a", upstream: "refs/remotes/origin/main")]
 
         // Act
-        let plan = RemoteBranchCheckout.plan(remoteBranch: "refs/remotes/origin/feature", remote: "origin", nameOnRemote: "feature", refs: refs)
+        let plan = RemoteBranchCheckout.plan(
+            remoteBranch: "refs/remotes/origin/feature",
+            remote: "origin",
+            nameOnRemote: "feature",
+            refs: refs
+        )
 
         // Assert
         #expect(plan == .create(name: "feature"))
@@ -37,7 +47,12 @@ struct RemoteBranchCheckoutTests {
         ]
 
         // Act
-        let plan = RemoteBranchCheckout.plan(remoteBranch: "refs/remotes/origin/feature", remote: "origin", nameOnRemote: "feature", refs: refs)
+        let plan = RemoteBranchCheckout.plan(
+            remoteBranch: "refs/remotes/origin/feature",
+            remote: "origin",
+            nameOnRemote: "feature",
+            refs: refs
+        )
 
         // Assert
         #expect(plan == .askForName(suggested: "origin-feature-2"))

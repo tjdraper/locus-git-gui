@@ -28,6 +28,16 @@ nonisolated struct Ref: Equatable, Sendable {
         "refs/tags",
     ])
 
+    /// The same list with the tracking field left empty. Counting how far each branch is from its
+    /// upstream is most of the work when thousands of branches have one.
+    static let listCommandWithoutTracking = GitCommand.reading([
+        "for-each-ref",
+        "--format=" + (placeholders.dropLast() + [""]).joined(separator: "%00"),
+        "refs/heads",
+        "refs/remotes",
+        "refs/tags",
+    ])
+
     /// The full name, such as `refs/heads/main`.
     let name: String
     let commit: String
@@ -54,6 +64,42 @@ nonisolated struct Ref: Equatable, Sendable {
 
     static func readList(running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> [Ref] {
         try await GitReadFailure.read("branches and tags", with: listCommand, running: run, parse: parseList)
+    }
+
+    /// Takes each branch's counts from `previous` when neither it nor its upstream has moved, which
+    /// is every refresh that follows a change to the files alone. Otherwise Git counts them again.
+    static func readList(
+        reusingCountsFrom previous: [Ref],
+        running run: (GitCommand) async throws -> ChildProcess.Result
+    ) async throws -> [Ref] {
+        let refs = try await GitReadFailure.read("branches and tags", with: listCommandWithoutTracking, running: run, parse: parseList)
+        let commits = Dictionary(refs.map { ($0.name, $0.commit) }) { first, _ in first }
+        let previousCommits = Dictionary(previous.map { ($0.name, $0.commit) }) { first, _ in first }
+        let previousRefs = Dictionary(previous.map { ($0.name, $0) }) { first, _ in first }
+        var reused: [Ref] = []
+        reused.reserveCapacity(refs.count)
+        for ref in refs {
+            guard let upstream = ref.upstream else {
+                reused.append(ref)
+                continue
+            }
+            guard let old = previousRefs[ref.name], old.commit == ref.commit, old.upstream == upstream,
+                  commits[upstream] == previousCommits[upstream]
+            else {
+                return try await readList(running: run)
+            }
+            reused.append(Ref(
+                name: ref.name,
+                commit: ref.commit,
+                isCheckedOut: ref.isCheckedOut,
+                symbolicTarget: ref.symbolicTarget,
+                upstream: upstream,
+                ahead: old.ahead,
+                behind: old.behind,
+                isUpstreamGone: old.isUpstreamGone
+            ))
+        }
+        return reused
     }
 
     /// One ref per line. A ref name can't contain a newline or NUL, so neither can any field.
