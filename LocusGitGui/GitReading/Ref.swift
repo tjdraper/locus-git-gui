@@ -63,7 +63,7 @@ nonisolated struct Ref: Equatable, Sendable {
     }
 
     static func readList(running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> [Ref] {
-        try await GitReadFailure.read("branches and tags", with: listCommand, running: run, parse: parseList)
+        try await GitReadFailure.readConcurrently("branches and tags", with: listCommand, running: run, parse: parseList)
     }
 
     /// Takes each branch's counts from `previous` when neither it nor its upstream has moved, which
@@ -72,7 +72,21 @@ nonisolated struct Ref: Equatable, Sendable {
         reusingCountsFrom previous: [Ref],
         running run: (GitCommand) async throws -> ChildProcess.Result
     ) async throws -> [Ref] {
-        let refs = try await GitReadFailure.read("branches and tags", with: listCommandWithoutTracking, running: run, parse: parseList)
+        let refs = try await GitReadFailure.readConcurrently(
+            "branches and tags",
+            with: listCommandWithoutTracking,
+            running: run
+        ) { output in
+            try reusingCounts(in: parseList(output), from: previous)
+        }
+        guard let refs else {
+            return try await readList(running: run)
+        }
+        return refs
+    }
+
+    /// Nil when a branch or its upstream has moved since `previous`, whose counts no longer hold.
+    private static func reusingCounts(in refs: [Ref], from previous: [Ref]) -> [Ref]? {
         let commits = Dictionary(refs.map { ($0.name, $0.commit) }) { first, _ in first }
         let previousCommits = Dictionary(previous.map { ($0.name, $0.commit) }) { first, _ in first }
         let previousRefs = Dictionary(previous.map { ($0.name, $0) }) { first, _ in first }
@@ -86,7 +100,7 @@ nonisolated struct Ref: Equatable, Sendable {
             guard let old = previousRefs[ref.name], old.commit == ref.commit, old.upstream == upstream,
                   commits[upstream] == previousCommits[upstream]
             else {
-                return try await readList(running: run)
+                return nil
             }
             reused.append(Ref(
                 name: ref.name,

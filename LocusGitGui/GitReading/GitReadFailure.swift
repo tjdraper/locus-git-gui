@@ -25,4 +25,31 @@ nonisolated struct GitReadFailure: Error, Equatable {
             throw GitReadFailure(subject: subject, command: command, result: result, outputWasUnreadable: true)
         }
     }
+
+    /// Parses away from the caller's actor, for output long enough to hold it up, such as a
+    /// repository's thousands of branches and tags read on every refresh.
+    static func readConcurrently<Value: Sendable>(
+        _ subject: String,
+        with command: GitCommand,
+        running run: (GitCommand) async throws -> ChildProcess.Result,
+        parse: @escaping @Sendable (Data) throws -> Value
+    ) async throws -> Value {
+        let result = try await run(command)
+        guard result.status == 0 else {
+            throw GitReadFailure(subject: subject, command: command, result: result, outputWasUnreadable: false)
+        }
+        do {
+            return try await parseConcurrently(result.standardOutput, parse)
+        } catch {
+            throw GitReadFailure(subject: subject, command: command, result: result, outputWasUnreadable: true)
+        }
+    }
+
+    @concurrent
+    private static func parseConcurrently<Value: Sendable>(
+        _ output: Data,
+        _ parse: @Sendable (Data) throws -> Value
+    ) async throws -> Value {
+        try parse(output)
+    }
 }

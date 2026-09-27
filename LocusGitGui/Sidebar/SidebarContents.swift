@@ -85,7 +85,13 @@ nonisolated struct SidebarContents: Equatable, Sendable {
     static func read(refs: [Ref], running run: (GitCommand) async throws -> ChildProcess.Result) async throws -> SidebarContents {
         let remotes = try await GitReadFailure.read("remotes", with: RemoteName.listCommand, running: run, parse: RemoteName.parseList)
         let stashes = try await GitReadFailure.read("stashes", with: Stash.listCommand, running: run, parse: Stash.parseList)
-        return SidebarContents(refs: refs, remoteNames: remotes, stashes: stashes)
+        return await make(refs: refs, remoteNames: remotes, stashes: stashes)
+    }
+
+    /// Sorting thousands of branches and tags as Finder does takes long enough to hold up a refresh.
+    @concurrent
+    private static func make(refs: [Ref], remoteNames: [String], stashes: [Stash]) async -> SidebarContents {
+        SidebarContents(refs: refs, remoteNames: remoteNames, stashes: stashes)
     }
 
     init(refs: [Ref], remoteNames: [String], stashes: [Stash]) {
