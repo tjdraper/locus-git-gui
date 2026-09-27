@@ -4,12 +4,12 @@ import SwiftUI
 /// The subject and body of a commit message in one box, the subject above a hairline and the body
 /// below. Both are in a fixed-width font, as Git and Terminal show a message.
 final class CommitMessageFields: NSView {
-    static let height: CGFloat = 132
+    static let height: CGFloat = 144
     private static let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-    private static let subjectHeight: CGFloat = 28
+    private static let subjectHeight: CGFloat = 34
     private static let cornerRadius: CGFloat = 6
     /// The body's text starts level with the subject's.
-    private static let bodyInset = NSSize(width: 3, height: 6)
+    private static let bodyInset = NSSize(width: 7, height: 9)
 
     var onSubjectChange: ((String) -> Void)?
     var onBodyChange: ((String) -> Void)?
@@ -84,9 +84,9 @@ final class CommitMessageFields: NSView {
         super.layout()
         let subjectFieldHeight = subject.intrinsicContentSize.height
         subject.frame = NSRect(
-            x: 6,
+            x: 10,
             y: ((Self.subjectHeight - subjectFieldHeight) / 2).rounded(),
-            width: bounds.width - 12,
+            width: bounds.width - 20,
             height: subjectFieldHeight
         )
         bodyScroll.frame = NSRect(x: 1, y: Self.subjectHeight + 1, width: bounds.width - 2, height: bounds.height - Self.subjectHeight - 2)
