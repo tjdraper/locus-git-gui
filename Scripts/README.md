@@ -70,6 +70,14 @@ swift Scripts/GenerateTestRepository.swift ~/Scratch/working --commits 2000 --wo
 TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/working xcodebuild -project "Locus Git Gui.xcodeproj" -scheme "Locus Git Gui" -destination "platform=macOS" -configuration Release test -only-testing:"Locus Git Gui Tests/WorkingAreaPerformanceTests"
 ```
 
+`SidebarPerformanceTests` times what each refresh reads for the sidebar, filtering it, and the palette's search over every branch. Pack the refs first unless loose ones are the point, since a clone or `git gc` packs them. For ahead and behind counts, add a remote named `origin` and give some branches upstreams in `.git/config`, since generated branches have none:
+
+```
+swift Scripts/GenerateTestRepository.swift ~/Scratch/refs --commits 20000 --branches 5000 --remote-branches 5000 --tags 5000 --commit-graph
+git -C ~/Scratch/refs pack-refs --all
+TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/refs xcodebuild -project "Locus Git Gui.xcodeproj" -scheme "Locus Git Gui" -destination "platform=macOS" -configuration Release test -only-testing:"Locus Git Gui Tests/SidebarPerformanceTests"
+```
+
 The timings go in a file beside the repository, since a test's printed output doesn't reach `xcodebuild`. Each run adds to it. The test runner's own timings of reading a patch come out several times slower than the same code built on its own with `swiftc -O`, so time a suspect step that way before optimizing it.
 
 In the app, the history logs how long each page took under the `History` category, the diff how long a commit took to read (`CommitDetail`) and to lay out (`DiffView`), and the working area how long its changes took to read (`WorkingArea`) (see Reading the app's log in `AGENTS.md`).

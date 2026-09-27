@@ -443,25 +443,67 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 11. **Branches, stashes and history operations**
 
+    Built. Driven by script in the running app, in dark mode, on a scratch repository with a bare remote: checking out by double-click (a local branch, a remote branch with no local one, and one whose name was taken), Stash and Continue with a pop that conflicted, a merge dragged onto a branch that stopped on conflicts, Mark Resolved and Continue, a hard reset and its notice, Reword on a pushed commit, Edit and Continue, deleting an unmerged branch with Delete Anyway, a rebase that stopped and was aborted from the Commit menu, a stash applied with conflicts and one dropped, lightweight and annotated tags, Check Out Branch… in the palette, cherry-pick and revert, Set Upstream… from the sidebar, Delete from Remote…, and a history window's context menu. The bar and an abort's confirmation were also seen in light mode. Not tried yet: the new shortcuts pressed by hand, Skip in the app (covered by a test), a cherry-pick or revert that stops on conflicts, a rebase by drag, Rename…, and New Branch… with its checkbox turned off.
+
     - Check out, create, rename and delete branches. Set and unset upstream.
+      - Built in a new Branch menu: Check Out Branch… (⇧⌘B), New Branch… (⇧⌘N), Rename Branch…, Delete Branch…, Set Upstream…, Unset Upstream, Merge into “main”…, Rebase “main” onto…, New Tag… and Delete Tag…. Each command that takes a branch, tag or stash asks in the palette's next step, and acts straight away on the one selected in the sidebar, as slice 10's Push Tag… does; the menu item then names it, such as Rename “feature”…. New Branch… starts at HEAD and has a checkbox for checking the branch out, on to begin with. A name Git would refuse, or one already taken, is caught in the sheet (`RefNameCheck`).
+      - The commands for a commit picked in the history are in the Commit menu: Check Out Commit, New Branch from Commit…, New Tag on Commit…, Cherry-Pick onto “main”, Revert Commit, Soft, Mixed and Hard Reset “main” to Commit, Reword Commit… and Edit Commit….
+      - A merge commit is cherry-picked or reverted against its first parent (`--mainline 1`).
     - Check Out on a remote branch makes a local branch of the same name that tracks it (`git switch --track`), or switches to that local branch when there already is one, rather than leaving HEAD detached. New Branch from Here… makes one under another name, from a remote branch or anything else in the sidebar or history. Asked for on 2026-09-26.
+      - Built as `RemoteBranchCheckout`, which the double-click below uses too. A new name is suggested as the remote's name and the branch's, such as `origin-feature`.
     - Delete from Remote… on a remote branch (`git push <remote> --delete <branch>`), as slice 10 does for tags. It asks first, names the commit the branch was at so it can be pushed back, and says a local branch of the same name stays. Asked for on 2026-09-26.
+      - Built, in the remote branch's context menu and as Remote > Delete Branch from Remote…. It runs like a fetch, with the progress bar and credential sheets, and afterwards the bar names the commit with Copy Hash.
     - The sidebar's context menus hold these commands for the rows they apply to, as slice 5 left them to do
+      - Built. A branch has Check Out, New Branch from Here…, New Tag Here…, Merge “feature” into “main”, Rebase “main” onto “feature”, Rename…, Delete…, Set Upstream… and Unset Upstream; a remote branch the first five and Delete from Remote…; a tag Check Out, New Branch from Here…, the merge, Delete Tag… and slice 10's remote commands; a stash Apply, Pop and Drop…. Set Upstream… selects the row and asks for the remote branch in the palette.
     - Double-click a branch in the sidebar to check it out. A history window opens from the menus instead (slice 9), so the double-click stays free for this.
       - A local branch is checked out. A remote branch checks out the local branch that tracks it, found by its upstream rather than its name, or makes one that tracks it when there's none, as Check Out does above. A local branch of the same name that tracks something else isn't taken over: the app asks for another name. Asked for on 2026-09-26.
+      - Built with SwiftUI's primary action for the list, which also answers Return, so Return on a branch in the sidebar checks it out too. That seemed a fair keyboard equivalent, since a checkout loses nothing; decide whether to keep it.
     - Merge, rebase, cherry-pick and revert, from the sidebar, the history and the palette
+      - Built. Merges use `--no-edit`, and every command that could open an editor runs with `GIT_EDITOR=true`, since the app has no terminal for one, so Git keeps the message it has. The history's context menu also has Merge into “main” and Rebase “main” onto Here.
     - Reset the current branch to a commit: soft, mixed or hard, with hard asking first
+      - Built. Hard's confirmation says uncommitted changes to tracked files are lost for good, when there are any. Every reset leaves a notice above the history naming the commit the branch was at, with Copy Hash.
     - Edit a commit picked in the history: Reword… changes its message, and Edit… stops there so its contents can be changed in the working area, then Continue carries the change through the commits after it. Both in the Commit menu, the history's context menu and the palette. Git does it as a small interactive rebase of the checked-out branch (`GIT_SEQUENCE_EDITOR` marking that one commit), so it stops on conflicts like any rebase, with the bar and menu items below. Only for a commit on the checked-out branch, since the rebase rewrites that branch; the menu says why it's disabled otherwise. Asks first when the commit is already on the upstream, since the branch will need a force push. The last commit is simply Amend Last Commit (slice 9). The list-based interactive rebase stays in Future versions.
+      - Built as `CommitRewrite`: `git rebase --interactive --rebase-merges --no-autosquash`, so merges after the commit are made again rather than flattened and fixup commits aren't folded in, with an `awk` sequence editor that turns the commit's `pick` into `edit`. A reword stops there, amends the message with `--only` and continues; an edit leaves the window stopped with the working area selected. Rewording or editing the last commit is an amend: Edit… turns on Amend Last Commit, which works for a merge commit too, and Reword… amends the message.
+      - Whether the commit is on the checked-out branch is settled by the history it was picked in when that's the checked-out branch's, and otherwise asked of Git as it's selected (`CheckedOutAncestry`), so the menus know as they open. The reason shows as the item's tooltip. Git confirms it once more before the rebase starts.
     - Create and delete tags, annotated or lightweight
+      - Built as one sheet: a tag with a message is annotated, and one without is lightweight. Deleting one names the commit it was on.
     - Stash, stash including untracked, apply, pop and drop
+      - Built as a new Stash menu: Stash Changes… (⇧⌘S) and Stash Including Untracked Files… (⌥⇧⌘S), which open the same sheet with its checkbox set, and Apply Stash…, Pop Stash… and Drop Stash…. A stash is named by its commit, and `pop` and `drop` find its place in the list just before they run. Drop asks first and names the commit, which `git stash store` can put back until Git cleans up.
     - An operation that stops partway (conflicts, a rebase step) puts the window into that state: the title bar says so, and Continue, Skip and Abort are in the menu and on a bar above the history
+      - Built as `OperationBar`, under the fetch bar, saying what's underway, how many files still have conflicts, or where an edit stopped (`StoppedOperation`). Continue, Skip (not for a merge, which has nothing to skip) and Abort… are also at the top of the Commit menu, named for the operation, such as Continue Rebase (⌥⌘↩). Continuing a merge commits it with the message in the working area. Abort asks first, since conflicts already resolved are lost.
+      - A rebase detaches HEAD, so while one is underway the branch it rebases counts as checked out, and the Uncommitted Changes row stays above its history.
+      - The notice a destructive command leaves shares the bar, and goes when the next command starts.
+      - Decided not to add a Repository menu for these three, which the Decisions' menu layout listed; they sit with the commit commands, since each stop is at a commit.
     - Recognized failures, each with its next step:
       - Check out, merge or rebase blocked by local changes that would be overwritten: name the files, and offer Stash and Continue
+        - Built for cherry-pick and revert too. A merge or rebase continues with Git's `--autostash`, which brings the changes back once it has finished, even after stopping on conflicts. A checkout, cherry-pick or revert stashes, runs and pops (`LocalChangesStash`), as does a merge or rebase with untracked files in the way, which `--autostash` leaves. A command that stops on conflicts leaves the stash in the list and says so.
       - Deleting a branch that isn't merged: say how many commits would be left without a branch, and offer Delete Anyway after a confirmation
+        - Built. The count is of commits no other branch, remote branch or tag reaches.
       - Stash apply or pop that conflicts: open the conflict window, and say the stash was kept
+        - Built as Show Conflicts, which goes to Uncommitted Changes until slice 12 has the conflict window. Every operation that stops on conflicts offers it, and so does continuing with conflicts left.
     - Drag a branch onto another to merge or rebase, with a menu of which
+      - Built. Dragging X onto Y offers Merge “X” into “Y” and Rebase “X” onto “Y”, checking out whichever branch changes first when it isn't checked out, and the item says so (decided on 2026-09-26). A remote branch or a tag can be dragged onto a branch to merge it. The menu opens once the drop has finished, since a menu opened during the drop kept the drag waiting.
     - Every destructive command asks first, says what will be lost, and names the commit that can bring it back (see Decisions)
+      - Built for deleting a branch, a remote branch and a tag, dropping a stash, a hard reset and aborting. Afterwards the bar names the commit, with Copy Hash. Rewording or editing a pushed commit asks first too.
     - Performance check (see Decisions): the sidebar and its refresh with thousands of branches and tags, moved here from slice 5, and the palette's Go to Branch… over them
+      - `SidebarPerformanceTests`, against `Scripts/GenerateTestRepository.swift --branches 5000 --remote-branches 5000 --tags 5000` with refs packed, and 2,000 of the branches given upstreams. Measured in an optimized build (2026-09-26):
+
+        | | Time |
+        |---|---|
+        | `for-each-ref` of 15,010 refs, with ahead and behind for 2,000 branches | 595 ms |
+        | The same, with the counts reused | 196 ms |
+        | Without upstreams, packed | 174 ms |
+        | Without upstreams, 15,000 loose ref files | 761 ms |
+        | Parsing them | 24–30 ms |
+        | Remotes, stashes and sorting for the sidebar | 73–80 ms |
+        | Filtering the sidebar | 31 ms |
+        | Preparing Go to Branch… over 10,010 branches | 116 ms |
+        | Ranking a search there | 1 ms |
+
+      - Counting ahead and behind was most of the read, and the counts only change when a branch or its upstream moves, which a change to the files never does. A refresh now reads the refs without them and keeps the last counts when nothing has moved (`Ref.readList(reusingCountsFrom:)`), and reads them again when something has.
+      - Parsing the refs and sorting the sidebar ran on the main actor, where a sample of the Debug build during refreshes found them holding it about 40% of the time. Both now run off it, and the same sample found the main thread idle 93% of the time. What's left there is the history's labels, rebuilt from every ref on each refresh.
+      - A refresh after a file change took 0.34 s in the Debug build, and typing in the sidebar's filter kept up.
+    - Slice 9's merge message kept Git's comment lines when `core.commentChar` isn't `#`, as it's `;` on this Mac. It now reads the setting, and for `auto` takes the character from the list of conflicts.
 
 12. **Merge conflict window**
 
@@ -564,7 +606,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 - **No symbols on menu items or palette rows.** macOS 26 puts SF Symbols beside menu items, and a menu full of them is noisy. Commands carry none, and the palette's rows have none either. macOS 27 hides menu item images unless an app asks for them (`preferredImageVisibility`). macOS 26 has no setting for refusing the symbols AppKit adds to standard items by itself, such as Cut, Copy and Paste, so whether it adds them here gets checked on a Mac running 26.
 
-- **The menu bar is the map of the app.** Every action is a menu item, with a shortcut where a good one exists. Menus follow the Mac's layout: File for repositories and windows, Edit, View, then Git-specific menus (Repository, Branch, Commit, Stash, Remote), then Window and Help. Help's search field finds any menu item, which is a second, free command palette.
+- **The menu bar is the map of the app.** Every action is a menu item, with a shortcut where a good one exists. Menus follow the Mac's layout: File for repositories and windows, Edit, View, then Git-specific menus (Branch, Commit, Stash, Remote), then Window and Help. Help's search field finds any menu item, which is a second, free command palette.
 
 - **Window restoration follows the system setting.** macOS's own restoration (`NSWindowRestoration`) respects "Close windows when quitting an application" in System Settings, offers Quit and Keep Windows, and restores frames, screens, Spaces and tab groups without the app rebuilding them. Each window encodes only which repository it shows. People who want their windows back already have that setting off; the app shouldn't overrule the ones who don't. Per-repository view state (sidebar selection, column widths, where each history and diff was left, and the commit, file and working area windows opened from it) is separate and always remembered, since it outlives the window. Those windows come back whenever their repository's does.
 
