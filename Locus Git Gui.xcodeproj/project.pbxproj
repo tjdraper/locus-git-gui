@@ -91,6 +91,7 @@
 				GitRunner/GitRunner.swift,
 				GitRunner/LoginShellEnvironment.swift,
 				History/CommitGraphLayout.swift,
+				HistoryWindow/HistoryWindowTitle.swift,
 				History/CommitRefLabel.swift,
 				History/HistoryPlace.swift,
 				History/HistoryReader.swift,

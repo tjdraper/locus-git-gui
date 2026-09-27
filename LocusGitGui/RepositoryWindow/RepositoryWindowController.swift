@@ -13,6 +13,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     let sidebar: SidebarModel
     private let sidebarView: NSView
     private let pinning: SidebarPinWorkflow
+    private lazy var historyWindowCommand = HistoryWindowCommand(sidebar: sidebar) { [weak self] item in
+        self?.openedWindows.openHistory(of: item, from: self?.window)
+    }
     let commitColumns: CommitColumnsCoordinator
     private let diffOptions: DiffOptionsStore
     private let diffPlaces: DiffPlaceStore
@@ -108,6 +111,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         if SidebarPinWorkflow.actions.contains(action) {
             return pinning
         }
+        if HistoryWindowCommand.actions.contains(action) {
+            return historyWindowCommand
+        }
         return commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
     }
 
@@ -190,7 +196,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             let refs = try await Ref.readList(running: commands.run)
             sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run), pins: await Self.pins(in: repository.workTree))
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
-            openedWindows.showLabels(commitColumns.labels)
+            if let contents = sidebar.contents {
+                openedWindows.show(refs: refs, head: snapshot.status.branch.commit, contents: contents, labels: commitColumns.labels)
+            }
             // Once Git has reached the repository, so a folder that's gone isn't written to.
             commitGraph.writeIfMissing()
             clearBackgroundFailure()
@@ -294,6 +302,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
 extension RepositoryWindowController {
     fileprivate func connectSidebar() {
         pinning.window = window
+        sidebar.openInNewWindow = { [weak self] item in self?.historyWindowCommand.open(item) }
         sidebar.onChange = { [weak self] in
             guard let self else { return }
             saveViewState()

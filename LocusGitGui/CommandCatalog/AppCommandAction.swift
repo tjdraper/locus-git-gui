@@ -40,6 +40,7 @@ extension AppCommand {
         case .showSidebar: #selector(NSSplitViewController.toggleSidebar(_:))
         case .filterSidebar: #selector(RepositoryWindowController.filterSidebar(_:))
         case .togglePinInSidebar: #selector(SidebarPinWorkflow.togglePinInSidebar(_:))
+        case .openHistoryInNewWindow: #selector(HistoryWindowCommand.openHistoryInNewWindow(_:))
         case .showToolbar: #selector(NSWindow.toggleToolbarShown(_:))
         case .customizeToolbar: #selector(NSWindow.runToolbarCustomizationPalette(_:))
         case .goToUncommittedChanges: #selector(RepositoryWindowController.goToUncommittedChanges(_:))

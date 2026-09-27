@@ -82,6 +82,7 @@ struct RepositoryViewStateListTests {
         state.openWindows = OpenWindows(
             commits: [.init(commit: "abc", frame: "10 20 720 760 0 0 1512 949 ")],
             files: [.init(commit: nil, file: DiffFile.Identity(group: 2, path: "b.txt"), frame: nil, scroll: nil)],
+            histories: [.init(item: .ref("refs/tags/v1"), frame: nil, place: HistoryPlace(selection: .commit("abc")))],
             workingArea: .init(frame: nil, filter: .unstaged),
             isActivityShown: true
         )
@@ -113,5 +114,19 @@ struct RepositoryViewStateListTests {
         #expect(state.sidebarFilter.isEmpty)
         #expect(state.workingAreaFilter == .all)
         #expect(state.openWindows == OpenWindows())
+    }
+
+    @Test
+    func openWindowsSavedBeforeHistoryWindowsStillRead() throws {
+        // Arrange
+        let json = Data(#"{"commits":[{"commit":"abc"}],"files":[],"isActivityShown":true}"#.utf8)
+
+        // Act
+        let windows = try JSONDecoder().decode(OpenWindows.self, from: json)
+
+        // Assert
+        #expect(windows.commits.map(\.commit) == ["abc"])
+        #expect(windows.histories.isEmpty)
+        #expect(windows.isActivityShown)
     }
 }

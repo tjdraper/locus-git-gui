@@ -1,7 +1,7 @@
 import AppKit
 
-/// The windows opened from a repository's window: its commits', its files', its working area's and
-/// its Activity. They name the repository as its tab does, keep up with its refreshes, close with
+/// The windows opened from a repository's window: its commits', its files', its branches' and
+/// other histories, its working area's and its Activity. They name the repository as its tab does, keep up with its refreshes, close with
 /// it, and open again with it, where they were left.
 final class OpenedWindowsCoordinator {
     /// Brings the repository's window forward to show something in its sidebar.
@@ -20,6 +20,7 @@ final class OpenedWindowsCoordinator {
     private var repositoryName: String
     private let commits: CommitWindowCoordinator
     private let files: FileWindowCoordinator
+    private let histories: HistoryWindowCoordinator
     private let workingArea: WorkingAreaWindowCoordinator
     private let activity: ActivityWindowPresenter
 
@@ -41,6 +42,12 @@ final class OpenedWindowsCoordinator {
             repositoryWindow: repositoryWindow
         )
         files = FileWindowCoordinator(commands: commands, diffOptions: diffOptions, repositoryWindow: repositoryWindow)
+        histories = HistoryWindowCoordinator(
+            commands: commands,
+            diffOptions: diffOptions,
+            diffPlaces: diffPlaces,
+            repositoryWindow: repositoryWindow
+        )
         workingArea = WorkingAreaWindowCoordinator(
             commands: commands,
             diffOptions: diffOptions,
@@ -53,6 +60,10 @@ final class OpenedWindowsCoordinator {
         commits.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.showFailure = { [weak self] failure, window, retry in self?.showFailure?(failure, window, retry) }
+        histories.reveal = { [weak self] id in self?.reveal?(id) }
+        histories.openCommit = { [weak self] commit, window in self?.openCommit(commit, from: window) }
+        histories.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
+        histories.onChange = { [weak self] in self?.windowsChanged() }
         commits.onChange = { [weak self] in self?.windowsChanged() }
         files.onChange = { [weak self] in self?.windowsChanged() }
         workingArea.onChange = { [weak self] in self?.windowsChanged() }
@@ -66,6 +77,7 @@ final class OpenedWindowsCoordinator {
         return OpenWindows(
             commits: commits.records,
             files: files.records,
+            histories: histories.records,
             workingArea: workingArea.record,
             isActivityShown: activity.isShown
         )
@@ -88,6 +100,10 @@ final class OpenedWindowsCoordinator {
         files.show(request, from: window, repositoryName: repositoryName)
     }
 
+    func openHistory(of item: SidebarItemID, from window: NSWindow?) {
+        histories.show(item, from: window, repositoryName: repositoryName)
+    }
+
     func openWorkingArea(from window: NSWindow?) {
         workingArea.show(from: window, repositoryName: repositoryName)
     }
@@ -100,6 +116,7 @@ final class OpenedWindowsCoordinator {
         repositoryName = name
         commits.showRepositoryName(name)
         files.showRepositoryName(name)
+        histories.showRepositoryName(name)
         workingArea.showRepositoryName(name)
         activity.showRepositoryName(name)
     }
@@ -112,8 +129,10 @@ final class OpenedWindowsCoordinator {
         }
     }
 
-    func showLabels(_ labels: [String: [CommitRefLabel]]) {
+    /// After every refresh, once the repository's refs have been read.
+    func show(refs: [Ref], head: String?, contents: SidebarContents, labels: [String: [CommitRefLabel]]) {
         commits.showLabels(labels)
+        histories.show(refs: refs, head: head, contents: contents, labels: labels)
     }
 
     func closeAll() {
@@ -121,6 +140,7 @@ final class OpenedWindowsCoordinator {
         activity.close()
         commits.closeAll()
         files.closeAll()
+        histories.closeAll()
         workingArea.close()
     }
 
@@ -134,6 +154,9 @@ final class OpenedWindowsCoordinator {
         }
         if record.isActivityShown {
             activity.show()
+        }
+        for historyRecord in record.histories {
+            histories.show(historyRecord.item, from: window, repositoryName: repositoryName, record: historyRecord)
         }
         let changes = record.files.contains { $0.commit == nil } ? workingAreaFiles() : []
         for fileRecord in record.files where fileRecord.commit == nil {

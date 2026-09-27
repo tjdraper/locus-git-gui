@@ -41,6 +41,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case showSidebar
     case filterSidebar
     case togglePinInSidebar
+    case openHistoryInNewWindow
     case showToolbar
     case customizeToolbar
     case goToUncommittedChanges
@@ -120,6 +121,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .showSidebar: "Show Sidebar"
         case .filterSidebar: "Filter Sidebar"
         case .togglePinInSidebar: "Pin in Sidebar"
+        case .openHistoryInNewWindow: "Open History in New Window"
         case .showToolbar: "Show Toolbar"
         case .customizeToolbar: "Customize Toolbar…"
         case .goToUncommittedChanges: "Go to Uncommitted Changes"

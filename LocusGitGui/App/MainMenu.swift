@@ -73,7 +73,7 @@ enum MainMenu {
         submenu(named: "View", items: [
             owned.commandPalette,
             [.separator()],
-            items(.showSidebar, .filterSidebar, .togglePinInSidebar, .showToolbar, .customizeToolbar),
+            items(.showSidebar, .filterSidebar, .togglePinInSidebar, .openHistoryInNewWindow, .showToolbar, .customizeToolbar),
             [.separator()],
             items(.goToUncommittedChanges, .openUncommittedChangesWindow),
             owned.goTo,

@@ -31,6 +31,8 @@ final class SidebarModel {
     @ObservationIgnored var onChange: (() -> Void)?
     /// For the pins to be written to the repository.
     @ObservationIgnored var onPinsChange: ((SidebarPins) -> Void)?
+    /// An item's history in a window of its own, from the item's context menu.
+    @ObservationIgnored var openInNewWindow: ((SidebarItemID) -> Void)?
     @ObservationIgnored private var typeSelect = SidebarTypeSelect()
 
     init(state: RepositoryViewState) {

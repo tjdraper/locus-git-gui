@@ -60,9 +60,14 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .contextMenu(forSelectionType: SidebarItemID.self) { ids in
-            if ids.count == 1, let id = ids.first, SidebarPins.canPin(id) {
-                Button(SidebarPinWorkflow.title(isPinned: model.pins.contains(id))) {
-                    model.togglePin(id)
+            if ids.count == 1, let id = ids.first {
+                Button(AppCommand.openCommitInNewWindow.title) {
+                    model.openInNewWindow?(id)
+                }
+                if SidebarPins.canPin(id) {
+                    Button(SidebarPinWorkflow.title(isPinned: model.pins.contains(id))) {
+                        model.togglePin(id)
+                    }
                 }
             }
         }
