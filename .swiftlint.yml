@@ -1,5 +1,6 @@
 included:
   - LocusGitGui
+  - LocusGitGuiAskpass
   - LocusGitGuiTests
 
 excluded:

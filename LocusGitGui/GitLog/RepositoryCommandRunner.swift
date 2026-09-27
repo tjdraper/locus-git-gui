@@ -9,12 +9,22 @@ final class RepositoryCommandRunner {
     let log: GitCommandLog
     private let gitChoice: GitChoiceStore
     private let checkForMissingGit: () -> Void
+    /// Where Git runs, which is the working tree except for a clone, which runs in the folder the
+    /// repository is made in.
+    private let directory: URL
 
-    init(repository: Repository, log: GitCommandLog, gitChoice: GitChoiceStore, checkForMissingGit: @escaping () -> Void) {
+    init(
+        repository: Repository,
+        log: GitCommandLog,
+        gitChoice: GitChoiceStore,
+        checkForMissingGit: @escaping () -> Void,
+        directory: URL? = nil
+    ) {
         self.repository = repository
         self.log = log
         self.gitChoice = gitChoice
         self.checkForMissingGit = checkForMissingGit
+        self.directory = directory ?? repository.workTree
     }
 
     func run(_ command: GitCommand) async throws -> ChildProcess.Result {
@@ -29,6 +39,14 @@ final class RepositoryCommandRunner {
                 return (try await runner.run(command, in: directory), ())
             }
             return (try await Self.collect(runner.stream(command, in: directory), onOutput: onOutput), ())
+        }.result
+    }
+
+    /// Hands `onProgress` how far Git has got, from what it writes with `--progress`, each time the
+    /// phase or the percentage changes.
+    func run(_ command: GitCommand, onProgress: @escaping (GitProgress) -> Void) async throws -> ChildProcess.Result {
+        try await perform(command) { runner, directory in
+            (try await Self.collect(runner.stream(command, in: directory), onProgress: onProgress), ())
         }.result
     }
 
@@ -61,7 +79,6 @@ final class RepositoryCommandRunner {
         }
 
         // Run as a task of its own, so the Activity window can cancel it as well as its caller.
-        let directory = repository.workTree
         let task = Task {
             try await body(runner, directory)
         }
@@ -112,17 +129,24 @@ final class RepositoryCommandRunner {
 
     private static func collect(
         _ events: AsyncThrowingStream<ChildProcess.Event, any Error>,
-        onOutput: (Data) -> Void
+        onOutput: ((Data) -> Void)? = nil,
+        onProgress: ((GitProgress) -> Void)? = nil
     ) async throws -> ChildProcess.Result {
         var standardOutput = Data()
         var standardError = Data()
+        var progressReader = GitProgress.Reader()
+        var lastProgress: GitProgress?
         for try await event in events {
             switch event {
             case let .standardOutput(data):
                 standardOutput.append(data)
-                onOutput(data)
+                onOutput?(data)
             case let .standardError(data):
                 standardError.append(data)
+                if let onProgress, let progress = progressReader.consume(data), !progress.looksTheSame(as: lastProgress) {
+                    lastProgress = progress
+                    onProgress(progress)
+                }
             case let .exited(status):
                 return ChildProcess.Result(status: status, standardOutput: standardOutput, standardError: standardError)
             }

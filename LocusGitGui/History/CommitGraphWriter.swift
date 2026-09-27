@@ -21,6 +21,7 @@ final class CommitGraphWriter {
     private let repository: Repository
     private let run: (GitCommand) async throws -> ChildProcess.Result
     private var writing: Task<Void, Never>?
+    private var layering: Task<Void, Never>?
 
     init(repository: Repository, run: @escaping (GitCommand) async throws -> ChildProcess.Result) {
         self.repository = repository
@@ -43,6 +44,25 @@ final class CommitGraphWriter {
             } catch {
                 // A cache the app can do without, and the Activity window shows what went wrong.
                 Self.log.error("Writing a commit-graph failed: \(String(describing: type(of: error)), privacy: .public)")
+            }
+        }
+    }
+
+    /// After a fetch or pull, which can bring in thousands of commits Git doesn't add to the file
+    /// itself. A small layer goes on top for them. A repository without the file is left to
+    /// `writeIfMissing`.
+    func addLayer() {
+        guard layering == nil else { return }
+        layering = Task { [weak self, repository, run] in
+            defer { self?.layering = nil }
+            do {
+                guard try await !Self.isMissing(in: repository, running: run), await Self.waitForOtherGit(in: repository) else { return }
+                let started = ContinuousClock.now
+                let result = try await run(Self.writeCommand)
+                let elapsed = ContinuousClock.now - started
+                Self.log.info("Added a commit-graph layer in \(elapsed, privacy: .public), exit \(result.status, privacy: .public)")
+            } catch {
+                Self.log.error("Adding a commit-graph layer failed: \(String(describing: type(of: error)), privacy: .public)")
             }
         }
     }

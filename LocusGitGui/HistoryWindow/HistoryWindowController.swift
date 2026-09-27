@@ -150,7 +150,7 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
             return detail.diff
         }
         if RepositoryWindowController.repositoryActions.contains(action) {
-            return repositoryWindow
+            return repositoryWindow?.repositoryTarget(for: action)
         }
         return super.supplementalTarget(forAction: action, sender: sender)
     }

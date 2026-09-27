@@ -13,6 +13,10 @@ enum MainMenu {
         let commandPalette: [NSMenuItem]
         let goTo: [NSMenuItem]
         let commitGoTo: [NSMenuItem]
+        let fetchPreferences: [NSMenuItem]
+        let fetchVariants: [NSMenuItem]
+        let remoteChoices: [NSMenuItem]
+        let tagChoices: [NSMenuItem]
     }
 
     static func install(appName: String, items owned: OwnedItems) {
@@ -30,7 +34,7 @@ enum MainMenu {
         ]))
 
         main.addItem(submenu(named: "File", items: [
-            items(.newTab, .open),
+            items(.newTab, .open, .cloneRepository, .createRepository),
             [owned.openRecent, .separator()],
             items(.showDashboard),
             owned.dashboardFile,
@@ -50,6 +54,7 @@ enum MainMenu {
 
         main.addItem(viewMenu(owned))
         main.addItem(commitMenu(owned))
+        main.addItem(remoteMenu(owned))
 
         let windowMenu = submenu(named: "Window", items: [
             items(.minimize, .zoom),
@@ -104,6 +109,21 @@ enum MainMenu {
             owned.commitGoTo,
             [.separator()],
             items(.showFullMessage),
+        ])
+    }
+
+    private static func remoteMenu(_ owned: OwnedItems) -> NSMenuItem {
+        submenu(named: "Remote", items: [
+            items(.fetch),
+            owned.fetchVariants,
+            items(.pull, .push, .forcePush),
+            [.separator()],
+            owned.fetchPreferences,
+            [.separator()],
+            items(.addRemote),
+            owned.remoteChoices,
+            [.separator()],
+            owned.tagChoices,
         ])
     }
 

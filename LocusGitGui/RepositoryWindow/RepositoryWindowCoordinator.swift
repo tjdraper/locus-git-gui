@@ -10,6 +10,8 @@ final class RepositoryWindowCoordinator {
     private let logs: GitCommandLogs
     private let recents: RecentRepositoryStore
     private let viewStates: RepositoryViewStateStore
+    private let askpass: AskpassServer
+    private let fetchPreferences: FetchPreferences
     private let checkForMissingGit: () -> Void
     private let lastWindowClosed: () -> Void
     private var controllers: [String: RepositoryWindowController] = [:]
@@ -19,6 +21,8 @@ final class RepositoryWindowCoordinator {
         logs: GitCommandLogs,
         recents: RecentRepositoryStore,
         viewStates: RepositoryViewStateStore,
+        askpass: AskpassServer,
+        fetchPreferences: FetchPreferences,
         checkForMissingGit: @escaping () -> Void,
         lastWindowClosed: @escaping () -> Void
     ) {
@@ -26,6 +30,8 @@ final class RepositoryWindowCoordinator {
         self.logs = logs
         self.recents = recents
         self.viewStates = viewStates
+        self.askpass = askpass
+        self.fetchPreferences = fetchPreferences
         self.checkForMissingGit = checkForMissingGit
         self.lastWindowClosed = lastWindowClosed
     }
@@ -86,7 +92,9 @@ final class RepositoryWindowCoordinator {
                 checkForMissingGit: checkForMissingGit
             ),
             displayName: recents.entries.first { $0.id == repository.id }?.displayName,
-            viewStates: viewStates
+            viewStates: viewStates,
+            askpass: askpass,
+            fetchPreferences: fetchPreferences
         )
         controller.onDisplayNameRead = { [weak self] displayName in
             self?.recents.setDisplayName(displayName, for: repository)

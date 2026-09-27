@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 struct GitEnvironmentTests {
@@ -53,5 +54,40 @@ struct GitEnvironmentTests {
         #expect(variables["LC_CTYPE"] == "de_DE.UTF-8")
         #expect(variables["LC_COLLATE"] == "de_DE.UTF-8")
         #expect(variables["LC_MESSAGES"] == "C")
+    }
+
+    @Test
+    func gitNeverWaitsOnATerminal() {
+        // Arrange
+        let command = GitCommand.reading(["status"])
+
+        // Act
+        let variables = GitEnvironment.variables(for: command, from: [:])
+
+        // Assert
+        #expect(variables["GIT_TERMINAL_PROMPT"] == "0")
+        #expect(variables["GIT_ASKPASS"] == nil)
+        #expect(variables["SSH_ASKPASS"] == nil)
+    }
+
+    @Test
+    func aCommandThatMayAskSendsGitAndSSHToTheHelper() {
+        // Arrange
+        var command = GitCommand.changing(["fetch"])
+        command.askpass = AskpassChannel(
+            helper: URL(filePath: "/Applications/Locus Git Gui.app/Contents/Helpers/LocusGitGuiAskpass"),
+            socket: URL(filePath: "/tmp/askpass.sock"),
+            token: "token"
+        )
+
+        // Act
+        let variables = GitEnvironment.variables(for: command, from: ["SSH_ASKPASS": "/usr/local/bin/other-askpass"])
+
+        // Assert
+        #expect(variables["GIT_ASKPASS"] == "/Applications/Locus Git Gui.app/Contents/Helpers/LocusGitGuiAskpass")
+        #expect(variables["SSH_ASKPASS"] == "/Applications/Locus Git Gui.app/Contents/Helpers/LocusGitGuiAskpass")
+        #expect(variables["SSH_ASKPASS_REQUIRE"] == "force")
+        #expect(variables["LOCUS_ASKPASS_SOCKET"] == "/tmp/askpass.sock")
+        #expect(variables["LOCUS_ASKPASS_TOKEN"] == "token")
     }
 }

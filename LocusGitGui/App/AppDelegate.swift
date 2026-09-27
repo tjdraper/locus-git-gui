@@ -16,11 +16,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let logs = GitCommandLogs()
     private let recents = RecentRepositoryStore()
     private let viewStates = RepositoryViewStateStore()
+    private let askpass = AskpassServer()
+    private let fetchPreferences = FetchPreferences()
     private lazy var repositoryWindows: RepositoryWindowCoordinator = RepositoryWindowCoordinator(
         gitChoice: gitChoice,
         logs: logs,
         recents: recents,
         viewStates: viewStates,
+        askpass: askpass,
+        fetchPreferences: fetchPreferences,
         checkForMissingGit: { [weak self] in self?.checkForMissingGit() },
         lastWindowClosed: { [weak self] in self?.showDashboardWhenGitWorks(isLaunching: false) }
     )
@@ -31,6 +35,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         didOpenRepository: { [weak self] in self?.dashboard.close() },
         showChecklist: { [weak self] in self?.firstRunWindow.show() },
         checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
+    )
+    private lazy var cloning: CloneWindowPresenter = CloneWindowPresenter(
+        gitChoice: gitChoice,
+        logs: logs,
+        askpass: askpass,
+        checkForMissingGit: { [weak self] in self?.checkForMissingGit() },
+        showChecklist: { [weak self] in self?.firstRunWindow.show() },
+        didClone: { [weak self] folder in self?.repositoryOpening.open([folder]) }
+    )
+    private lazy var creation: RepositoryCreationWorkflow = RepositoryCreationWorkflow(
+        gitChoice: gitChoice,
+        logs: logs,
+        checkForMissingGit: { [weak self] in self?.checkForMissingGit() },
+        showChecklist: { [weak self] in self?.firstRunWindow.show() },
+        open: { [weak self] folder in self?.repositoryOpening.open([folder]) }
     )
     private lazy var recentOpener: RecentRepositoryOpener = RecentRepositoryOpener(recents: recents, opening: repositoryOpening)
     private lazy var recentMenus: RecentRepositoryMenus = RecentRepositoryMenus(recents: recents) { [weak self] repository in
@@ -50,7 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             logs: logs,
             checkForMissingGit: { [weak self] in self?.checkForMissingGit() }
         ),
-        showOpenPanel: { [weak self] in self?.repositoryOpening.showOpenPanel() }
+        showOpenPanel: { [weak self] in self?.repositoryOpening.showOpenPanel() },
+        showClone: { [weak self] in self?.cloning.show() },
+        showCreate: { [weak self] in self?.creation.showPanel() }
     )
 
     func applicationDidFinishLaunching(_: Notification) {
@@ -61,8 +82,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             dashboardView: dashboard.viewMenuItems,
             commandPalette: commandPalette.paletteMenuItems,
             goTo: commandPalette.goToMenuItems,
-            commitGoTo: commandPalette.commitGoToMenuItems
+            commitGoTo: commandPalette.commitGoToMenuItems,
+            fetchPreferences: fetchPreferences.menuItems,
+            fetchVariants: fetchPreferences.variantItems,
+            remoteChoices: commandPalette.remoteMenuItems,
+            tagChoices: commandPalette.tagMenuItems
         ))
+        repositoryOpening.showClone = { [weak self] in self?.cloning.show() }
+        repositoryOpening.createRepository = { [weak self] folder in self?.creation.create(in: folder) }
         // Settled before Sparkle starts, which marks every install as launched before.
         let isFirstRun = FirstRunStatus().settleAtLaunch() == .pending
         // Before the updater starts, since accepting the move relaunches from the new location.
@@ -90,6 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
+    }
+
+    func applicationWillTerminate(_: Notification) {
+        askpass.stop()
     }
 
     /// Catches a Git uninstalled or moved while the app was in the background.
@@ -149,6 +180,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Reached through the responder chain from File > Open.
     @objc func openRepository(_: Any?) {
         repositoryOpening.showOpenPanel()
+    }
+
+    /// Reached through the responder chain from File > Clone Repository…, whatever window is in front.
+    @objc func cloneRepository(_: Any?) {
+        cloning.show()
+    }
+
+    /// Reached through the responder chain from File > Create Repository….
+    @objc func createRepository(_: Any?) {
+        creation.showPanel()
     }
 
     /// Reached through the responder chain from File > Show Dashboard, whatever window is in front.

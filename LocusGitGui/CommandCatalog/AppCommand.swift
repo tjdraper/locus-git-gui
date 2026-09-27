@@ -13,6 +13,8 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
 
     case newTab
     case open
+    case cloneRepository
+    case createRepository
     case showDashboard
     case openSelectedRepositories
     case removeSelectedRepositories
@@ -79,6 +81,23 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case revealCommitInSidebar
     case showFullMessage
 
+    case fetch
+    case fetchWithoutOptions
+    case fetchAndPrune
+    case fetchWithTags
+    case pull
+    case push
+    case forcePush
+    case prunesWhenFetching
+    case fetchesTagsWhenFetching
+    case fetchAutomatically
+    case addRemote
+    case fetchFromRemote
+    case editRemote
+    case removeRemote
+    case pushTag
+    case deleteRemoteTag
+
     case minimize
     case zoom
     case bringAllToFront
@@ -95,6 +114,8 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .quit: "Quit Locus Git Gui"
         case .newTab: "New Tab"
         case .open: "Open…"
+        case .cloneRepository: "Clone Repository…"
+        case .createRepository: "Create Repository…"
         case .showDashboard: "Show Dashboard"
         case .openSelectedRepositories: title(count: 1)
         case .removeSelectedRepositories: title(count: 1)
@@ -157,20 +178,26 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToParentCommit: "Go to Parent"
         case .revealCommitInSidebar: "Reveal in Sidebar"
         case .showFullMessage: "Show Full Message"
+        case .fetch: "Fetch"
+        case .fetchWithoutOptions: "Fetch without Pruning or Tags"
+        case .fetchAndPrune: "Fetch and Prune"
+        case .fetchWithTags: "Fetch with Tags"
+        case .prunesWhenFetching: "Prune When Fetching"
+        case .fetchesTagsWhenFetching: "Fetch Tags When Fetching"
+        case .pull: "Pull"
+        case .push: "Push"
+        case .forcePush: "Force Push…"
+        case .fetchAutomatically: "Fetch Automatically"
+        case .addRemote: "Add Remote…"
+        case .fetchFromRemote: "Fetch from Remote…"
+        case .editRemote: "Edit Remote…"
+        case .removeRemote: "Remove Remote…"
+        case .pushTag: "Push Tag…"
+        case .deleteRemoteTag: "Delete Tag from Remote…"
         case .minimize: "Minimize"
         case .zoom: "Zoom"
         case .bringAllToFront: "Bring All to Front"
         case .setupChecklist: "Setup Checklist"
-        }
-    }
-
-    /// Named with how many repositories it acts on, for a command that acts on the dashboard's
-    /// selection.
-    func title(count: Int) -> String {
-        switch self {
-        case .openSelectedRepositories: count > 1 ? "Open \(count) Repositories" : "Open Repository"
-        case .removeSelectedRepositories: count > 1 ? "Remove \(count) Repositories from List" : "Remove Repository from List"
-        default: title
         }
     }
 
@@ -222,8 +249,25 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .stageAll: KeyShortcut("a", [.command, .shift])
         case .unstageAll: KeyShortcut("a", [.command, .option, .shift])
         case .copyCommitHash: KeyShortcut("c", [.command, .shift])
+        // Arrows as the sidebar's counts draw them: down for what's waiting on the remote, up for
+        // what's waiting to go.
+        case .fetch: KeyShortcut("f", [.command, .option, .shift])
+        case .pull: KeyShortcut(KeyShortcut.downArrowKey, [.command, .option, .shift])
+        case .push: KeyShortcut(KeyShortcut.upArrowKey, [.command, .option, .shift])
         case .minimize: KeyShortcut("m")
         default: nil
+        }
+    }
+}
+
+nonisolated extension AppCommand {
+    /// Named with how many repositories it acts on, for a command that acts on the dashboard's
+    /// selection.
+    func title(count: Int) -> String {
+        switch self {
+        case .openSelectedRepositories: count > 1 ? "Open \(count) Repositories" : "Open Repository"
+        case .removeSelectedRepositories: count > 1 ? "Remove \(count) Repositories from List" : "Remove Repository from List"
+        default: title
         }
     }
 

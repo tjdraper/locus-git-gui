@@ -33,6 +33,8 @@ final class SidebarModel {
     @ObservationIgnored var onPinsChange: ((SidebarPins) -> Void)?
     /// An item's history in a window of its own, from the item's context menu.
     @ObservationIgnored var openInNewWindow: ((SidebarItemID) -> Void)?
+    /// A remote's or tag's command from its context menu, such as Fetch from Remote….
+    @ObservationIgnored var perform: ((AppCommand, SidebarItemID) -> Void)?
     @ObservationIgnored private var typeSelect = SidebarTypeSelect()
 
     init(state: RepositoryViewState) {

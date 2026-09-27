@@ -61,14 +61,7 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .contextMenu(forSelectionType: SidebarItemID.self) { ids in
             if ids.count == 1, let id = ids.first {
-                Button(AppCommand.openCommitInNewWindow.title) {
-                    model.openInNewWindow?(id)
-                }
-                if SidebarPins.canPin(id) {
-                    Button(SidebarPinWorkflow.title(isPinned: model.pins.contains(id))) {
-                        model.togglePin(id)
-                    }
-                }
+                menu(for: id)
             }
         }
         .focused($isFocused)
@@ -98,6 +91,38 @@ struct SidebarView: View {
             if model.isFiltering, model.visibleContents?.isEmpty == true {
                 ContentUnavailableView.search(text: model.filter)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func menu(for id: SidebarItemID) -> some View {
+        Button(AppCommand.openCommitInNewWindow.title) {
+            model.openInNewWindow?(id)
+        }
+        if SidebarPins.canPin(id) {
+            Button(SidebarPinWorkflow.title(isPinned: model.pins.contains(id))) {
+                model.togglePin(id)
+            }
+        }
+        let commands = Self.remoteCommands(for: id)
+        if !commands.isEmpty {
+            Divider()
+            ForEach(commands, id: \.self) { command in
+                Button(command.title) {
+                    model.perform?(command, id)
+                }
+            }
+        }
+    }
+
+    private static func remoteCommands(for id: SidebarItemID) -> [AppCommand] {
+        switch id {
+        case .remote:
+            [.fetchFromRemote, .editRemote, .removeRemote]
+        case let .ref(name) where name.hasPrefix("refs/tags/"):
+            [.pushTag, .deleteRemoteTag]
+        case .ref, .stash:
+            []
         }
     }
 

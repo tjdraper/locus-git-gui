@@ -10,14 +10,29 @@ final class GitFailureSheetPresenter {
         repository: Repository,
         on window: NSWindow,
         wasOpenedByUser: Bool,
-        retry: (() -> Void)?
+        retry: (() -> Void)?,
+        nextSteps: GitFailureNextSteps = GitFailureNextSteps()
     ) {
         dismiss()
         let sheet = NSWindow(contentViewController: NSHostingController(rootView: GitFailureSheet(
             failure: failure,
             repository: repository,
             retry: retry,
+            nextSteps: nextSteps,
             wasOpenedByUser: wasOpenedByUser,
+            dismiss: { [weak self] in self?.dismiss() }
+        )))
+        self.sheet = sheet
+        window.beginSheet(sheet)
+    }
+
+    /// Opened by the user from the toolbar warning, when the app failed at more than one thing.
+    func present(_ failures: [GitFailure], repository: Repository, on window: NSWindow, retry: @escaping () -> Void) {
+        dismiss()
+        let sheet = NSWindow(contentViewController: NSHostingController(rootView: GitFailureListSheet(
+            failures: failures,
+            repository: repository,
+            retry: retry,
             dismiss: { [weak self] in self?.dismiss() }
         )))
         self.sheet = sheet

@@ -74,6 +74,28 @@ The timings go in a file beside the repository, since a test's printed output do
 
 In the app, the history logs how long each page took under the `History` category, the diff how long a commit took to read (`CommitDetail`) and to lay out (`DiffView`), and the working area how long its changes took to read (`WorkingArea`) (see Reading the app's log in `AGENTS.md`).
 
+## Credential scenarios
+
+Git and SSH ask for passwords, passphrases and whether to trust a server through the app's askpass helper, which shows each question as a sheet (see Decisions in `Plans/HighLevelPlan.md`). Everyday use is an SSH key already in the agent, which never asks, so the other paths need remotes set up to ask:
+
+```
+Scripts/credential-scenarios.sh start ~/Scratch/credentials
+```
+
+It runs an SSH server on port 2222 and an HTTP server on port 8765, both on 127.0.0.1 and both serving one repository, and makes four clones of it. The SSH clones keep their SSH settings and known hosts in the repository's own `core.sshCommand`, so nothing touches `~/.ssh`. Open a clone in the app and use Remote > Fetch, Pull or Push. The script prints how to push a commit from elsewhere, for a fetch or pull with something to bring in, or a push the remote turns down. `change-host-key` gives the SSH server a new host key, and `stop` stops both servers.
+
+The HTTP server is plain HTTP, since a local HTTPS server needs a certificate the Mac trusts. Git asks for the username and token the same way either way, and the Keychain keeps them the same way. Try one real HTTPS host, such as GitHub with a fine-grained token, before a release.
+
+Each scenario and what should happen:
+
+- **SSH key in the agent** (`ssh-agent`). The first fetch asks to trust the server, since the clone has never met it. After Connect, nothing asks again.
+- **SSH key with a passphrase that isn't in the agent** (`ssh-passphrase`). After the server is trusted, a sheet asks to unlock the key. A wrong passphrase asks again, saying the last one didn't work, and `secret` lets the fetch finish. SSH cuts a key's path at 100 bytes in its question, so a key in a deep folder is called "an SSH key" rather than by its name.
+- **First connection to an unknown host** (either SSH clone). The sheet names the server and shows its fingerprint. Connect adds it to the clone's known hosts file in `server/`, and Cancel stops the fetch and leaves the file empty.
+- **A host whose key has changed**. Fetch in a clone that trusted the server, run `change-host-key`, then fetch again. The fetch fails with a red mark and SSH's warning, and nothing asks to trust the new key. The explanation gives the `ssh-keygen -R` command, quoted, since the host is in brackets.
+- **HTTPS with a token, first time and from the Keychain**. `https-token` has its credential helper turned off, so it asks for the username (`git`) and the token (`good-token`) every time. `https-keychain` keeps whatever helper the Git configuration sets; with `osxkeychain`, which Homebrew's and Apple's Git both set, the first fetch asks and the second asks nothing. Remove what it kept afterwards: `printf 'protocol=http\nhost=127.0.0.1:8765\nusername=git\n\n' | git credential reject`.
+- **HTTPS with a wrong or expired token** (`https-token`). A wrong token fails with Authentication failed, naming the server, and Try Again asks again. Git tells the credential helper to forget a token the server refused, so the Keychain clone asks again too.
+- **Cancelling each prompt**. Cancel on the username, token, host and passphrase sheets each stop the command with no failure sheet, the progress bar goes, Fetch, Pull and Push are enabled again, and `pgrep -fl git` shows nothing left running.
+
 ## Versions and the beta channel
 
 Versions are `YYYY.N` for a release and `YYYY.N.B` for a beta. Betas leading to `2026.4` are numbered `2026.3.1`, `2026.3.2` and so on: each sits above the `2026.3` release and below the `2026.4` it becomes. A year starts its betas at `YYYY.0.1` and its first release at `YYYY.1`.

@@ -1,7 +1,8 @@
 import AppKit
 
 /// A spinner in the repository window's toolbar while the app runs Git there, which opens the
-/// Activity window when clicked.
+/// Activity window when clicked. Its place stays while nothing runs, so the buttons beside it don't
+/// shift every time a refresh starts.
 final class ActivityIndicator: NSObject {
     static let identifier = NSToolbarItem.Identifier("Activity")
 
@@ -12,6 +13,8 @@ final class ActivityIndicator: NSObject {
     private let showActivity: () -> Void
     private let spinner = NSProgressIndicator()
     private weak var item: NSToolbarItem?
+    private weak var button: NSButton?
+    private var isShowing = false
     private var pendingHide: Task<Void, Never>?
 
     init(log: GitCommandLog, showActivity: @escaping () -> Void) {
@@ -27,7 +30,6 @@ final class ActivityIndicator: NSObject {
     func makeItem() -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: Self.identifier)
         item.label = "Activity"
-        item.toolTip = "Git is working in this repository. Click to see what it’s doing."
         let button = NSButton(title: "", target: self, action: #selector(clicked(_:)))
         button.isBordered = false
         button.setAccessibilityLabel("Activity")
@@ -41,8 +43,9 @@ final class ActivityIndicator: NSObject {
             spinner.centerYAnchor.constraint(equalTo: button.centerYAnchor),
         ])
         item.view = button
-        item.isHidden = log.running.isEmpty
         self.item = item
+        self.button = button
+        show(!log.running.isEmpty)
         update()
         return item
     }
@@ -54,19 +57,29 @@ final class ActivityIndicator: NSObject {
     /// Shown the moment a command starts, and hidden only once none has run for a moment.
     private func update() {
         if log.running.isEmpty {
-            guard pendingHide == nil, item?.isHidden == false else { return }
+            guard pendingHide == nil, isShowing else { return }
             pendingHide = Task { [weak self] in
                 try? await Task.sleep(for: Self.lingering)
                 guard !Task.isCancelled, let self else { return }
                 pendingHide = nil
-                item?.isHidden = true
-                spinner.stopAnimation(nil)
+                show(false)
             }
         } else {
             pendingHide?.cancel()
             pendingHide = nil
-            item?.isHidden = false
+            show(true)
+        }
+    }
+
+    /// An empty place while nothing runs, which does nothing when clicked.
+    private func show(_ isShown: Bool) {
+        isShowing = isShown
+        button?.isEnabled = isShown
+        item?.toolTip = isShown ? "Git is working in this repository. Click to see what it’s doing." : nil
+        if isShown {
             spinner.startAnimation(nil)
+        } else {
+            spinner.stopAnimation(nil)
         }
     }
 

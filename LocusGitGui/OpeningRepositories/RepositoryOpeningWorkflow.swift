@@ -2,7 +2,7 @@ import AppKit
 
 /// Opens folders as repositories, from File > Open, the recent list, the Dock, Finder or `open -a`,
 /// and explains the ones that aren't. Each repository it opens goes to the top of the recent list.
-final class RepositoryOpeningWorkflow {
+final class RepositoryOpeningWorkflow: NSObject {
     private enum Outcome {
         case resolved(RepositoryResolution)
         case gitCouldNotStart
@@ -17,6 +17,10 @@ final class RepositoryOpeningWorkflow {
     /// Folders asked for before a usable Git was chosen, opened once one is.
     private var waitingForGit: [URL] = []
     private var openPanel: NSOpenPanel?
+    /// From the Open panel's Clone from Remote… button.
+    var showClone: (() -> Void)?
+    /// From Create Repository Here in the alert for a folder that isn't one.
+    var createRepository: ((URL) -> Void)?
 
     init(
         gitChoice: GitChoiceStore,
@@ -32,6 +36,7 @@ final class RepositoryOpeningWorkflow {
         self.didOpenRepository = didOpenRepository
         self.showChecklist = showChecklist
         self.checkForMissingGit = checkForMissingGit
+        super.init()
     }
 
     func showOpenPanel() {
@@ -46,6 +51,8 @@ final class RepositoryOpeningWorkflow {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
+        panel.accessoryView = cloneButton()
+        panel.isAccessoryViewDisclosed = true
         openPanel = panel
         panel.begin { [weak self] response in
             self?.openPanel = nil
@@ -169,11 +176,38 @@ final class RepositoryOpeningWorkflow {
         if report.offersPrivacySettings {
             alert.addButton(withTitle: "Open Privacy & Security")
             alert.addButton(withTitle: "OK")
+        } else if report.offersCreation != nil {
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Create Repository Here")
         }
         NSApp.activate()
         let response = alert.runModal()
         if report.offersPrivacySettings, response == .alertFirstButtonReturn {
             PrivacySettings.openFilesAndFolders()
+        } else if let folder = report.offersCreation, response == .alertSecondButtonReturn {
+            createRepository?(folder)
         }
+    }
+
+    /// Cloning is another way to get a repository to open, so the panel offers it.
+    private func cloneButton() -> NSView {
+        let button = NSButton(title: "Clone from Remote…", target: nil, action: nil)
+        button.bezelStyle = .push
+        button.target = self
+        button.action = #selector(cloneFromPanel(_:))
+        let container = NSView()
+        button.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            button.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            button.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8),
+        ])
+        return container
+    }
+
+    @objc private func cloneFromPanel(_: Any?) {
+        openPanel?.cancel(nil)
+        showClone?()
     }
 }

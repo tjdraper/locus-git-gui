@@ -28,20 +28,21 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         repositoryWindow: self
     )
     private lazy var commitGraph = CommitGraphWriter(repository: repository, run: commands.run)
+    let remotes: RemotesCoordinator
     private let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
+    private lazy var warning: BackgroundFailureWarning =
+        BackgroundFailureWarning(repository: repository, sheet: failureSheet, toolbar: toolbar)
     private let titleItem: RepositoryTitleItem
-    private lazy var toolbar = RepositoryToolbar(
+    private lazy var toolbar: RepositoryToolbar = RepositoryToolbar(
         title: titleItem,
+        fetchOptions: remotes.makeFetchOptionsMenu(),
         activity: ActivityIndicator(log: commands.log) { [weak self] in self?.openedWindows.showActivity() }
-    ) { [weak self] in self?.showBackgroundFailure() }
+    ) { [weak self] in self?.warning.showDetails(on: self?.window) }
     private lazy var scheduler = RefreshScheduler { [weak self] reason in await self?.refresh(because: reason) }
     private lazy var watcher = RepositoryFileWatcher(repository: repository) { [weak self] in
         self?.scheduler.requestSoon(because: .filesChanged)
     }
-    /// The latest failure of something the app did by itself, shown as the toolbar warning until a
-    /// later attempt succeeds.
-    private var backgroundFailure: GitFailure?
     /// The frame outside full screen, which is the one worth coming back to.
     private var windowFrame: String?
     /// As the tab shows it, which the coordinator works out with the other open repositories'.
@@ -54,7 +55,13 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         detail: commitColumns.detailColumn
     )
 
-    init(commands: RepositoryCommandRunner, displayName: String?, viewStates: RepositoryViewStateStore) {
+    init(
+        commands: RepositoryCommandRunner,
+        displayName: String?,
+        viewStates: RepositoryViewStateStore,
+        askpass: AskpassServer,
+        fetchPreferences: FetchPreferences
+    ) {
         self.commands = commands
         self.viewStates = viewStates
         repository = commands.repository
@@ -76,9 +83,11 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             diffPlaces: diffPlaces,
             viewState: viewState
         )
+        let queue = commitColumns.workingAreaSession.queue
+        remotes = RemotesCoordinator(commands: commands, queue: queue, askpass: askpass, preferences: fetchPreferences)
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
-            history: commitColumns.history,
+            history: HistoryColumnController(history: commitColumns.history, bar: remotes.progressBar),
             detail: commitColumns.detailColumn,
             columns: viewState.columns
         )
@@ -90,6 +99,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         diffOptions.onChange = { [weak self] _ in self?.saveViewState() }
         diffPlaces.onChange = { [weak self] _ in self?.saveViewState() }
         connectCommitColumns(restoring: viewState.openWindows)
+        connectRemotes()
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
         window.onTab = { [weak self, weak window] backward in
             self?.focusCycle.move(from: window?.firstResponder, backward: backward) ?? false
@@ -113,6 +123,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         }
         if HistoryWindowCommand.actions.contains(action) {
             return historyWindowCommand
+        }
+        if let target = remotes.target(forAction: action) {
+            return target
         }
         return commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
     }
@@ -174,6 +187,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         saveViewState()
         watcher.stop()
         scheduler.cancel()
+        remotes.stop()
         openedWindows.closeAll()
     }
 
@@ -198,38 +212,22 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
             if let contents = sidebar.contents {
                 openedWindows.show(refs: refs, head: snapshot.status.branch.commit, contents: contents, labels: commitColumns.labels)
+                remotes.show(branch: snapshot.status.branch, contents: contents)
             }
+            toolbar.showTracking(ahead: snapshot.status.branch.ahead ?? 0, behind: snapshot.status.branch.behind ?? 0)
             // Once Git has reached the repository, so a folder that's gone isn't written to.
             commitGraph.writeIfMissing()
-            clearBackgroundFailure()
+            warning.clear(.refresh)
             let elapsed = ContinuousClock.now - started
             let files = snapshot.status.files.count
             Self.log.info("Refreshed \(files) files in \(elapsed, privacy: .public) (\(reason.rawValue, privacy: .public))")
-        } catch is CancellationError {
-            return
-        } catch is RepositoryCommandRunner.NoUsableGit {
-            return
-        } catch let failure as GitReadFailure {
-            if failure.command == RepositoryStatus.command {
+        } catch {
+            guard let refreshFailure = RefreshFailure(error) else { return }
+            if refreshFailure.makesStatusUnavailable {
                 show(.unavailable)
             }
-            reportBackgroundFailure(GitFailure(
-                summary: failure.outputWasUnreadable
-                    ? "Locus Git Gui couldn’t read Git’s report on this repository’s \(failure.subject)."
-                    : "Git couldn’t read this repository’s \(failure.subject).",
-                arguments: failure.command.arguments,
-                result: failure.result
-            ))
-        } catch let ChildProcess.Failure.couldNotStart(error) {
-            // Git never ran, so there is no output of its own. The system's reason stands in for it.
-            show(.unavailable)
-            reportBackgroundFailure(GitFailure(
-                summary: "Git couldn’t start in this repository’s folder.",
-                arguments: RepositoryStatus.command.arguments,
-                result: ChildProcess.Result(status: -1, standardOutput: Data(), standardError: Data(error.localizedDescription.utf8))
-            ))
-        } catch {
-            Self.log.error("Refresh failed: \(String(describing: type(of: error)), privacy: .public)")
+            warning.report(refreshFailure.failure, from: .refresh)
+            Self.log.error("Background refresh failed with status \(refreshFailure.failure.result.status, privacy: .public)")
         }
     }
 
@@ -275,25 +273,6 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         window.subtitle = titleBar.subtitle
         titleItem.title.subtitle = titleBar.subtitle
         window.isDocumentEdited = titleBar.isEdited
-    }
-
-    private func reportBackgroundFailure(_ failure: GitFailure) {
-        backgroundFailure = failure
-        toolbar.showWarning(failure.summary)
-        Self.log.error("Background refresh failed with status \(failure.result.status, privacy: .public)")
-    }
-
-    private func clearBackgroundFailure() {
-        guard backgroundFailure != nil else { return }
-        backgroundFailure = nil
-        toolbar.hideWarning()
-    }
-
-    private func showBackgroundFailure() {
-        guard let backgroundFailure else { return }
-        present(backgroundFailure) { [weak self] in
-            self?.scheduler.requestNow(because: .retried)
-        }
     }
 
 }
@@ -390,6 +369,31 @@ extension RepositoryWindowController {
         openWorkingAreaWindow()
     }
 
-    /// Commands the commit, file and working area windows pass on to the repository's window.
-    static let repositoryActions: Set<Selector> = [#selector(openUncommittedChangesWindow(_:)), #selector(showActivity(_:))]
+    /// Commands the repository's other windows pass on to `repositoryTarget(for:)`.
+    static let repositoryActions: Set<Selector> = Set([#selector(openUncommittedChangesWindow(_:)), #selector(showActivity(_:))])
+        .union(RemoteSyncWorkflow.actions)
+        .union(RemoteEditingWorkflow.actions)
+
+    func repositoryTarget(for action: Selector) -> Any {
+        remotes.target(forAction: action) ?? self
+    }
+}
+
+/// Fetching, pulling and pushing, and what the app does after a fetch.
+extension RepositoryWindowController {
+    fileprivate func connectRemotes() {
+        let didFetch = { [weak self] in
+            self?.scheduler.requestNow(because: .commandRan)
+            self?.commitGraph.addLayer()
+        }
+        remotes.connect(window: { [weak self] in self?.window }, failureSheet: failureSheet, warning: warning, didFetch: didFetch)
+        warning.retry = { [weak self] source in
+            switch source {
+            case .refresh: self?.scheduler.requestNow(because: .retried)
+            case .automaticFetch: self?.remotes.sync.fetch(nil, from: self?.window)
+            }
+        }
+        sidebar.perform = { [weak self] command, id in self?.remotes.perform(command, on: id) }
+        remotes.start()
+    }
 }

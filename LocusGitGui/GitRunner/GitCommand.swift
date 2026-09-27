@@ -7,6 +7,9 @@ nonisolated struct GitCommand: Sendable, Equatable {
     /// What Git reads on its standard input, for a command that takes a list there. Nil gives it
     /// nothing to read.
     var input: Data?
+    /// Where Git and SSH ask for a password, passphrase or answer while this command runs. Nil for
+    /// a command that shouldn't ask, which then fails rather than waits.
+    var askpass: AskpassChannel?
 
     static func reading(_ arguments: [String]) -> GitCommand {
         GitCommand(arguments: arguments, isReadOnly: true)

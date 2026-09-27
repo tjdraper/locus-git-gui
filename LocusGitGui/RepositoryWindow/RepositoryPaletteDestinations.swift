@@ -13,7 +13,7 @@ extension RepositoryWindowController: CommandPaletteDestinationSource {
         case .goToStash: kinds = [.stash]
         case .goToParentCommit: return commitColumns.history.parentChoices
         case .revealCommitInSidebar: return commitColumns.history.labelChoices
-        default: return nil
+        default: return remotes.paletteChoices(for: command, selection: sidebar.selection)
         }
         return paletteDestinations.filter { kinds.contains($0.kind) }
     }

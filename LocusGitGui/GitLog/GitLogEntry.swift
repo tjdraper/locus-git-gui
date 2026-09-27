@@ -71,6 +71,10 @@ nonisolated struct GitLogEntry: Identifiable, Equatable, Sendable {
     }
 
     private static func readable(_ data: Data, limit: Int) -> String {
+        // Progress rewrites its line hundreds of times, so it's rendered before the cut, which would
+        // otherwise keep nothing but the first moments of a fetch.
+        // swiftlint:disable:next optional_data_string_conversion
+        let data = data.contains(UInt8(ascii: "\r")) ? Data(TerminalOutput.rendered(String(decoding: data, as: UTF8.self)).utf8) : data
         // Cutting at a byte count can split a character, and a replacement character at the cut is
         // better in a log than losing the whole output to a failed decode.
         // swiftlint:disable:next optional_data_string_conversion

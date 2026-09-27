@@ -1,3 +1,5 @@
+import Foundation
+
 /// The environment one Git command runs with: the user's own, plus what the app needs to read
 /// Git reliably.
 nonisolated enum GitEnvironment {
@@ -10,6 +12,16 @@ nonisolated enum GitEnvironment {
             // Otherwise `status` refreshes the index and takes `index.lock` to do it, which makes a
             // command the user runs in Terminal at the same moment fail.
             variables["GIT_OPTIONAL_LOCKS"] = "0"
+        }
+        // The app has no terminal, so a question Git can't send to the app fails the command.
+        variables["GIT_TERMINAL_PROMPT"] = "0"
+        if let askpass = command.askpass {
+            variables["GIT_ASKPASS"] = askpass.helper.path
+            variables["SSH_ASKPASS"] = askpass.helper.path
+            // Without it, SSH only uses the helper when `DISPLAY` is set, which it isn't on a Mac.
+            variables["SSH_ASKPASS_REQUIRE"] = "force"
+            variables["LOCUS_ASKPASS_SOCKET"] = askpass.socket.path
+            variables["LOCUS_ASKPASS_TOKEN"] = askpass.token
         }
         return variables
     }

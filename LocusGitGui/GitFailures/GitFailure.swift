@@ -16,7 +16,7 @@ nonisolated struct GitFailure: Equatable, Sendable {
     /// as the list of conflicts a merge stops on.
     var output: String {
         [result.standardOutput, result.standardError]
-            .compactMap { String(bytes: $0, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .compactMap { String(bytes: $0, encoding: .utf8).map(TerminalOutput.rendered)?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
     }

@@ -233,7 +233,7 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
             return diff
         }
         if RepositoryWindowController.repositoryActions.contains(action) {
-            return repositoryWindow
+            return repositoryWindow?.repositoryTarget(for: action)
         }
         return super.supplementalTarget(forAction: action, sender: sender)
     }

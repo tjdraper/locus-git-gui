@@ -17,6 +17,8 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
     private let opener: RecentRepositoryOpener
     private let displayNames: DisplayNameWorkflow
     private let showOpenPanel: () -> Void
+    private let showClone: () -> Void
+    private let showCreate: () -> Void
     private var window: DashboardWindow?
     /// The window in front when File > New Tab opened the dashboard.
     private weak var tabHost: NSWindow?
@@ -26,7 +28,9 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         checker: RecentRepositoryChecker,
         opener: RecentRepositoryOpener,
         displayNames: DisplayNameWorkflow,
-        showOpenPanel: @escaping () -> Void
+        showOpenPanel: @escaping () -> Void,
+        showClone: @escaping () -> Void,
+        showCreate: @escaping () -> Void
     ) {
         session = DashboardSession(recents: recents)
         self.recents = recents
@@ -34,6 +38,8 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
         self.opener = opener
         self.displayNames = displayNames
         self.showOpenPanel = showOpenPanel
+        self.showClone = showClone
+        self.showCreate = showCreate
         fileMenuItems = [.separator()] + [
             AppCommand.openSelectedRepositories,
             .removeSelectedRepositories,
@@ -171,6 +177,8 @@ final class DashboardWindowPresenter: NSObject, NSWindowDelegate, NSMenuItemVali
                 setDisplayName: { [weak self] row in self?.setDisplayName(of: row) },
                 showInFinder: { [weak self] row in self?.showInFinder(row) },
                 showOpenPanel: showOpenPanel,
+                showClone: showClone,
+                showCreate: showCreate,
                 rowAppeared: { [checker] row in checker.rowAppeared(row.repository) },
                 rowDisappeared: { [checker] row in checker.rowDisappeared(row.repository) }
             )

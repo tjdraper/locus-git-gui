@@ -9,6 +9,8 @@ struct DashboardView: View {
         let setDisplayName: (DashboardRow) -> Void
         let showInFinder: (DashboardRow) -> Void
         let showOpenPanel: () -> Void
+        let showClone: () -> Void
+        let showCreate: () -> Void
         let rowAppeared: (DashboardRow) -> Void
         let rowDisappeared: (DashboardRow) -> Void
     }
@@ -104,6 +106,10 @@ struct DashboardView: View {
             if missingCount > 0 {
                 Button("Remove All Missing", action: actions.removeAllMissing)
             }
+            Button("Clone…", systemImage: "square.and.arrow.down", action: actions.showClone)
+                .help(AppCommand.cloneRepository.title)
+            Button("Create…", systemImage: "plus.rectangle.on.folder", action: actions.showCreate)
+                .help(AppCommand.createRepository.title)
             Button("Open…", systemImage: "folder", action: actions.showOpenPanel)
         }
         .padding(.horizontal, 16)

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		6C1B7271305F81D100DDFE7D /* Locus Git Gui.icon in Resources */ = {isa = PBXBuildFile; fileRef = 6C1B7270305F81D100DDFE7D /* Locus Git Gui.icon */; };
 		6C1B7285305F81D100DDFE7D /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 6C1B7284305F81D100DDFE7D /* Sparkle */; };
+		6C1B7309305F81D100DDFE7D /* LocusGitGuiAskpass in Embed Helpers */ = {isa = PBXBuildFile; fileRef = 6C1B7300305F81D100DDFE7D /* LocusGitGuiAskpass */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -19,12 +20,34 @@
 			remoteGlobalIDString = 6C1B723D305F81D000DDFE7D;
 			remoteInfo = "Locus Git Gui";
 		};
+		6C1B730A305F81D100DDFE7D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6C1B7236305F81D000DDFE7D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6C1B7302305F81D100DDFE7D;
+			remoteInfo = LocusGitGuiAskpass;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		6C1B7308305F81D100DDFE7D /* Embed Helpers */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
+			files = (
+				6C1B7309305F81D100DDFE7D /* LocusGitGuiAskpass in Embed Helpers */,
+			);
+			name = "Embed Helpers";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		6C1B723E305F81D000DDFE7D /* Locus Git Gui.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Locus Git Gui.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C1B724B305F81D100DDFE7D /* Locus Git Gui Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Locus Git Gui Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C1B7270305F81D100DDFE7D /* Locus Git Gui.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "Locus Git Gui.icon"; sourceTree = "<group>"; };
+		6C1B7300305F81D100DDFE7D /* LocusGitGuiAskpass */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = LocusGitGuiAskpass; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -44,6 +67,8 @@
 				CommandPalette/CommandPaletteSearch.swift,
 				CommitDetail/CommitDetail.swift,
 				CommitDetail/CommitSignature.swift,
+				Credentials/AskpassChannel.swift,
+				Credentials/CredentialPrompt.swift,
 				Dashboard/DashboardSearch.swift,
 				Dashboard/DashboardSelection.swift,
 				Dashboard/RecentRepositoryState.swift,
@@ -88,8 +113,10 @@
 				GitRunner/ChildProcess.swift,
 				GitRunner/GitCommand.swift,
 				GitRunner/GitEnvironment.swift,
+				GitRunner/GitProgress.swift,
 				GitRunner/GitRunner.swift,
 				GitRunner/LoginShellEnvironment.swift,
+				GitRunner/TerminalOutput.swift,
 				History/CommitGraphLayout.swift,
 				HistoryWindow/HistoryWindowTitle.swift,
 				History/CommitRefLabel.swift,
@@ -102,6 +129,9 @@
 				OpeningRepositories/Repository.swift,
 				OpeningRepositories/RepositoryResolver.swift,
 				RecentRepositories/RecentRepositoryList.swift,
+				Remotes/FetchOptions.swift,
+				Remotes/RemoteCommand.swift,
+				Remotes/RemoteURL.swift,
 				RecentRepositories/RepositoryPresence.swift,
 				RepositoryWindow/OpenWindows.swift,
 				RepositoryWindow/RepositorySnapshot.swift,
@@ -151,6 +181,11 @@
 			path = LocusGitGuiTests;
 			sourceTree = "<group>";
 		};
+		6C1B7301305F81D100DDFE7D /* LocusGitGuiAskpass */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LocusGitGuiAskpass;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,6 +200,11 @@
 			files = (
 			);
 		};
+		6C1B7304305F81D100DDFE7D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -173,6 +213,7 @@
 			children = (
 				6C1B7270305F81D100DDFE7D /* Locus Git Gui.icon */,
 				6C1B7240305F81D000DDFE7D /* LocusGitGui */,
+				6C1B7301305F81D100DDFE7D /* LocusGitGuiAskpass */,
 				6C1B724E305F81D100DDFE7D /* LocusGitGuiTests */,
 				6C1B723F305F81D000DDFE7D /* Products */,
 			);
@@ -183,6 +224,7 @@
 			children = (
 				6C1B723E305F81D000DDFE7D /* Locus Git Gui.app */,
 				6C1B724B305F81D100DDFE7D /* Locus Git Gui Tests.xctest */,
+				6C1B7300305F81D100DDFE7D /* LocusGitGuiAskpass */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -197,11 +239,13 @@
 				6C1B723A305F81D000DDFE7D /* Sources */,
 				6C1B723B305F81D000DDFE7D /* Frameworks */,
 				6C1B723C305F81D000DDFE7D /* Resources */,
+				6C1B7308305F81D100DDFE7D /* Embed Helpers */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				6C1B7286305F81D100DDFE7D /* PBXTargetDependency */,
+				6C1B730B305F81D100DDFE7D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				6C1B7240305F81D000DDFE7D /* LocusGitGui */,
@@ -236,6 +280,26 @@
 			productReference = 6C1B724B305F81D100DDFE7D /* Locus Git Gui Tests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		6C1B7302305F81D100DDFE7D /* LocusGitGuiAskpass */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6C1B7305305F81D100DDFE7D /* Build configuration list for PBXNativeTarget "LocusGitGuiAskpass" */;
+			buildPhases = (
+				6C1B7303305F81D100DDFE7D /* Sources */,
+				6C1B7304305F81D100DDFE7D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6C1B730C305F81D100DDFE7D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6C1B7301305F81D100DDFE7D /* LocusGitGuiAskpass */,
+			);
+			name = LocusGitGuiAskpass;
+			productName = LocusGitGuiAskpass;
+			productReference = 6C1B7300305F81D100DDFE7D /* LocusGitGuiAskpass */;
+			productType = "com.apple.product-type.tool";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -250,6 +314,9 @@
 						CreatedOnToolsVersion = 27.0;
 					};
 					6C1B724A305F81D100DDFE7D = {
+						CreatedOnToolsVersion = 27.0;
+					};
+					6C1B7302305F81D100DDFE7D = {
 						CreatedOnToolsVersion = 27.0;
 					};
 				};
@@ -274,6 +341,7 @@
 			targets = (
 				6C1B723D305F81D000DDFE7D /* Locus Git Gui */,
 				6C1B724A305F81D100DDFE7D /* Locus Git Gui Tests */,
+				6C1B7302305F81D100DDFE7D /* LocusGitGuiAskpass */,
 			);
 		};
 /* End PBXProject section */
@@ -303,6 +371,11 @@
 			files = (
 			);
 		};
+		6C1B7303305F81D100DDFE7D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -318,6 +391,15 @@
 		6C1B7287305F81D100DDFE7D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			productRef = 6C1B7283305F81D100DDFE7D /* SwiftLintBuildToolPlugin */;
+		};
+		6C1B730B305F81D100DDFE7D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6C1B7302305F81D100DDFE7D /* LocusGitGuiAskpass */;
+			targetProxy = 6C1B730A305F81D100DDFE7D /* PBXContainerItemProxy */;
+		};
+		6C1B730C305F81D100DDFE7D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 6C1B730D305F81D100DDFE7D /* SwiftLintBuildToolPlugin */;
 		};
 /* End PBXTargetDependency section */
 
@@ -548,6 +630,48 @@
 			};
 			name = Release;
 		};
+		6C1B7306305F81D100DDFE7D /* Debug configuration for PBXNativeTarget "LocusGitGuiAskpass" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_CODE_COVERAGE = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = 2026.0.2;
+				DEVELOPMENT_TEAM = CQZ49H6WAK;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 2026.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.buzzingpixel.LocusGitGui.Askpass;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		6C1B7307305F81D100DDFE7D /* Release configuration for PBXNativeTarget "LocusGitGuiAskpass" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ENABLE_CODE_COVERAGE = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = 2026.0.2;
+				DEVELOPMENT_TEAM = CQZ49H6WAK;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 2026.0.2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.buzzingpixel.LocusGitGui.Askpass;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -572,6 +696,14 @@
 			buildConfigurations = (
 				6C1B7261305F81D100DDFE7D /* Debug configuration for PBXNativeTarget "Locus Git Gui Tests" */,
 				6C1B7262305F81D100DDFE7D /* Release configuration for PBXNativeTarget "Locus Git Gui Tests" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		6C1B7305305F81D100DDFE7D /* Build configuration list for PBXNativeTarget "LocusGitGuiAskpass" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6C1B7306305F81D100DDFE7D /* Debug configuration for PBXNativeTarget "LocusGitGuiAskpass" */,
+				6C1B7307305F81D100DDFE7D /* Release configuration for PBXNativeTarget "LocusGitGuiAskpass" */,
 			);
 			defaultConfigurationName = Release;
 		};
@@ -611,6 +743,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6C1B7281305F81D100DDFE7D /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		6C1B730D305F81D100DDFE7D /* SwiftLintBuildToolPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6C1B7280305F81D100DDFE7D /* XCRemoteSwiftPackageReference "SwiftLintPlugins" */;
+			productName = "plugin:SwiftLintBuildToolPlugin";
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

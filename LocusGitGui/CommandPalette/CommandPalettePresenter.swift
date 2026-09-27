@@ -10,6 +10,8 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
     let paletteMenuItems: [NSMenuItem]
     let goToMenuItems: [NSMenuItem]
     let commitGoToMenuItems: [NSMenuItem]
+    let remoteMenuItems: [NSMenuItem]
+    let tagMenuItems: [NSMenuItem]
 
     private let defaults: UserDefaults
     private var history: SearchPickHistory
@@ -25,8 +27,10 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         paletteMenuItems = AppCommand.commandPalette.makeMenuItems()
         goToMenuItems = [AppCommand.goToBranch, .goToTag, .goToStash].map { $0.makeMenuItem() }
         commitGoToMenuItems = [AppCommand.goToParentCommit, .revealCommitInSidebar].map { $0.makeMenuItem() }
+        remoteMenuItems = [AppCommand.fetchFromRemote, .editRemote, .removeRemote].map { $0.makeMenuItem() }
+        tagMenuItems = [AppCommand.pushTag, .deleteRemoteTag].map { $0.makeMenuItem() }
         super.init()
-        for item in paletteMenuItems + goToMenuItems + commitGoToMenuItems {
+        for item in paletteMenuItems + goToMenuItems + commitGoToMenuItems + remoteMenuItems + tagMenuItems {
             item.target = self
         }
         panel.onKeyCommand = { [weak self] command in self?.perform(command) ?? false }
@@ -69,6 +73,26 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         goTo(.revealCommitInSidebar)
     }
 
+    @objc func fetchFromRemote(_: Any?) {
+        goTo(.fetchFromRemote)
+    }
+
+    @objc func editRemote(_: Any?) {
+        goTo(.editRemote)
+    }
+
+    @objc func removeRemote(_: Any?) {
+        goTo(.removeRemote)
+    }
+
+    @objc func pushTag(_: Any?) {
+        goTo(.pushTag)
+    }
+
+    @objc func deleteRemoteTag(_: Any?) {
+        goTo(.deleteRemoteTag)
+    }
+
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard NSApp.modalWindow == nil else { return false }
         // A sheet or another panel is in front only for a moment, and its commands aren't the app's.
@@ -94,20 +118,32 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         source?.paletteChoices(for: command) ?? []
     }
 
-    /// A command acting on one commit, such as Go to Parent, goes straight there when there's only
-    /// one place to go. Go to Branch… always asks, since it's a way to search the branches.
+    /// A command acting on one thing, such as Go to Parent or Edit Remote…, goes straight to it
+    /// when there's only the one, such as the remote selected in the sidebar. Go to Branch… always
+    /// asks, since it's a way to search the branches.
     private func goTo(_ command: AppCommand) {
         let choices = choices(for: command)
         if let only = choices.first, choices.count == 1, Self.goesStraightToOnlyChoice(command) {
-            if session != nil {
-                dismiss(restoringFocus: true)
+            switch only.entry(isListedBeforeTyping: true).action {
+            case let .perform(action):
+                if session != nil {
+                    dismiss(restoringFocus: true)
+                }
+                action()
+            case let .ask(makeStep):
+                show(makeStep())
             }
-            only.reveal()
-        } else if let session {
-            session.push(choiceStep(for: command, among: choices))
+        } else {
+            show(choiceStep(for: command, among: choices))
+        }
+    }
+
+    private func show(_ step: CommandPaletteStep) {
+        if let session {
+            session.push(step)
         } else {
             sourceWindow = NSApp.keyWindow
-            open(with: choiceStep(for: command, among: choices))
+            open(with: step)
         }
     }
 
@@ -135,7 +171,7 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
             }
             let choices = choices(for: command)
             if let only = choices.first, choices.count == 1, Self.goesStraightToOnlyChoice(command) {
-                return CommandPaletteEntry(item: entry.item, action: .perform(only.reveal))
+                return CommandPaletteEntry(item: entry.item, action: only.entry(isListedBeforeTyping: false).action)
             }
             let step = choiceStep(for: command, among: choices)
             return CommandPaletteEntry(item: entry.item, action: .ask { step })
@@ -222,10 +258,13 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
     }
 
     private static func asksForChoice(_ command: AppCommand) -> Bool {
-        [.goToBranch, .goToTag, .goToStash, .goToParentCommit, .revealCommitInSidebar].contains(command)
+        [
+            .goToBranch, .goToTag, .goToStash, .goToParentCommit, .revealCommitInSidebar,
+            .fetchFromRemote, .editRemote, .removeRemote, .pushTag, .deleteRemoteTag,
+        ].contains(command)
     }
 
     private static func goesStraightToOnlyChoice(_ command: AppCommand) -> Bool {
-        command == .goToParentCommit || command == .revealCommitInSidebar
+        ![.goToBranch, .goToTag, .goToStash].contains(command)
     }
 }

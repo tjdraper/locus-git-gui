@@ -22,12 +22,15 @@ nonisolated struct OpeningReport: Equatable {
     let messageText: String
     let informativeText: String
     let offersPrivacySettings: Bool
+    /// One folder that isn't a repository, which can be made one.
+    let offersCreation: URL?
 
     init?(folders: [Folder]) {
         guard let first = folders.first else {
             return nil
         }
         offersPrivacySettings = folders.contains { $0.problem == .accessDenied }
+        offersCreation = folders.count == 1 && first.problem == .notRepository ? first.url : nil
         if folders.count == 1 {
             (messageText, informativeText) = Self.describe(first)
         } else {

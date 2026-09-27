@@ -28,6 +28,7 @@ struct OpeningReportTests {
         #expect(report.messageText == "“Notes” isn’t a Git repository")
         #expect(report.informativeText == "~/Projects/Notes")
         #expect(!report.offersPrivacySettings)
+        #expect(report.offersCreation == folder.url)
     }
 
     @Test
@@ -50,5 +51,6 @@ struct OpeningReportTests {
         Locus Git Gui isn’t allowed to read “Site”.
         """))
         #expect(report.offersPrivacySettings)
+        #expect(report.offersCreation == nil)
     }
 }
