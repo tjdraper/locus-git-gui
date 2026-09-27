@@ -18,28 +18,36 @@ final class CommitColumnsCoordinator {
     private(set) var labels: [String: [CommitRefLabel]] = [:]
     var present: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
+    /// Where each sidebar item's history was left, saved with the repository's view state.
+    private(set) var historyPlaces: HistoryPlaceMemory
+    var onHistoryPlacesChange: (() -> Void)?
+
     /// As of the last refresh. Nil until the first.
     private var refs: [Ref]?
     private var head: RepositoryStatus.Branch?
+    /// The sidebar item whose history is shown. Nil for the checked-out branch's, and for none yet
+    /// until `hasShownHistory`.
     private var shownSelection: SidebarItemID?
+    private var hasShownHistory = false
     /// As of the last refresh.
     private var workingAreaSummary: WorkingAreaSummary?
 
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
-        collapsedFiles: CollapsedFilesStore,
-        commitDraft: CommitMessage?
+        diffPlaces: DiffPlaceStore,
+        viewState: RepositoryViewState
     ) {
+        historyPlaces = viewState.historyPlaces
         history = HistoryViewController(list: HistoryList { command, onOutput in
             try await commands.run(command, onOutput: onOutput)
         })
-        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions, collapsedFiles: collapsedFiles)
-        workingAreaSession = WorkingAreaSession(commands: commands, draft: commitDraft)
+        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions, diffPlaces: diffPlaces)
+        workingAreaSession = WorkingAreaSession(commands: commands, draft: viewState.commitDraft)
         workingArea = WorkingAreaViewController(
             commands: commands,
             diffOptions: diffOptions,
-            collapsedFiles: collapsedFiles,
+            diffPlaces: diffPlaces,
             session: workingAreaSession
         )
         detailColumn = DetailColumnController(commit: detail, workingArea: workingArea)
@@ -56,6 +64,13 @@ final class CommitColumnsCoordinator {
                 detailColumn.showWorkingArea(false)
                 detail.show(nil, labels: [])
             }
+        }
+        history.find.restore(text: viewState.findText, field: viewState.findField)
+        workingArea.setFilter(viewState.workingAreaFilter)
+        history.onPlaceChange = { [weak self] place in
+            guard let self, hasShownHistory else { return }
+            self.historyPlaces.set(place, for: shownSelection)
+            onHistoryPlacesChange?()
         }
         history.reveal = { [weak self] id in self?.reveal?(id) }
         history.onOpen = { [weak self] commit in self?.open?(commit) }
@@ -86,11 +101,14 @@ final class CommitColumnsCoordinator {
     /// Whenever the sidebar changes, once the repository has been read.
     func show(selection: SidebarItemID?, contents: SidebarContents?) {
         guard let refs, let head else { return }
+        let isSameSelection = hasShownHistory && selection == shownSelection
         history.show(
             HistoryScope.resolve(selection: selection, refs: refs, contents: contents, head: head.commit),
-            isSameSelection: selection == shownSelection
+            isSameSelection: isSameSelection,
+            place: isSameSelection ? nil : historyPlaces.place(for: selection)
         )
         shownSelection = selection
+        hasShownHistory = true
         history.showWorkingArea(HistoryScope.isCheckedOut(selection: selection, branch: head.name) ? workingAreaSummary : nil)
         labels = CommitRefLabel.byCommit(refs: refs, detachedHead: head.name == nil ? head.commit : nil)
         history.showLabels(labels)

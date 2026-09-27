@@ -73,6 +73,18 @@ struct RepositoryViewStateListTests {
         state.collapsedRemotes = ["origin"]
         state.columns = .init(sidebarWidth: 240, historyWidth: 420, isSidebarCollapsed: true)
         state.windowFrame = "100 200 1200 760 0 0 1512 949 "
+        state.sidebarFilter = "feature"
+        state.findText = "login"
+        state.findField = .author
+        state.workingAreaFilter = .staged
+        state.historyPlaces.set(HistoryPlace(selection: .commit("abc"), topCommit: "def"), for: .ref("refs/heads/main"))
+        state.diffPlaces.set(DiffPlace(collapsed: [DiffFile.Identity(group: nil, path: "a.txt")]), in: .commit("abc"))
+        state.openWindows = OpenWindows(
+            commits: [.init(commit: "abc", frame: "10 20 720 760 0 0 1512 949 ")],
+            files: [.init(commit: nil, file: DiffFile.Identity(group: 2, path: "b.txt"), frame: nil, scroll: nil)],
+            workingArea: .init(frame: nil, filter: .unstaged),
+            isActivityShown: true
+        )
         var list = RepositoryViewStateList()
         list.set(state, for: "/work/website")
 
@@ -98,5 +110,8 @@ struct RepositoryViewStateListTests {
         #expect(state.collapsedRemotes.isEmpty)
         #expect(state.columns == nil)
         #expect(state.windowFrame == nil)
+        #expect(state.sidebarFilter.isEmpty)
+        #expect(state.workingAreaFilter == .all)
+        #expect(state.openWindows == OpenWindows())
     }
 }

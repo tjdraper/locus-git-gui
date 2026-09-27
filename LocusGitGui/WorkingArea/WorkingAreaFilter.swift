@@ -1,6 +1,6 @@
 /// Which of the working area's changes are shown: all of them, only what's staged, or only what
 /// isn't yet, which takes in untracked files and conflicts.
-nonisolated enum WorkingAreaFilter: Int, CaseIterable, Sendable {
+nonisolated enum WorkingAreaFilter: Int, CaseIterable, Codable, Sendable {
     case all
     case staged
     case unstaged

@@ -25,6 +25,13 @@ final class HistoryFindField: NSObject, NSSearchFieldDelegate {
         HistorySearch(text: field.stringValue, field: searchField)
     }
 
+    /// What it was left looking for, before anything has been searched.
+    func restore(text: String, field searchField: HistorySearch.Field) {
+        field.stringValue = text
+        self.searchField = searchField
+        updatePlaceholder()
+    }
+
     func setSearchField(_ searchField: HistorySearch.Field) {
         guard searchField != self.searchField else { return }
         self.searchField = searchField

@@ -6,15 +6,17 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
 
     let detail: CommitDetailViewController
     var onClose: (() -> Void)?
+    /// When the window moves or shows another commit, for the repository to remember.
+    var onChange: (() -> Void)?
     weak var repositoryWindow: RepositoryWindowController?
     private var repositoryName: String
     private let failureSheet = GitFailureSheetPresenter()
     private let repository: Repository
 
-    init(repositoryName: String, commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, collapsedFiles: CollapsedFilesStore) {
+    init(repositoryName: String, commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, diffPlaces: DiffPlaceStore) {
         repository = commands.repository
         self.repositoryName = repositoryName
-        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions, collapsedFiles: collapsedFiles)
+        detail = CommitDetailViewController(commands: commands, diffOptions: diffOptions, diffPlaces: diffPlaces)
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -52,6 +54,7 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
         detail.show(commit, labels: labels)
         window?.title = commit.subject.isEmpty ? "(No message)" : commit.subject
         showSubtitle()
+        onChange?()
     }
 
     func showRepositoryName(_ name: String) {
@@ -67,6 +70,14 @@ final class CommitWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_: Notification) {
         onClose?()
+    }
+
+    func windowDidMove(_: Notification) {
+        onChange?()
+    }
+
+    func windowDidResize(_: Notification) {
+        onChange?()
     }
 
     /// Diff commands reach the diff wherever focus is in the window, and commands for the whole

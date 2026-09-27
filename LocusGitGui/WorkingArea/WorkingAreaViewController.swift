@@ -15,6 +15,8 @@ final class WorkingAreaViewController: NSViewController {
     }
 
     var openFileWindow: ((FileWindowRequest) -> Void)?
+    /// For the window to remember which changes it was left showing.
+    var onFilterChange: (() -> Void)?
 
     let diff: DiffViewController
     let session: WorkingAreaSession
@@ -49,16 +51,18 @@ final class WorkingAreaViewController: NSViewController {
     private var isShown = false
     private var reading: Task<Void, Never>?
     private var failure: GitFailure?
-    private let collapsedFiles: CollapsedFilesStore
+    private let diffPlaces: DiffPlaceStore
+    /// Whether the changes have been shown where they were left, which waits for there to be some.
+    private var hasShownPlace = false
 
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
-        collapsedFiles: CollapsedFilesStore,
+        diffPlaces: DiffPlaceStore,
         session: WorkingAreaSession
     ) {
         self.commands = commands
-        self.collapsedFiles = collapsedFiles
+        self.diffPlaces = diffPlaces
         self.session = session
         diff = DiffViewController(options: diffOptions, workTree: commands.repository.workTree)
         staging = StagingWorkflow(commands: commands, options: diffOptions, queue: session.queue)
@@ -69,7 +73,7 @@ final class WorkingAreaViewController: NSViewController {
             showFailure?(failure) { [weak self] in self?.read() }
         }
         connectDiff()
-        connectCollapsedFiles()
+        connectDiffPlace()
         diffOptions.observe(self) { [weak self] _ in self?.read() }
     }
 
@@ -186,7 +190,6 @@ final class WorkingAreaViewController: NSViewController {
                 failure = nil
                 let collapsed = WorkingAreaCollapse.following(diff.collapsedFiles, from: allFiles, to: files)
                 diff.collapsedFiles = collapsed
-                collapsedFiles.set(collapsed, in: .workingArea)
                 allFiles = files
                 showFiltered()
                 diff.readImagesAgain()
@@ -210,11 +213,15 @@ final class WorkingAreaViewController: NSViewController {
         }
     }
 
-    /// The detail column and the working area window show the same files collapsed.
-    private func connectCollapsedFiles() {
-        diff.collapsedFiles = collapsedFiles.files(in: .workingArea)
-        diff.onCollapsedFilesChange = { [weak self] files in self?.collapsedFiles.set(files, in: .workingArea) }
-        collapsedFiles.observe(self) { [weak self] diff, files in
+    /// Where the working area was left comes back when its changes are first shown. The detail
+    /// column and the working area window show the same files collapsed.
+    private func connectDiffPlace() {
+        diff.collapsedFiles = diffPlaces.place(in: .workingArea).collapsed
+        diff.onPlaceChange = { [weak self] place in
+            guard let self, hasShownPlace else { return }
+            diffPlaces.set(place, in: .workingArea)
+        }
+        diffPlaces.observeCollapsedFiles(self) { [weak self] diff, files in
             guard diff == .workingArea else { return }
             self?.diff.showCollapsedFiles(files)
         }
@@ -223,6 +230,7 @@ final class WorkingAreaViewController: NSViewController {
     func setFilter(_ filter: WorkingAreaFilter) {
         guard filter != self.filter else { return }
         self.filter = filter
+        onFilterChange?()
         filterControl.selectedSegment = filter.rawValue
         showFiltered()
         diff.canvas.scroll(to: 0)
@@ -232,7 +240,14 @@ final class WorkingAreaViewController: NSViewController {
         let shown = allFiles.filter { WorkingAreaGroup($0).map(filter.includes) ?? true }
         let message = allFiles.isEmpty ? WorkingAreaFilter.all.noneShown : filter.noneShown
         guard shown != diff.files || shown.isEmpty else { return }
-        diff.show(shown, emptyMessage: message, isSameDiff: true)
+        guard !hasShownPlace, !shown.isEmpty else {
+            diff.show(shown, emptyMessage: message, isSameDiff: true)
+            return
+        }
+        var place = diffPlaces.place(in: .workingArea)
+        place.collapsed = diff.collapsedFiles
+        diff.show(shown, emptyMessage: message, isSameDiff: false, place: place)
+        hasShownPlace = true
     }
 
     @objc private func filterChosen(_ control: NSSegmentedControl) {

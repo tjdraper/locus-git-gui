@@ -2,6 +2,18 @@ import AppKit
 
 /// The Commit and Find commands, which reach the history from whichever column has focus.
 extension HistoryViewController {
+    func putOnPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    func focusFind(searching field: HistorySearch.Field?) {
+        if let field {
+            find.setSearchField(field)
+        }
+        focusFind()
+    }
+
     /// Edit > Copy with the list focused copies the selected commit's hash.
     @objc func copy(_: Any?) {
         copyCommitHash(nil)

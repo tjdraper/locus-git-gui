@@ -10,16 +10,16 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     var onDisplayNameRead: ((String?) -> Void)?
     private let commands: RepositoryCommandRunner
     private let viewStates: RepositoryViewStateStore
-    private let sidebar: SidebarModel
+    let sidebar: SidebarModel
     private let sidebarView: NSView
     private let pinning: SidebarPinWorkflow
-    private let commitColumns: CommitColumnsCoordinator
+    let commitColumns: CommitColumnsCoordinator
     private let diffOptions: DiffOptionsStore
-    private let collapsedFiles: CollapsedFilesStore
+    private let diffPlaces: DiffPlaceStore
     private lazy var openedWindows = OpenedWindowsCoordinator(
         commands: commands,
         diffOptions: diffOptions,
-        collapsedFiles: collapsedFiles,
+        diffPlaces: diffPlaces,
         session: commitColumns.workingAreaSession,
         repositoryName: name,
         repositoryWindow: self
@@ -62,7 +62,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         sidebar = SidebarModel(state: viewState)
         pinning = SidebarPinWorkflow(sidebar: sidebar, workTree: repository.workTree)
         diffOptions = DiffOptionsStore(options: viewState.diffOptions)
-        collapsedFiles = CollapsedFilesStore(memory: viewState.collapsedFiles)
+        diffPlaces = DiffPlaceStore(memory: viewState.diffPlaces)
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
         // The split view sets the columns' sizes, not SwiftUI.
         sidebarController.sizingOptions = []
@@ -70,8 +70,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         commitColumns = CommitColumnsCoordinator(
             commands: commands,
             diffOptions: diffOptions,
-            collapsedFiles: collapsedFiles,
-            commitDraft: viewState.commitDraft
+            diffPlaces: diffPlaces,
+            viewState: viewState
         )
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
@@ -85,8 +85,8 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         connectSidebar()
         columns.onColumnsChange = { [weak self] in self?.saveViewState() }
         diffOptions.onChange = { [weak self] _ in self?.saveViewState() }
-        collapsedFiles.onChange = { [weak self] _ in self?.saveViewState() }
-        connectCommitColumns()
+        diffPlaces.onChange = { [weak self] _ in self?.saveViewState() }
+        connectCommitColumns(restoring: viewState.openWindows)
         window.onCommandClick = { [titleItem] event in titleItem.showPathMenu(for: event) }
         window.onTab = { [weak self, weak window] backward in
             self?.focusCycle.move(from: window?.firstResponder, backward: backward) ?? false
@@ -112,7 +112,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     }
 
     /// Shows the sidebar first if it's hidden.
-    private func revealInSidebar(_ id: SidebarItemID) {
+    func revealInSidebar(_ id: SidebarItemID) {
         columns.showSidebar()
         sidebar.reveal(id)
     }
@@ -177,7 +177,9 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             let snapshot = try await RepositorySnapshot.read(repository, running: commands.run)
             show(RepositoryTitleBar(status: snapshot.status, operation: snapshot.operation))
             commitColumns.show(snapshot)
-            openedWindows.show(snapshot) { commitColumns.workingArea.files(in: Set(WorkingAreaGroup.allCases)) }
+            let workingAreaFiles = { self.commitColumns.workingArea.files(in: Set(WorkingAreaGroup.allCases)) }
+            openedWindows.show(snapshot, workingAreaFiles: workingAreaFiles)
+            openedWindows.restoreIfNeeded(from: window, workingAreaFiles: workingAreaFiles)
             // Read only once Git has reached the repository, so a folder that's gone or out of
             // reach isn't taken for one whose name was cleared.
             let displayName = await Self.readDisplayName(in: repository.workTree)
@@ -247,9 +249,15 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         state.selection = sidebar.selection
         state.collapsedSections = sidebar.collapsedSections
         state.collapsedRemotes = sidebar.collapsedRemotes
+        state.sidebarFilter = sidebar.filter
+        state.findText = commitColumns.history.findField.stringValue
+        state.findField = commitColumns.history.find.searchField
+        state.workingAreaFilter = commitColumns.workingArea.filter
         state.columns = columns.columns
         state.diffOptions = diffOptions.options
-        state.collapsedFiles = collapsedFiles.memory
+        state.diffPlaces = diffPlaces.memory
+        state.historyPlaces = commitColumns.historyPlaces
+        state.openWindows = openedWindows.openWindows
         state.commitDraft = commitColumns.workingArea.draft
         viewStates.set(state, for: repository)
     }
@@ -293,7 +301,9 @@ extension RepositoryWindowController {
         }
     }
 
-    fileprivate func connectCommitColumns() {
+    fileprivate func connectCommitColumns(restoring openWindows: OpenWindows) {
+        openedWindows.toRestore = openWindows
+        openedWindows.onChange = { [weak self] in self?.saveViewState() }
         commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }
         commitColumns.present = { [weak self] failure, retry in self?.present(failure, retry: retry) }
         commitColumns.open = { [weak self] commit in self?.openedWindows.openCommit(commit, from: self?.window) }
@@ -303,6 +313,9 @@ extension RepositoryWindowController {
         session.queue.presentFailure = { [weak self] failure in self?.presentCommandFailure(failure) }
         session.editor.onDraftChange = { [weak self] _ in self?.saveViewState() }
         commitColumns.openWorkingArea = { [weak self] in self?.openWorkingAreaWindow() }
+        commitColumns.onHistoryPlacesChange = { [weak self] in self?.saveViewState() }
+        commitColumns.history.onFindChange = { [weak self] in self?.saveViewState() }
+        commitColumns.workingArea.onFilterChange = { [weak self] in self?.saveViewState() }
         // Revealing a label from a commit's window brings this window forward to show it.
         openedWindows.reveal = { [weak self] id in
             self?.showWindow(nil)
@@ -370,24 +383,4 @@ extension RepositoryWindowController {
 
     /// Commands the commit, file and working area windows pass on to the repository's window.
     static let repositoryActions: Set<Selector> = [#selector(openUncommittedChangesWindow(_:)), #selector(showActivity(_:))]
-}
-
-extension RepositoryWindowController: CommandPaletteDestinationSource {
-    var paletteDestinations: [CommandPaletteDestination] {
-        guard let contents = sidebar.contents else { return [] }
-        return SidebarPaletteDestinations.make(from: contents) { [weak self] id in self?.revealInSidebar(id) }
-    }
-
-    func paletteChoices(for command: AppCommand) -> [CommandPaletteDestination]? {
-        let kinds: Set<CommandPaletteDestination.Kind>
-        switch command {
-        case .goToBranch: kinds = [.branch, .remoteBranch]
-        case .goToTag: kinds = [.tag]
-        case .goToStash: kinds = [.stash]
-        case .goToParentCommit: return commitColumns.history.parentChoices
-        case .revealCommitInSidebar: return commitColumns.history.labelChoices
-        default: return nil
-        }
-        return paletteDestinations.filter { kinds.contains($0.kind) }
-    }
 }

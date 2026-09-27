@@ -36,13 +36,13 @@ final class CommitDetailViewController: NSViewController {
     private var failure: GitFailure?
     private var reading: Task<Void, Never>?
     private var readingSignature: Task<Void, Never>?
-    private let collapsedFiles: CollapsedFilesStore
+    private let diffPlaces: DiffPlaceStore
     /// The commit whose changes the diff shows, which lags the header's while they're read.
     private var shownHash: String?
 
-    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, collapsedFiles: CollapsedFilesStore) {
+    init(commands: RepositoryCommandRunner, diffOptions: DiffOptionsStore, diffPlaces: DiffPlaceStore) {
         self.commands = commands
-        self.collapsedFiles = collapsedFiles
+        self.diffPlaces = diffPlaces
         diff = DiffViewController(options: diffOptions, workTree: commands.repository.workTree)
         super.init(nibName: nil, bundle: nil)
         placeholder.showDetails = { [weak self] in
@@ -57,7 +57,7 @@ final class CommitDetailViewController: NSViewController {
             openFileWindow?(FileWindowRequest(source: .commit(commit), file: file, files: diff.files))
         }
         diffOptions.observe(self) { [weak self] _ in self?.read(isSameDiff: true) }
-        connectCollapsedFiles()
+        connectDiffPlace()
     }
 
     @available(*, unavailable)
@@ -139,8 +139,9 @@ final class CommitDetailViewController: NSViewController {
         header.body = nil
         header.signature = nil
         header.isSignatureUnavailable = false
-        shownHash = nil
+        // Cleared first, so the diff's place is told while it's still this commit's.
         diff.clear()
+        shownHash = nil
         read()
         readingSignature?.cancel()
         if let hash = commit?.hash {
@@ -219,13 +220,14 @@ final class CommitDetailViewController: NSViewController {
         diff.readFile = { [commands, options = diff.options] file in
             try await CommitDetail.readFile(file.changed, of: hash, options: options.options, readingPatch: commands.readPatch)
         }
-        shownHash = hash
         diff.show(
             detail.files,
             emptyMessage: "This commit changes no files.",
             isSameDiff: isSameDiff,
-            collapsed: collapsedFiles.files(in: .commit(hash))
+            place: diffPlaces.place(in: .commit(hash))
         )
+        // Set once the diff has told where the one before was left.
+        shownHash = hash
         updatePlaceholder()
     }
 
@@ -311,12 +313,12 @@ extension CommitDetailViewController: NSMenuItemValidation {
 
 extension CommitDetailViewController {
     /// Kept per commit, so going back to a commit shows it as it was left.
-    fileprivate func connectCollapsedFiles() {
-        diff.onCollapsedFilesChange = { [weak self] files in
+    fileprivate func connectDiffPlace() {
+        diff.onPlaceChange = { [weak self] place in
             guard let self, let shownHash else { return }
-            collapsedFiles.set(files, in: .commit(shownHash))
+            diffPlaces.set(place, in: .commit(shownHash))
         }
-        collapsedFiles.observe(self) { [weak self] diff, files in
+        diffPlaces.observeCollapsedFiles(self) { [weak self] diff, files in
             guard let self, let shownHash, diff == .commit(shownHash) else { return }
             self.diff.showCollapsedFiles(files)
         }

@@ -2,16 +2,33 @@ import Foundation
 
 /// A place in a diff that survives its rows being built again: a row, and how far down that row the
 /// top of the view is. Collapsing a file or going side by side changes which rows there are, so
-/// it's found again by its file and its place in the file.
-nonisolated struct DiffScrollAnchor: Equatable, Sendable {
+/// it's found again by its file and its place in the file. Saved with a diff's place, so it holds
+/// only what outlasts the diff being read again.
+nonisolated struct DiffScrollAnchor: Codable, Equatable, Sendable {
+    /// A row's place in its file, by hunk and then by line, which is the same in every style.
+    struct Position: Codable, Comparable, Sendable {
+        let hunk: Int
+        let line: Int
+
+        static func < (lhs: Position, rhs: Position) -> Bool {
+            (lhs.hunk, lhs.line) < (rhs.hunk, rhs.line)
+        }
+    }
+
     let file: DiffFile.Identity
-    let block: DiffDocument.Block
+    let position: Position
     let offset: Double
+
+    init(file: DiffFile.Identity, position: Position, offset: Double) {
+        self.file = file
+        self.position = position
+        self.offset = offset
+    }
 
     init?(top: Double, document: DiffDocument, layout: DiffLayout, files: [DiffFile]) {
         guard let block = layout.block(atY: top), files.indices.contains(document.blocks[block].file) else { return nil }
         file = files[document.blocks[block].file].id
-        self.block = document.blocks[block]
+        position = Self.position(of: document.blocks[block])
         offset = top - layout.top(of: block)
     }
 
@@ -24,21 +41,20 @@ nonisolated struct DiffScrollAnchor: Equatable, Sendable {
         let start = isAbove ? header - 1 : header
         let end = document.fileEnds[index]
         var target = header
-        for index in start ..< end where Self.position(of: document.blocks[index]) <= Self.position(of: block) {
+        for index in start ..< end where Self.position(of: document.blocks[index]) <= position {
             target = index
         }
         let frame = layout.frame(of: target)
         return frame.minY + min(offset, frame.maxY - frame.minY)
     }
 
-    /// Orders a file's rows the same way in every style: by hunk, then by line.
-    private static func position(of block: DiffDocument.Block) -> (Int, Int) {
+    private static func position(of block: DiffDocument.Block) -> Position {
         switch block {
-        case .group, .gap: (-2, 0)
-        case .header: (-1, 0)
-        case .notice, .images: (-1, 1)
-        case let .hunk(_, hunk): (hunk, -1)
-        case let .lines(_, hunk, left, right): (hunk, left ?? right ?? 0)
+        case .group, .gap: Position(hunk: -2, line: 0)
+        case .header: Position(hunk: -1, line: 0)
+        case .notice, .images: Position(hunk: -1, line: 1)
+        case let .hunk(_, hunk): Position(hunk: hunk, line: -1)
+        case let .lines(_, hunk, left, right): Position(hunk: hunk, line: left ?? right ?? 0)
         }
     }
 }

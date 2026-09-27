@@ -8,9 +8,11 @@ final class CommitWindowCoordinator {
 
     var reveal: ((SidebarItemID) -> Void)?
     var openFileWindow: ((FileWindowRequest, NSWindow?) -> Void)?
+    /// When a window opens, closes, moves or shows another commit.
+    var onChange: (() -> Void)?
     private let commands: RepositoryCommandRunner
     private let diffOptions: DiffOptionsStore
-    private let collapsedFiles: CollapsedFilesStore
+    private let diffPlaces: DiffPlaceStore
     private var controllers: [CommitWindowController] = []
     private var labels: [String: [CommitRefLabel]] = [:]
     private weak var repositoryWindow: RepositoryWindowController?
@@ -18,17 +20,17 @@ final class CommitWindowCoordinator {
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
-        collapsedFiles: CollapsedFilesStore,
+        diffPlaces: DiffPlaceStore,
         repositoryWindow: RepositoryWindowController
     ) {
         self.commands = commands
         self.diffOptions = diffOptions
-        self.collapsedFiles = collapsedFiles
+        self.diffPlaces = diffPlaces
         self.repositoryWindow = repositoryWindow
     }
 
-    /// Cascaded from the repository's window, so it's clear which repository it came from.
-    func show(_ commit: Commit, from repositoryWindow: NSWindow?, repositoryName: String) {
+    /// Where it was left when `frame` says, and otherwise cascaded from the one in front.
+    func show(_ commit: Commit, from repositoryWindow: NSWindow?, repositoryName: String, frame: String? = nil) {
         if let existing = controller(showing: commit.hash) {
             existing.showWindow(nil)
             return
@@ -37,7 +39,7 @@ final class CommitWindowCoordinator {
             repositoryName: repositoryName,
             commands: commands,
             diffOptions: diffOptions,
-            collapsedFiles: collapsedFiles
+            diffPlaces: diffPlaces
         )
         controller.repositoryWindow = self.repositoryWindow
         controller.detail.reveal = { [weak self] item in self?.reveal?(item) }
@@ -50,19 +52,22 @@ final class CommitWindowCoordinator {
         }
         controller.onClose = { [weak self, weak controller] in
             self?.controllers.removeAll { $0 === controller }
+            self?.onChange?()
         }
         controller.show(commit, labels: labels[commit.hash] ?? [])
         controllers.append(controller)
         if let window = controller.window {
-            let front = controllers.dropLast().last?.window ?? repositoryWindow
-            if let front {
-                let topLeft = window.cascadeTopLeft(from: NSPoint(x: front.frame.minX, y: front.frame.maxY))
-                window.cascadeTopLeft(from: topLeft)
-            } else {
-                window.center()
-            }
+            OpenedWindowPlacement.place(window, at: frame, cascadingFrom: controllers.dropLast().last?.window ?? repositoryWindow)
         }
         controller.showWindow(nil)
+        controller.onChange = { [weak self] in self?.onChange?() }
+        onChange?()
+    }
+
+    var records: [OpenWindows.CommitWindow] {
+        controllers.compactMap { controller in
+            controller.commit.map { OpenWindows.CommitWindow(commit: $0.hash, frame: controller.window?.frameDescriptor) }
+        }
     }
 
     func showRepositoryName(_ name: String) {

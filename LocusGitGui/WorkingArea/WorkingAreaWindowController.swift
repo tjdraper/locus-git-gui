@@ -7,6 +7,8 @@ final class WorkingAreaWindowController: NSWindowController, NSWindowDelegate {
 
     let workingArea: WorkingAreaViewController
     var onClose: (() -> Void)?
+    /// When the window moves or shows other changes, for the repository to remember.
+    var onChange: (() -> Void)?
     weak var repositoryWindow: RepositoryWindowController?
 
     init(workingArea: WorkingAreaViewController, repositoryName: String) {
@@ -42,6 +44,14 @@ final class WorkingAreaWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_: Notification) {
         workingArea.setShown(false)
         onClose?()
+    }
+
+    func windowDidMove(_: Notification) {
+        onChange?()
+    }
+
+    func windowDidResize(_: Notification) {
+        onChange?()
     }
 
     /// The working area's and the diff's commands reach them wherever focus is in the window, and

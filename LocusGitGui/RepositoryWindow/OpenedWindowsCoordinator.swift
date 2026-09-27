@@ -1,12 +1,22 @@
 import AppKit
 
 /// The windows opened from a repository's window: its commits', its files', its working area's and
-/// its Activity. They name the repository as its tab does, keep up with its refreshes, and close
-/// with it.
+/// its Activity. They name the repository as its tab does, keep up with its refreshes, close with
+/// it, and open again with it, where they were left.
 final class OpenedWindowsCoordinator {
     /// Brings the repository's window forward to show something in its sidebar.
     var reveal: ((SidebarItemID) -> Void)?
     var showFailure: ((GitFailure, NSWindow, _ retry: @escaping () -> Void) -> Void)?
+    /// When a window opens, closes, moves or shows something else, for the repository to remember.
+    var onChange: (() -> Void)?
+    /// The windows to open again once the repository has been read, which stand for the open windows
+    /// until they have been.
+    var toRestore: OpenWindows?
+    private var isRestoring = false
+    /// While the repository's window closes them, which isn't the user closing them one at a time.
+    private var isClosingAll = false
+    private let commands: RepositoryCommandRunner
+    private let diffOptions: DiffOptionsStore
     private var repositoryName: String
     private let commits: CommitWindowCoordinator
     private let files: FileWindowCoordinator
@@ -16,23 +26,25 @@ final class OpenedWindowsCoordinator {
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
-        collapsedFiles: CollapsedFilesStore,
+        diffPlaces: DiffPlaceStore,
         session: WorkingAreaSession,
         repositoryName: String,
         repositoryWindow: RepositoryWindowController
     ) {
         self.repositoryName = repositoryName
+        self.commands = commands
+        self.diffOptions = diffOptions
         commits = CommitWindowCoordinator(
             commands: commands,
             diffOptions: diffOptions,
-            collapsedFiles: collapsedFiles,
+            diffPlaces: diffPlaces,
             repositoryWindow: repositoryWindow
         )
         files = FileWindowCoordinator(commands: commands, diffOptions: diffOptions, repositoryWindow: repositoryWindow)
         workingArea = WorkingAreaWindowCoordinator(
             commands: commands,
             diffOptions: diffOptions,
-            collapsedFiles: collapsedFiles,
+            diffPlaces: diffPlaces,
             session: session,
             repositoryWindow: repositoryWindow
         )
@@ -41,6 +53,27 @@ final class OpenedWindowsCoordinator {
         commits.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.showFailure = { [weak self] failure, window, retry in self?.showFailure?(failure, window, retry) }
+        commits.onChange = { [weak self] in self?.windowsChanged() }
+        files.onChange = { [weak self] in self?.windowsChanged() }
+        workingArea.onChange = { [weak self] in self?.windowsChanged() }
+        activity.onChange = { [weak self] in self?.windowsChanged() }
+    }
+
+    var openWindows: OpenWindows {
+        if let toRestore {
+            return toRestore
+        }
+        return OpenWindows(
+            commits: commits.records,
+            files: files.records,
+            workingArea: workingArea.record,
+            isActivityShown: activity.isShown
+        )
+    }
+
+    private func windowsChanged() {
+        guard !isClosingAll, toRestore == nil else { return }
+        onChange?()
     }
 
     var workingAreaWindow: NSWindow? {
@@ -84,9 +117,58 @@ final class OpenedWindowsCoordinator {
     }
 
     func closeAll() {
+        isClosingAll = true
         activity.close()
         commits.closeAll()
         files.closeAll()
         workingArea.close()
+    }
+
+    /// Once the repository has been read, so the working area's files are known. Commits that are
+    /// gone, and working area files with no changes now, are left closed.
+    func restoreIfNeeded(from window: NSWindow?, workingAreaFiles: () -> [DiffFile]) {
+        guard let record = toRestore, !isRestoring else { return }
+        isRestoring = true
+        if let workingAreaRecord = record.workingArea {
+            workingArea.show(from: window, repositoryName: repositoryName, record: workingAreaRecord)
+        }
+        if record.isActivityShown {
+            activity.show()
+        }
+        let changes = record.files.contains { $0.commit == nil } ? workingAreaFiles() : []
+        for fileRecord in record.files where fileRecord.commit == nil {
+            guard let file = changes.first(where: { $0.id == fileRecord.file }) else { continue }
+            let request = FileWindowRequest(source: .workingArea, file: file, files: changes)
+            files.show(request, from: window, repositoryName: repositoryName, record: fileRecord)
+        }
+        Task { [weak self, weak window] in
+            await self?.restoreCommitWindows(record, from: window)
+            self?.toRestore = nil
+            self?.onChange?()
+        }
+    }
+
+    private func restoreCommitWindows(_ record: OpenWindows, from window: NSWindow?) async {
+        for commitRecord in record.commits {
+            guard let commit = await readCommit(commitRecord.commit) else { continue }
+            commits.show(commit, from: window, repositoryName: repositoryName, frame: commitRecord.frame)
+        }
+        for fileRecord in record.files {
+            guard let hash = fileRecord.commit, let commit = await readCommit(hash),
+                  let detail = try? await CommitDetail.read(
+                      hash,
+                      options: diffOptions.options,
+                      running: commands.run,
+                      readingPatch: commands.readPatch
+                  ),
+                  let file = detail.files.first(where: { $0.id == fileRecord.file })
+            else { continue }
+            let request = FileWindowRequest(source: .commit(commit), file: file, files: detail.files)
+            files.show(request, from: window, repositoryName: repositoryName, record: fileRecord)
+        }
+    }
+
+    private func readCommit(_ hash: String) async -> Commit? {
+        try? await HistoryReader.readHashMatch(hash, running: commands.run)
     }
 }

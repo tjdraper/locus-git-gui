@@ -63,13 +63,19 @@ final class DiffViewController: NSViewController {
     /// uses Space. True when it was used.
     var onTypedKey: ((String) -> Bool)?
     /// The file Next File and Previous File went to, which stays current while it's in view.
-    var markedFile: DiffFile.Identity?
+    var markedFile: DiffFile.Identity? {
+        didSet { if markedFile != oldValue { placeDidChange() } }
+    }
     /// Whether files can be picked to act on together, with ⌘-click, Shift-click and Shift-J/K.
     var selectsFiles = false
     /// The files picked, in no order. Empty when the current file is the one acted on.
-    var selectedFiles: Set<DiffFile.Identity> = []
+    var selectedFiles: Set<DiffFile.Identity> = [] {
+        didSet { if selectedFiles != oldValue { placeDidChange() } }
+    }
     /// Where Shift-click and Shift-J/K take in a range from.
-    var selectionAnchor: DiffFile.Identity?
+    var selectionAnchor: DiffFile.Identity? {
+        didSet { if selectionAnchor != oldValue { placeDidChange() } }
+    }
 
     let options: DiffOptionsStore
     let workTree: URL
@@ -86,9 +92,15 @@ final class DiffViewController: NSViewController {
     private let painter: DiffRowPainter
 
     private(set) var files: [DiffFile] = []
-    var collapsedFiles: Set<DiffFile.Identity> = []
-    /// Told when the user collapses or expands files, for whoever shows the diff to remember.
-    var onCollapsedFilesChange: ((Set<DiffFile.Identity>) -> Void)?
+    var collapsedFiles: Set<DiffFile.Identity> = [] {
+        didSet { if collapsedFiles != oldValue { placeDidChange() } }
+    }
+    /// Told a moment after the diff's place changes, for whoever shows it to remember, and at once
+    /// before it shows other files.
+    var onPlaceChange: ((DiffPlace) -> Void)?
+    var reportingPlace: Task<Void, Never>?
+    /// Where a diff just shown was left, until it's been laid out and can be scrolled there.
+    var pendingScroll: DiffScrollAnchor?
     /// Files whose left-out changes the user asked to see, which whoever reads the diff again, as
     /// the working area does on every refresh, reads whole again.
     private(set) var filesShownWhole: Set<DiffFile.Identity> = []
@@ -126,6 +138,7 @@ final class DiffViewController: NSViewController {
         clipView.onScroll = { [weak self] in
             self?.forgetMarkedFileOutOfView()
             self?.blockViews.update()
+            self?.placeDidChange()
         }
         canvas.onTypedKey = { [weak self] key in self?.typed(key) ?? false }
         canvas.onCancel = { [weak self] in self?.clearFileSelection() }
@@ -170,12 +183,14 @@ final class DiffViewController: NSViewController {
     }
 
     /// `isSameDiff` keeps which files are collapsed and where the diff is scrolled to, for the same
-    /// changes read again, such as with other options. Otherwise the files start out as `collapsed`
-    /// says.
-    func show(_ files: [DiffFile], emptyMessage message: String, isSameDiff: Bool, collapsed: Set<DiffFile.Identity> = []) {
+    /// changes read again, such as with other options. Otherwise the diff starts out where `place`
+    /// says it was left.
+    func show(_ files: [DiffFile], emptyMessage message: String, isSameDiff: Bool, place: DiffPlace = DiffPlace()) {
         _ = view
         if !isSameDiff {
-            collapsedFiles = collapsed
+            reportPlaceNow()
+            collapsedFiles = place.collapsed
+            pendingScroll = files.isEmpty ? nil : place.scroll
             filesShownWhole = []
             images.removeAll()
         }
@@ -183,17 +198,24 @@ final class DiffViewController: NSViewController {
         leftOut.cancelAll()
         let previousFiles = self.files
         self.files = files
-        markedFile = isSameDiff ? DiffCommandTarget.markedFile(markedFile, from: previousFiles, in: files) : nil
+        if isSameDiff {
+            markedFile = DiffCommandTarget.markedFile(markedFile, from: previousFiles, in: files)
+        } else {
+            markedFile = place.marked.flatMap { marked in files.contains { $0.id == marked } ? marked : nil }
+            selectedFiles = place.picked
+            selectionAnchor = place.pickAnchor
+        }
         keepSelectedFilesStillShown()
         numberColumns = DiffLayout.numberColumns(of: files)
         emptyMessage.stringValue = message
         emptyMessage.isHidden = !files.isEmpty
         blockViews.removeAll()
         rebuild(keepingPlace: isSameDiff)
-        if !isSameDiff {
+        if isSameDiff {
+            scrollToMarkedFileIfOutOfView()
+        } else if place.scroll == nil {
             canvas.scroll(to: 0)
         }
-        scrollToMarkedFileIfOutOfView()
     }
 
     /// For images that may have changed while their file's diff didn't, such as a working tree file.
@@ -240,7 +262,10 @@ final class DiffViewController: NSViewController {
         if !isSameShape {
             blockViews.removeAll()
         }
-        if let top = anchor?.top(in: document, layout: layout, files: files) {
+        if let pendingScroll, let top = pendingScroll.top(in: document, layout: layout, files: files) {
+            self.pendingScroll = nil
+            canvas.scroll(to: top)
+        } else if let top = anchor?.top(in: document, layout: layout, files: files) {
             canvas.scroll(to: top)
         }
         blockViews.update()
@@ -258,15 +283,6 @@ final class DiffViewController: NSViewController {
 
     func index(of id: DiffFile.Identity) -> Int? {
         files.firstIndex { $0.id == id }
-    }
-
-    func isInWorkingTree(_ path: String) -> Bool {
-        if let known = workingTreePresence[path] {
-            return known
-        }
-        let exists = WorkingTreeFile(path: path, in: workTree).exists
-        workingTreePresence[path] = exists
-        return exists
     }
 
     /// Reads a file's left-out changes, or tries again after a failure.
@@ -287,7 +303,10 @@ final class DiffViewController: NSViewController {
             rebuild(keepingPlace: true)
         }
     }
+}
 
+/// What can be done with one file in the diff, from its header, its menu or the menu bar.
+extension DiffViewController {
     var commandTarget: DiffCommandTarget? {
         guard let content = canvas.content else { return nil }
         return DiffCommandTarget(
@@ -299,51 +318,16 @@ final class DiffViewController: NSViewController {
             markedFile: markedFile.flatMap(index(of:))
         )
     }
-}
 
-/// Collapsing and expanding files, from their headers and the summary bar.
-extension DiffViewController {
-    func toggleCollapsed(_ id: DiffFile.Identity) {
-        if collapsedFiles.contains(id) {
-            collapsedFiles.remove(id)
-        } else {
-            collapsedFiles.insert(id)
+    func isInWorkingTree(_ path: String) -> Bool {
+        if let known = workingTreePresence[path] {
+            return known
         }
-        onCollapsedFilesChange?(collapsedFiles)
-        rebuildKeepingHeader(of: id)
+        let exists = WorkingTreeFile(path: path, in: workTree).exists
+        workingTreePresence[path] = exists
+        return exists
     }
 
-    /// Collapsed or expanded somewhere else showing the same diff.
-    func showCollapsedFiles(_ collapsed: Set<DiffFile.Identity>) {
-        guard collapsed != collapsedFiles else { return }
-        collapsedFiles = collapsed
-        rebuild(keepingPlace: true)
-    }
-
-    /// Option-click, as in Finder: every file goes the way the clicked one would.
-    func toggleAllCollapsed(like id: DiffFile.Identity) {
-        collapsedFiles = collapsedFiles.contains(id) ? [] : Set(files.map(\.id))
-        onCollapsedFilesChange?(collapsedFiles)
-        rebuildKeepingHeader(of: id)
-    }
-
-    /// Keeps a file's header where it was on screen when the file collapses or expands under it,
-    /// or at the top when it was stuck there.
-    func rebuildKeepingHeader(of id: DiffFile.Identity) {
-        guard let content = canvas.content, let file = index(of: id) else {
-            rebuild(keepingPlace: true)
-            return
-        }
-        let distance = max(content.layout.top(of: content.document.fileStarts[file]) - canvas.visibleRect.minY, 0)
-        rebuild(keepingPlace: false)
-        guard let rebuilt = canvas.content else { return }
-        canvas.scroll(to: rebuilt.layout.top(of: rebuilt.document.fileStarts[file]) - distance)
-        blockViews.update()
-    }
-}
-
-/// What can be done with one file in the diff, from its header, its menu or the menu bar.
-extension DiffViewController {
     func openInEditor(path: String) {
         let file = WorkingTreeFile(path: path, in: workTree)
         guard file.exists else {

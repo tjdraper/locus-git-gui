@@ -25,13 +25,16 @@ final class HistoryCommitNavigator {
         self.open = open
     }
 
-    /// A newer go-to, or the user choosing another commit, cancels one still reading.
-    func goTo(_ hash: String) {
+    /// A newer go-to, or the user choosing another commit, cancels one still reading. `quietly` goes
+    /// there without taking focus, and says nothing when the commit can't be reached.
+    func goTo(_ hash: String, quietly: Bool = false) {
         going?.cancel()
         // A search's results rarely hold a commit's parent, and reading on through all of them to
         // be sure would search the history again for every page.
         if list.search != nil, list.index(of: hash) == nil {
-            showOutOfReach(hash, because: .notInSearch)
+            if !quietly {
+                showOutOfReach(hash, because: .notInSearch)
+            }
             return
         }
         going = Task { [weak self] in
@@ -40,7 +43,11 @@ final class HistoryCommitNavigator {
             case let .found(index):
                 table.selectRowIndexes([rowForCommit(index)], byExtendingSelection: false)
                 table.scrollRowToVisible(rowForCommit(index))
-                focusList()
+                if !quietly {
+                    focusList()
+                }
+            case _ where quietly:
+                return
             case .tooFar:
                 showOutOfReach(hash, because: .tooFar)
             case .missing:

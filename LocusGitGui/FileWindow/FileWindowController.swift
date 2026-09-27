@@ -12,6 +12,10 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
 
     let source: FileWindowRequest.Source
     var onClose: (() -> Void)?
+    /// When the window moves, scrolls or shows another file, for the repository to remember.
+    var onChange: (() -> Void)?
+    /// Where the file was left, until it's been read and can be scrolled there.
+    var pendingScroll: DiffScrollAnchor?
     weak var repositoryWindow: RepositoryWindowController?
     private var files: [DiffFile]
     /// The file shown, which stays the same while a refresh takes it out of `files`.
@@ -97,6 +101,7 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
             guard let self, let window else { return }
             failureSheet.present(failure, repository: commands.repository, on: window, wasOpenedByUser: true, retry: retry)
         }
+        diff.onPlaceChange = { [weak self] _ in self?.onChange?() }
         diff.readFile = { [weak self] file in
             guard let self else { throw CancellationError() }
             return try await readWhole(file)
@@ -124,6 +129,15 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
         showSubtitle(for: file)
         diff.show([file], emptyMessage: "", isSameDiff: false)
         read(file, isSameDiff: true)
+        onChange?()
+    }
+
+    var record: OpenWindows.FileWindow {
+        let commit: String? = switch source {
+        case let .commit(commit): commit.hash
+        case .workingArea: nil
+        }
+        return OpenWindows.FileWindow(commit: commit, file: file, frame: window?.frameDescriptor, scroll: diff.place.scroll)
     }
 
     func showRepositoryName(_ name: String) {
@@ -165,6 +179,10 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
             do {
                 guard let file = try await self?.readWhole(shown), !Task.isCancelled, let self else { return }
                 diff.show([file], emptyMessage: "", isSameDiff: isSameDiff)
+                if let pendingScroll {
+                    self.pendingScroll = nil
+                    diff.scroll(to: pendingScroll)
+                }
                 if source == .workingArea {
                     diff.readImagesAgain()
                 }
@@ -198,6 +216,14 @@ final class FileWindowController: NSWindowController, NSWindowDelegate {
     func windowWillClose(_: Notification) {
         reading?.cancel()
         onClose?()
+    }
+
+    func windowDidMove(_: Notification) {
+        onChange?()
+    }
+
+    func windowDidResize(_: Notification) {
+        onChange?()
     }
 
     /// Diff commands reach the diff wherever focus is in the window, and commands for the whole

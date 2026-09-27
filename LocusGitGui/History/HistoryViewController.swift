@@ -30,6 +30,14 @@ final class HistoryViewController: NSViewController {
     /// The working area in a window of its own.
     var onOpenWorkingArea: (() -> Void)?
     var reveal: ((SidebarItemID) -> Void)?
+    /// Told a moment after the selection or the scrolling changes, and at once before the history
+    /// shows another sidebar item's.
+    var onPlaceChange: ((HistoryPlace) -> Void)?
+    /// Told when the text or field Find in History looks in changes, for the window to remember.
+    var onFindChange: (() -> Void)?
+    var reportingPlace: Task<Void, Never>?
+    /// Where the history being read was left, until it's been read and can be shown there.
+    var pendingPlace: HistoryPlace?
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
 
     private(set) var selectedCommit: Commit?
@@ -37,8 +45,8 @@ final class HistoryViewController: NSViewController {
     /// Nil until the repository's status has been read, and the history has no working area row.
     var workingArea: WorkingAreaSummary?
     let table = HistoryTableView()
-    private let list: HistoryList
-    private let scrollView = NSScrollView()
+    let list: HistoryList
+    let scrollView = NSScrollView()
     private(set) lazy var find = HistoryFindField(menuItems: [AppCommand.findByMessage, .findByAuthor, .findInChanges].map { command in
         command.makeMenuItem(target: self)
     })
@@ -117,8 +125,12 @@ final class HistoryViewController: NSViewController {
         // Pinned over the list, so the list sets its size. SwiftUI's would fix the window's height
         // to whatever the placeholder shows, which for nothing is zero.
         placeholderView.sizingOptions = []
-        find.onChange = { [weak self] in self?.searchSoon() }
+        find.onChange = { [weak self] in
+            self?.searchSoon()
+            self?.onFindChange?()
+        }
         find.moveToList = { [weak self] in self?.focusList() }
+        observeScrolling()
 
         for subview in [find.field, scrollView, placeholderView] {
             subview.translatesAutoresizingMaskIntoConstraints = false
@@ -142,7 +154,12 @@ final class HistoryViewController: NSViewController {
     }
 
     /// Asked on every refresh, and only read again when the commits it starts from have moved.
-    func show(_ scope: HistoryScope, isSameSelection: Bool) {
+    /// `place` is where another sidebar item's history was left, to show it there once it's read.
+    func show(_ scope: HistoryScope, isSameSelection: Bool, place: HistoryPlace? = nil) {
+        if !isSameSelection {
+            reportPlaceNow()
+            pendingPlace = place
+        }
         self.scope = scope
         list.show(scope, search: find.search, isSameSelection: isSameSelection)
     }
@@ -217,6 +234,15 @@ final class HistoryViewController: NSViewController {
         }
     }
 
+    func updatePlaceholder() {
+        placeholder.show(list)
+        placeholderView.isHidden = placeholder.state == .hidden
+        placeholderTop.constant = workingArea == nil ? 0 : HistoryRowView.height
+    }
+}
+
+/// Keeping the rows and the selection in step with the history as it's read.
+extension HistoryViewController {
     private func listChanged(_ change: HistoryList.Change) {
         switch change {
         case let .replaced(previous):
@@ -251,6 +277,15 @@ final class HistoryViewController: NSViewController {
     /// row at the top stays at the top, so a refresh doesn't move the list under the user. A
     /// different history, or a search started or cleared, starts at the selection or the top.
     private func showReplacement(sameHistoryAs previous: [Commit]?) {
+        if let place = pendingPlace {
+            pendingPlace = nil
+            isRestoringSelection = true
+            shownGraphLanes = list.graphLanes
+            table.reloadData()
+            isRestoringSelection = false
+            show(place)
+            return
+        }
         let visibleTopRow = table.rows(in: table.visibleRect).location
         let topRow = visibleTopRow - commitRowOffset
         let topHash = previous.flatMap { $0.indices.contains(topRow) ? $0[topRow].hash : nil }
@@ -290,24 +325,6 @@ final class HistoryViewController: NSViewController {
         isRestoringSelection = true
         table.selectRowIndexes([row(ofCommit: index)], byExtendingSelection: false)
         isRestoringSelection = false
-    }
-
-    func updatePlaceholder() {
-        placeholder.show(list)
-        placeholderView.isHidden = placeholder.state == .hidden
-        placeholderTop.constant = workingArea == nil ? 0 : HistoryRowView.height
-    }
-
-    func putOnPasteboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-
-    func focusFind(searching field: HistorySearch.Field?) {
-        if let field {
-            find.setSearchField(field)
-        }
-        focusFind()
     }
 }
 
@@ -368,5 +385,6 @@ extension HistoryViewController: NSTableViewDataSource, NSTableViewDelegate {
         selectedCommit = commit
         isWorkingAreaSelected = isWorkingArea
         onSelect?(isWorkingArea ? .workingArea : commit.map(Item.commit))
+        placeDidChange()
     }
 }

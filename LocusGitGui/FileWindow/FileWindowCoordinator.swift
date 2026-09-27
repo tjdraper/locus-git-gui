@@ -15,8 +15,11 @@ final class FileWindowCoordinator {
         self.repositoryWindow = repositoryWindow
     }
 
-    /// Cascaded from the window it was opened from.
-    func show(_ request: FileWindowRequest, from sourceWindow: NSWindow?, repositoryName: String) {
+    /// When a window opens, closes, moves, scrolls or shows another file.
+    var onChange: (() -> Void)?
+
+    /// As it was left when `record` says, and otherwise cascaded from the window it was opened from.
+    func show(_ request: FileWindowRequest, from sourceWindow: NSWindow?, repositoryName: String, record: OpenWindows.FileWindow? = nil) {
         let isShowing = { (controller: FileWindowController) in
             controller.source == request.source && controller.file == request.file.id
         }
@@ -31,19 +34,22 @@ final class FileWindowCoordinator {
             diffOptions: diffOptions
         )
         controller.repositoryWindow = repositoryWindow
+        controller.pendingScroll = record?.scroll
         controller.onClose = { [weak self, weak controller] in
             self?.controllers.removeAll { $0 === controller }
+            self?.onChange?()
         }
         controllers.append(controller)
         if let window = controller.window {
-            if let sourceWindow {
-                let topLeft = window.cascadeTopLeft(from: NSPoint(x: sourceWindow.frame.minX, y: sourceWindow.frame.maxY))
-                window.cascadeTopLeft(from: topLeft)
-            } else {
-                window.center()
-            }
+            OpenedWindowPlacement.place(window, at: record?.frame, cascadingFrom: sourceWindow)
         }
         controller.showWindow(nil)
+        controller.onChange = { [weak self] in self?.onChange?() }
+        onChange?()
+    }
+
+    var records: [OpenWindows.FileWindow] {
+        controllers.map(\.record)
     }
 
     func showRepositoryName(_ name: String) {

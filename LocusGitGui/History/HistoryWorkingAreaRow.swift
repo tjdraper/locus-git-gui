@@ -4,7 +4,8 @@ import AppKit
 extension HistoryViewController {
     /// After every refresh and every change of history. Nil takes the row away, for a history that
     /// isn't the checked-out branch's. The row is selected when it comes in, unless something else
-    /// already is, since it's where the user most often starts.
+    /// already is or the history was left with something else selected, since it's where the user
+    /// most often starts.
     func showWorkingArea(_ summary: WorkingAreaSummary?) {
         guard summary != workingArea else { return }
         guard let summary else {
@@ -21,7 +22,7 @@ extension HistoryViewController {
         table.insertRows(at: [0])
         isRestoringSelection = false
         updatePlaceholder()
-        if selectedCommit == nil {
+        if selectedCommit == nil, pendingPlace == nil || pendingPlace?.selection == .workingArea {
             selectWorkingArea()
         }
     }

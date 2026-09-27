@@ -2,7 +2,7 @@ import Foundation
 
 /// What Find in History looks for, and where.
 nonisolated struct HistorySearch: Equatable, Sendable {
-    enum Field: String, CaseIterable, Sendable {
+    enum Field: String, CaseIterable, Codable, Sendable {
         /// A commit's message, or its hash typed in full or in part.
         case message
         case author

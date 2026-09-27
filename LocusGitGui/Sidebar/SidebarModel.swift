@@ -18,8 +18,9 @@ final class SidebarModel {
         didSet { if collapsedRemotes != oldValue { onChange?() } }
     }
 
-    /// Not remembered with the rest of the view state, since a filter left in place hides branches.
-    var filter = ""
+    var filter: String {
+        didSet { if filter != oldValue { onChange?() } }
+    }
 
     /// Asks for the list to take focus, counted so every request is seen as a change.
     private(set) var focusRequests = 0
@@ -36,6 +37,7 @@ final class SidebarModel {
         selection = state.selection
         collapsedSections = state.collapsedSections
         collapsedRemotes = state.collapsedRemotes
+        filter = state.sidebarFilter
     }
 
     /// A selection that's gone, such as a deleted branch or a dropped stash, is cleared. Until the
