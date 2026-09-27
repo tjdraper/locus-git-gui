@@ -46,8 +46,8 @@ nonisolated struct StoppedOperation: Equatable, Sendable {
         }
     }
 
-    /// The commit an interactive rebase stopped at to be edited, which Git marks by leaving an
-    /// `amend` file beside the commit it stopped at.
+    /// The commit an interactive rebase stopped at to be edited. While it waits at an `edit`, Git
+    /// keeps an `amend` file in the rebase's folder, beside `stopped-sha`, which names the commit.
     static func editedCommit(gitDirectory: URL) -> String? {
         let folder = gitDirectory.appending(path: "rebase-merge")
         guard FileManager.default.fileExists(atPath: folder.appending(path: "amend").path),

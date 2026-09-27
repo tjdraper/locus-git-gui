@@ -57,6 +57,14 @@ final class OperationRunner {
                 try await body(steps)
             } catch let failed as Failed {
                 self?.show(failed.failure, from: window, retry: retry, nextSteps: nextSteps(failed.failure))
+            } catch let failure as GitReadFailure {
+                // Such as the stash list read to find a stash's place in it.
+                let failure = GitFailure(
+                    summary: "Git couldn’t read this repository’s \(failure.subject).",
+                    arguments: failure.command.arguments,
+                    result: failure.result
+                )
+                self?.show(failure, from: window, retry: retry, nextSteps: GitFailureNextSteps())
             } catch let ChildProcess.Failure.couldNotStart(error) {
                 // Git never ran, so there is no output of its own. The system's reason stands in for it.
                 let failure = GitFailure(
