@@ -26,6 +26,7 @@ final class HistoryRowView: NSTableCellView {
     private let more = RefLabelView(text: "", kind: nil, description: "")
     private var commitLabels: [CommitRefLabel] = []
     private var author = ""
+    private var authorDate = Date.distantPast
     private var date = ""
     private var shortHash = ""
     private var graphWidth: CGFloat = 0
@@ -65,7 +66,8 @@ final class HistoryRowView: NSTableCellView {
         subject.textColor = commit.subject.isEmpty ? .secondaryLabelColor : .labelColor
         let date = commit.author.date
         author = commit.author.name
-        self.date = date.formatted(.relative(presentation: .named))
+        authorDate = date
+        self.date = Self.relative(date)
         shortHash = String(commit.hash.prefix(7))
         details.toolTip = date.formatted(date: .complete, time: .shortened)
 
@@ -77,6 +79,20 @@ final class HistoryRowView: NSTableCellView {
         }
         applyBackgroundStyle()
         needsLayout = true
+    }
+
+    /// Writes the relative date again as of `now`, and returns how many seconds old the commit is.
+    func updateDate(now: Date) -> TimeInterval {
+        let date = Self.relative(authorDate)
+        if date != self.date {
+            self.date = date
+            needsLayout = true
+        }
+        return now.timeIntervalSince(authorDate)
+    }
+
+    private static func relative(_ date: Date) -> String {
+        date.formatted(.relative(presentation: .named))
     }
 
     override func layout() {

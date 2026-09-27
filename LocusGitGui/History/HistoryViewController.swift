@@ -80,6 +80,7 @@ final class HistoryViewController: NSViewController {
     private var shownGraphLanes = 0
     /// Moves the placeholder below the working area's row while there is one.
     private lazy var placeholderTop = placeholderView.topAnchor.constraint(equalTo: scrollView.topAnchor)
+    private lazy var relativeDates = HistoryRelativeDates(table: table)
     /// The selected commit, while a search that may yet find it is still arriving.
     private var pendingSelection: String?
 
@@ -249,6 +250,7 @@ final class HistoryViewController: NSViewController {
 /// Keeping the rows and the selection in step with the history as it's read.
 extension HistoryViewController {
     private func listChanged(_ change: HistoryList.Change) {
+        relativeDates.start()
         switch change {
         case let .replaced(previous):
             showReplacement(sameHistoryAs: previous)
