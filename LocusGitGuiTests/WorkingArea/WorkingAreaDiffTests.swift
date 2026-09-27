@@ -3,7 +3,7 @@ import Testing
 
 struct WorkingAreaDiffTests {
     @Test
-    func listsConflictsThenStagedThenUnstagedThenUntracked() async throws {
+    func listsConflictsThenUnstagedThenUntrackedThenStaged() async throws {
         // Arrange
         let repository = try await FixtureRepository.make()
         defer { repository.remove() }
@@ -17,11 +17,11 @@ struct WorkingAreaDiffTests {
         let files = try await repository.workingArea()
 
         // Assert
-        #expect(files.map(\.changed.path) == ["both.txt", "both.txt", "new.txt"])
-        #expect(files.map(\.group) == [WorkingAreaGroup.staged, .unstaged, .untracked].map(\.rawValue))
-        #expect(files[0].patch.hunks[0].lines.map(\.text) == ["one", "two"])
-        #expect(files[1].patch.hunks[0].lines.map(\.text) == ["two", "three"])
-        #expect(files[2].patch.hunks[0].lines.map(\.text) == ["new"])
+        #expect(files.map(\.changed.path) == ["both.txt", "new.txt", "both.txt"])
+        #expect(files.map(\.group) == [WorkingAreaGroup.unstaged, .untracked, .staged].map(\.rawValue))
+        #expect(files[0].patch.hunks[0].lines.map(\.text) == ["two", "three"])
+        #expect(files[1].patch.hunks[0].lines.map(\.text) == ["new"])
+        #expect(files[2].patch.hunks[0].lines.map(\.text) == ["one", "two"])
     }
 
     @Test
@@ -40,10 +40,10 @@ struct WorkingAreaDiffTests {
         let files = try await repository.workingArea()
 
         // Assert
-        #expect(files[0].changed.oldObject == head)
-        #expect(files[0].changed.newObject == index)
-        #expect(files[1].changed.oldObject == index)
-        #expect(files[1].changed.newObject == nil)
+        #expect(files[0].changed.oldObject == index)
+        #expect(files[0].changed.newObject == nil)
+        #expect(files[1].changed.oldObject == head)
+        #expect(files[1].changed.newObject == index)
     }
 
     @Test
