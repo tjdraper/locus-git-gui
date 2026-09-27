@@ -39,6 +39,11 @@ final class HistoryViewController: NSViewController {
     /// Where the history being read was left, until it's been read and can be shown there.
     var pendingPlace: HistoryPlace?
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
+    /// The branch, tag and history commands in a commit's context menu.
+    var operationMenuItems: ((Commit) -> [[NSMenuItem]])? {
+        get { contextMenu.operationItems }
+        set { contextMenu.operationItems = newValue }
+    }
 
     private(set) var selectedCommit: Commit?
     var isWorkingAreaSelected = false

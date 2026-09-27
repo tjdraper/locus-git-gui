@@ -86,7 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fetchPreferences: fetchPreferences.menuItems,
             fetchVariants: fetchPreferences.variantItems,
             remoteChoices: commandPalette.remoteMenuItems,
-            tagChoices: commandPalette.tagMenuItems
+            tagChoices: commandPalette.tagMenuItems,
+            operationChoices: commandPalette.choiceMenuItems
         ))
         repositoryOpening.showClone = { [weak self] in self?.cloning.show() }
         repositoryOpening.createRepository = { [weak self] folder in self?.creation.create(in: folder) }

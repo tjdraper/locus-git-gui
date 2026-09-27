@@ -25,12 +25,18 @@ struct SidebarView: View {
             if let contents = model.visibleContents {
                 if !contents.pinned.isEmpty {
                     section(.pinned) {
-                        ForEach(contents.pinned, content: SidebarPinnedRow.init)
+                        ForEach(contents.pinned) { item in
+                            SidebarPinnedRow(item: item)
+                                .modifier(SidebarBranchDragging(id: item.id, model: model))
+                        }
                     }
                 }
                 if !contents.unpinnedBranches.isEmpty {
                     section(.branches) {
-                        ForEach(contents.unpinnedBranches, content: SidebarBranchRow.init)
+                        ForEach(contents.unpinnedBranches) { branch in
+                            SidebarBranchRow(branch: branch)
+                                .modifier(SidebarBranchDragging(id: branch.id, model: model))
+                        }
                     }
                 }
                 if !contents.unpinnedRemotes.isEmpty {
@@ -39,6 +45,7 @@ struct SidebarView: View {
                             DisclosureGroup(isExpanded: remoteExpansion(remote.name)) {
                                 ForEach(remote.branches) { branch in
                                     Label(branch.name, systemImage: "arrow.triangle.branch")
+                                        .modifier(SidebarBranchDragging(id: branch.id, model: model))
                                 }
                             } label: {
                                 Label(remote.name, systemImage: "network")
@@ -48,7 +55,10 @@ struct SidebarView: View {
                 }
                 if !contents.unpinnedTags.isEmpty {
                     section(.tags) {
-                        ForEach(contents.unpinnedTags, content: SidebarTagRow.init)
+                        ForEach(contents.unpinnedTags) { tag in
+                            SidebarTagRow(tag: tag)
+                                .modifier(SidebarBranchDragging(id: tag.id, model: model))
+                        }
                     }
                 }
                 if !contents.unpinnedStashes.isEmpty {
@@ -62,6 +72,10 @@ struct SidebarView: View {
         .contextMenu(forSelectionType: SidebarItemID.self) { ids in
             if ids.count == 1, let id = ids.first {
                 menu(for: id)
+            }
+        } primaryAction: { ids in
+            if ids.count == 1, let id = ids.first {
+                model.primaryAction?(id)
             }
         }
         .focused($isFocused)
@@ -104,25 +118,13 @@ struct SidebarView: View {
                 model.togglePin(id)
             }
         }
-        let commands = Self.remoteCommands(for: id)
-        if !commands.isEmpty {
+        let groups = model.menuItems?(id) ?? []
+        ForEach(groups.indices, id: \.self) { index in
             Divider()
-            ForEach(commands, id: \.self) { command in
-                Button(command.title) {
-                    model.perform?(command, id)
-                }
+            ForEach(groups[index]) { item in
+                Button(item.title, action: item.action)
+                    .disabled(!item.isEnabled)
             }
-        }
-    }
-
-    private static func remoteCommands(for id: SidebarItemID) -> [AppCommand] {
-        switch id {
-        case .remote:
-            [.fetchFromRemote, .editRemote, .removeRemote]
-        case let .ref(name) where name.hasPrefix("refs/tags/"):
-            [.pushTag, .deleteRemoteTag]
-        case .ref, .stash:
-            []
         }
     }
 
@@ -138,6 +140,31 @@ struct SidebarView: View {
             get: { model.isExpanded(remote: remote) },
             set: { model.setExpanded($0, remote: remote) }
         )
+    }
+}
+
+/// A branch, remote branch or tag dragged onto a branch asks whether to merge or rebase. Only refs
+/// are dragged, as text naming the ref, which anything outside the app can't take for one.
+private struct SidebarBranchDragging: ViewModifier {
+    private static let prefix = "locus-git-gui-ref:"
+
+    let id: SidebarItemID
+    let model: SidebarModel
+
+    func body(content: Content) -> some View {
+        if case let .ref(name) = id {
+            content
+                .draggable(Self.prefix + name)
+                .dropDestination(for: String.self) { items, _ in
+                    guard let text = items.first, text.hasPrefix(Self.prefix) else { return false }
+                    let dragged = SidebarItemID.ref(String(text.dropFirst(Self.prefix.count)))
+                    guard dragged != id else { return false }
+                    model.drop?(dragged, id)
+                    return true
+                }
+        } else {
+            content
+        }
     }
 }
 

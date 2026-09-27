@@ -49,6 +49,18 @@ enum MenuBarCommandReader {
             && !item.title.isEmpty && !(item.target is NSWindow)
     }
 
+    /// A command as if chosen from the menu bar, for a context menu item that goes on to ask in the
+    /// palette, such as Set Upstream….
+    static func perform(_ command: AppCommand) {
+        for menuTitle in NSApp.mainMenu?.items ?? [] {
+            guard let menu = menuTitle.submenu,
+                  let item = menu.items.first(where: { AppCommand(menuItem: $0) == command })
+            else { continue }
+            perform(item, in: menu)
+            return
+        }
+    }
+
     /// As if chosen from the menu, once the window it was read for has focus again. Checked again
     /// first, since the palette was open for a while.
     private static func perform(_ item: NSMenuItem, in menu: NSMenu) {

@@ -33,8 +33,12 @@ final class SidebarModel {
     @ObservationIgnored var onPinsChange: ((SidebarPins) -> Void)?
     /// An item's history in a window of its own, from the item's context menu.
     @ObservationIgnored var openInNewWindow: ((SidebarItemID) -> Void)?
-    /// A remote's or tag's command from its context menu, such as Fetch from Remote….
-    @ObservationIgnored var perform: ((AppCommand, SidebarItemID) -> Void)?
+    /// The commands in an item's context menu after Open in New Window and pinning, in groups.
+    @ObservationIgnored var menuItems: ((SidebarItemID) -> [[SidebarMenuItem]])?
+    /// A double-click, which checks out a branch.
+    @ObservationIgnored var primaryAction: ((SidebarItemID) -> Void)?
+    /// A branch dragged onto another, to merge or rebase.
+    @ObservationIgnored var drop: ((_ dragged: SidebarItemID, _ target: SidebarItemID) -> Void)?
     @ObservationIgnored private var typeSelect = SidebarTypeSelect()
 
     init(state: RepositoryViewState) {

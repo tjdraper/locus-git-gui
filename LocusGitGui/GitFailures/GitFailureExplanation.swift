@@ -55,6 +55,25 @@ struct GitFailureExplanation: View {
             Git couldn’t reach \(host ?? "the server"), which is a problem with the network or the \
             address rather than with a repository. Check the connection and the remote’s address.
             """)
+        case let .localChangesWouldBeOverwritten(files, includesUntracked):
+            Text(overwrittenDescription(files: files, includesUntracked: includesUntracked))
+        case let .branchNotMerged(branch):
+            Text("""
+            “\(branch)” has commits that aren’t on its upstream or the checked-out branch, so Git \
+            kept it. Delete Anyway says how many commits would be left without a branch first.
+            """)
+        case .stoppedOnConflicts:
+            Text("""
+            Some changes conflict, so Git stopped partway. Resolve each conflicted file and stage \
+            it, then Continue from the bar above the history. Abort puts everything back as it was.
+            """)
+        case .unresolvedConflicts:
+            Text("Some files still have conflicts. Resolve each one and stage it, or mark it resolved, then Continue.")
+        case .stashConflicts:
+            Text("""
+            The stash’s changes conflict with the files as they are now. The stash was kept, so \
+            nothing is lost. Resolve the conflicted files, then drop the stash once it’s no longer needed.
+            """)
         case nil:
             Text("Git couldn’t finish. Its output below says why.")
                 .foregroundStyle(.secondary)
@@ -93,6 +112,18 @@ struct GitFailureExplanation: View {
             or lack access to this repository. Try again to enter them again.
             """
         }
+    }
+
+    private func overwrittenDescription(files: [String], includesUntracked: Bool) -> String {
+        let changes = includesUntracked ? "Uncommitted changes and untracked files" : "Uncommitted changes"
+        let named = switch files.count {
+        case 0: ""
+        case 1: " in “\(files[0])”"
+        case 2: " in “\(files[0])” and “\(files[1])”"
+        default: " in “\(files[0])” and \(files.count - 1) other files"
+        }
+        return "\(changes)\(named) would be overwritten, so Git stopped before changing anything. "
+            + "Stash and Continue puts them aside, carries on, and brings them back afterwards."
     }
 
     /// A host on another port is written in brackets, which the shell would otherwise try to match

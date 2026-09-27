@@ -12,6 +12,8 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
     let commitGoToMenuItems: [NSMenuItem]
     let remoteMenuItems: [NSMenuItem]
     let tagMenuItems: [NSMenuItem]
+    /// The branch, tag and stash commands that ask which one in the palette, by command.
+    let choiceMenuItems: [AppCommand: NSMenuItem]
 
     private let defaults: UserDefaults
     private var history: SearchPickHistory
@@ -29,8 +31,10 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         commitGoToMenuItems = [AppCommand.goToParentCommit, .revealCommitInSidebar].map { $0.makeMenuItem() }
         remoteMenuItems = [AppCommand.fetchFromRemote, .editRemote, .removeRemote].map { $0.makeMenuItem() }
         tagMenuItems = [AppCommand.pushTag, .deleteRemoteTag].map { $0.makeMenuItem() }
+        choiceMenuItems = Dictionary(uniqueKeysWithValues: Self.operationChoiceCommands.map { ($0, $0.makeMenuItem()) })
         super.init()
-        for item in paletteMenuItems + goToMenuItems + commitGoToMenuItems + remoteMenuItems + tagMenuItems {
+        let items = paletteMenuItems + goToMenuItems + commitGoToMenuItems + remoteMenuItems + tagMenuItems
+        for item in items + Array(choiceMenuItems.values) {
             item.target = self
         }
         panel.onKeyCommand = { [weak self] command in self?.perform(command) ?? false }
@@ -53,46 +57,6 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         }
     }
 
-    @objc func goToBranch(_: Any?) {
-        goTo(.goToBranch)
-    }
-
-    @objc func goToTag(_: Any?) {
-        goTo(.goToTag)
-    }
-
-    @objc func goToStash(_: Any?) {
-        goTo(.goToStash)
-    }
-
-    @objc func goToParentCommit(_: Any?) {
-        goTo(.goToParentCommit)
-    }
-
-    @objc func revealCommitInSidebar(_: Any?) {
-        goTo(.revealCommitInSidebar)
-    }
-
-    @objc func fetchFromRemote(_: Any?) {
-        goTo(.fetchFromRemote)
-    }
-
-    @objc func editRemote(_: Any?) {
-        goTo(.editRemote)
-    }
-
-    @objc func removeRemote(_: Any?) {
-        goTo(.removeRemote)
-    }
-
-    @objc func pushTag(_: Any?) {
-        goTo(.pushTag)
-    }
-
-    @objc func deleteRemoteTag(_: Any?) {
-        goTo(.deleteRemoteTag)
-    }
-
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         guard NSApp.modalWindow == nil else { return false }
         // A sheet or another panel is in front only for a moment, and its commands aren't the app's.
@@ -102,6 +66,7 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         guard let command = AppCommand(menuItem: menuItem), Self.asksForChoice(command) else {
             return true
         }
+        menuItem.title = source?.menuTitle(for: command) ?? command.title
         return !choices(for: command).isEmpty
     }
 
@@ -257,14 +222,106 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         panel.setFrame(NSRect(x: midX - size.width / 2, y: top - size.height, width: size.width, height: size.height), display: false)
     }
 
+    private static let operationChoiceCommands: [AppCommand] = [
+        .checkOutBranch, .renameBranch, .deleteBranch, .setUpstream, .mergeIntoCurrentBranch, .rebaseCurrentBranch,
+        .deleteTag, .applyStash, .popStash, .dropStash, .deleteRemoteBranch,
+    ]
+
     private static func asksForChoice(_ command: AppCommand) -> Bool {
         [
             .goToBranch, .goToTag, .goToStash, .goToParentCommit, .revealCommitInSidebar,
             .fetchFromRemote, .editRemote, .removeRemote, .pushTag, .deleteRemoteTag,
-        ].contains(command)
+        ].contains(command) || operationChoiceCommands.contains(command)
     }
 
     private static func goesStraightToOnlyChoice(_ command: AppCommand) -> Bool {
         ![.goToBranch, .goToTag, .goToStash].contains(command)
+    }
+}
+
+/// The commands that ask which branch, tag, stash, remote or commit in the palette's next step.
+extension CommandPalettePresenter {
+    @objc func goToBranch(_: Any?) {
+        goTo(.goToBranch)
+    }
+
+    @objc func goToTag(_: Any?) {
+        goTo(.goToTag)
+    }
+
+    @objc func goToStash(_: Any?) {
+        goTo(.goToStash)
+    }
+
+    @objc func goToParentCommit(_: Any?) {
+        goTo(.goToParentCommit)
+    }
+
+    @objc func revealCommitInSidebar(_: Any?) {
+        goTo(.revealCommitInSidebar)
+    }
+
+    @objc func fetchFromRemote(_: Any?) {
+        goTo(.fetchFromRemote)
+    }
+
+    @objc func editRemote(_: Any?) {
+        goTo(.editRemote)
+    }
+
+    @objc func removeRemote(_: Any?) {
+        goTo(.removeRemote)
+    }
+
+    @objc func pushTag(_: Any?) {
+        goTo(.pushTag)
+    }
+
+    @objc func deleteRemoteTag(_: Any?) {
+        goTo(.deleteRemoteTag)
+    }
+
+    @objc func checkOutBranch(_: Any?) {
+        goTo(.checkOutBranch)
+    }
+
+    @objc func renameBranch(_: Any?) {
+        goTo(.renameBranch)
+    }
+
+    @objc func deleteBranch(_: Any?) {
+        goTo(.deleteBranch)
+    }
+
+    @objc func setUpstream(_: Any?) {
+        goTo(.setUpstream)
+    }
+
+    @objc func mergeIntoCurrentBranch(_: Any?) {
+        goTo(.mergeIntoCurrentBranch)
+    }
+
+    @objc func rebaseCurrentBranch(_: Any?) {
+        goTo(.rebaseCurrentBranch)
+    }
+
+    @objc func deleteTag(_: Any?) {
+        goTo(.deleteTag)
+    }
+
+    @objc func applyStash(_: Any?) {
+        goTo(.applyStash)
+    }
+
+    @objc func popStash(_: Any?) {
+        goTo(.popStash)
+    }
+
+    @objc func dropStash(_: Any?) {
+        goTo(.dropStash)
+    }
+
+    @objc func deleteRemoteBranch(_: Any?) {
+        goTo(.deleteRemoteBranch)
     }
 }

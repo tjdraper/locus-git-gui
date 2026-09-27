@@ -7,7 +7,7 @@ nonisolated enum GitEnvironment {
     private static let nonMessageCategories = ["LC_CTYPE", "LC_COLLATE", "LC_NUMERIC", "LC_TIME", "LC_MONETARY"]
 
     static func variables(for command: GitCommand, from base: [String: String]) -> [String: String] {
-        var variables = withEnglishMessages(base)
+        var variables = withEnglishMessages(base).merging(command.environment) { _, command in command }
         if command.isReadOnly {
             // Otherwise `status` refreshes the index and takes `index.lock` to do it, which makes a
             // command the user runs in Terminal at the same moment fail.

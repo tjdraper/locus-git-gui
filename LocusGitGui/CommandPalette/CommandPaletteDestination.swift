@@ -68,4 +68,14 @@ protocol CommandPaletteDestinationSource: AnyObject {
     /// The choices a command that asks in the palette offers, such as the branches Go to Branch…
     /// goes to. Nil for a command this window doesn't offer choices for.
     func paletteChoices(for command: AppCommand) -> [CommandPaletteDestination]?
+
+    /// A command's title as it applies to this window, such as “Merge into “main”…”. Nil keeps the
+    /// catalog's.
+    func menuTitle(for command: AppCommand) -> String?
+}
+
+extension CommandPaletteDestinationSource {
+    func menuTitle(for _: AppCommand) -> String? {
+        nil
+    }
 }

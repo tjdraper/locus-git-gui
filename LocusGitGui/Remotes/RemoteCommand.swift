@@ -61,6 +61,11 @@ nonisolated enum RemoteCommand {
         .changing(["push", "--progress", remote, "--delete", "refs/tags/\(tag)"])
     }
 
+    /// Also removes this repository's remote-tracking branch for it.
+    static func deleteBranch(_ branch: String, from remote: String) -> GitCommand {
+        .changing(["push", "--progress", remote, "--delete", "refs/heads/\(branch)"])
+    }
+
     static func addRemote(_ name: String, url: String) -> GitCommand {
         .changing(["remote", "add", name, url])
     }

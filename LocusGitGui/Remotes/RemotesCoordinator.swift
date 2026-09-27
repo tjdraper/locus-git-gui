@@ -7,14 +7,15 @@ import SwiftUI
 final class RemotesCoordinator {
     let sync: RemoteSyncWorkflow
     let editing: RemoteEditingWorkflow
-    /// Goes above the history.
-    let progressBar: NSView
+    /// Shown in a bar above the history.
+    let progress: RemoteProgress
     /// After a fetch or pull, which may have brought in commits.
     private var didFetch: (() -> Void)?
     /// Where an automatic fetch's failure shows, until one works.
     private var warning: BackgroundFailureWarning?
 
     private let tags: RemoteTagWorkflow
+    private let remoteBranches: RemoteBranchDeletionWorkflow
     private let runner: RemoteOperationRunner
     private let commands: RepositoryCommandRunner
     private let askpass: AskpassServer
@@ -39,9 +40,8 @@ final class RemotesCoordinator {
         sync = RemoteSyncWorkflow(runner: runner, commands: commands, queue: queue)
         editing = RemoteEditingWorkflow(commands: commands, queue: queue, runner: runner, sync: sync)
         tags = RemoteTagWorkflow(runner: runner, queue: queue)
-        let bar = NSHostingView(rootView: RemoteProgressBar(model: runner.progress))
-        bar.sizingOptions = [.intrinsicContentSize]
-        progressBar = bar
+        remoteBranches = RemoteBranchDeletionWorkflow(runner: runner, commands: commands, queue: queue)
+        progress = runner.progress
         sync.didFetch = { [weak self] in self?.didFetch?() }
         sync.fetchOptions = { [preferences] in preferences.options }
         sync.willStart = { [weak self] in self?.automaticFetch.cancelCurrent() }
@@ -61,6 +61,7 @@ final class RemotesCoordinator {
         sync.repositoryWindow = window
         editing.repositoryWindow = window
         tags.repositoryWindow = window
+        remoteBranches.repositoryWindow = window
         let repository = commands.repository
         // On the window the command was started from, while it's still open.
         let present = { (failure: GitFailure, source: NSWindow?, retry: (() -> Void)?, nextSteps: GitFailureNextSteps) in
@@ -69,6 +70,7 @@ final class RemotesCoordinator {
         }
         sync.present = present
         tags.present = present
+        remoteBranches.present = present
     }
 
     func start() {
@@ -104,7 +106,27 @@ final class RemotesCoordinator {
         return nil
     }
 
-    /// From a remote's or tag's context menu in the sidebar.
+    /// A remote's, remote branch's or tag's remote commands, for its context menu in the sidebar.
+    func sidebarMenu(for id: SidebarItemID) -> [[SidebarMenuItem]] {
+        let commands: [(AppCommand, String)]
+        switch id {
+        case .remote:
+            commands = [(.fetchFromRemote, AppCommand.fetchFromRemote.title), (.editRemote, AppCommand.editRemote.title),
+                        (.removeRemote, AppCommand.removeRemote.title)]
+        case let .ref(name) where name.hasPrefix("refs/tags/"):
+            commands = [(.pushTag, AppCommand.pushTag.title), (.deleteRemoteTag, AppCommand.deleteRemoteTag.title)]
+        case let .ref(name) where name.hasPrefix("refs/remotes/"):
+            commands = [(.deleteRemoteBranch, "Delete from Remote…")]
+        case .ref, .stash:
+            commands = []
+        }
+        guard !commands.isEmpty else { return [] }
+        return [commands.map { command, title in
+            SidebarMenuItem(title: title, isEnabled: !runner.isBusy) { [weak self] in self?.perform(command, on: id) }
+        }]
+    }
+
+    /// From a remote's, remote branch's or tag's context menu in the sidebar.
     func perform(_ command: AppCommand, on id: SidebarItemID) {
         let window = actingWindow
         switch (command, id) {
@@ -114,6 +136,9 @@ final class RemotesCoordinator {
             editing.edit(name, from: window)
         case let (.removeRemote, .remote(name)):
             editing.remove(name, from: window)
+        case (.deleteRemoteBranch, .ref):
+            guard let (remote, branch) = remoteBranch(id) else { return }
+            remoteBranches.delete(branch, from: remote, window: window)
         case (.pushTag, .ref), (.deleteRemoteTag, .ref):
             guard let tag = tagName(id) else { return }
             Task { [weak self] in
@@ -153,6 +178,8 @@ final class RemotesCoordinator {
             return tagChoices(selection: selection, placeholder: "Delete from Remote") { [weak self] tag, remote in
                 self?.tags.delete(tag, from: remote, window: self?.actingWindow)
             }
+        case .deleteRemoteBranch:
+            return remoteBranchChoices(selection: selection)
         default:
             return nil
         }
@@ -204,6 +231,29 @@ final class RemotesCoordinator {
             confirmTitle: isPush ? "Push" : "Continue",
             on: window
         )
+    }
+
+    /// Only the one selected in the sidebar when it's a remote branch, and otherwise all of them.
+    private func remoteBranchChoices(selection: SidebarItemID?) -> [CommandPaletteDestination] {
+        guard !runner.isBusy, let contents else { return [] }
+        let all = contents.remotes.flatMap { remote in remote.branches.map { (remote: remote.name, branch: $0) } }
+        let selected = all.filter { $0.branch.id == selection }
+        return (selected.isEmpty ? all : selected).map { remote, branch in
+            let name = "\(remote)/\(branch.name)"
+            return CommandPaletteDestination(id: "ref:refs/remotes/\(name)", kind: .remoteBranch, title: name) { [weak self] in
+                self?.remoteBranches.delete(branch.name, from: remote, window: self?.actingWindow)
+            }
+        }
+    }
+
+    /// The remote a remote branch is on, and its name there.
+    private func remoteBranch(_ id: SidebarItemID) -> (remote: String, branch: String)? {
+        for remote in contents?.remotes ?? [] {
+            if let branch = remote.branches.first(where: { $0.id == id }) {
+                return (remote.name, branch.name)
+            }
+        }
+        return nil
     }
 
     private func tagName(_ id: SidebarItemID) -> String? {

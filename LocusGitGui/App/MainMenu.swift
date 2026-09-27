@@ -17,6 +17,12 @@ enum MainMenu {
         let fetchVariants: [NSMenuItem]
         let remoteChoices: [NSMenuItem]
         let tagChoices: [NSMenuItem]
+        /// Branch, tag and stash commands that ask which one in the palette.
+        let operationChoices: [AppCommand: NSMenuItem]
+
+        func choices(_ commands: AppCommand...) -> [NSMenuItem] {
+            commands.compactMap { operationChoices[$0] }
+        }
     }
 
     static func install(appName: String, items owned: OwnedItems) {
@@ -53,7 +59,9 @@ enum MainMenu {
         ]))
 
         main.addItem(viewMenu(owned))
+        main.addItem(branchMenu(owned))
         main.addItem(commitMenu(owned))
+        main.addItem(stashMenu(owned))
         main.addItem(remoteMenu(owned))
 
         let windowMenu = submenu(named: "Window", items: [
@@ -94,8 +102,30 @@ enum MainMenu {
         ])
     }
 
+    /// Merge and rebase act on the checked-out branch, so they're here rather than with the
+    /// commit's own commands.
+    private static func branchMenu(_ owned: OwnedItems) -> NSMenuItem {
+        submenu(named: "Branch", items: [
+            owned.choices(.checkOutBranch),
+            items(.newBranch),
+            owned.choices(.renameBranch, .deleteBranch),
+            [.separator()],
+            owned.choices(.setUpstream),
+            items(.unsetUpstream),
+            [.separator()],
+            owned.choices(.mergeIntoCurrentBranch, .rebaseCurrentBranch),
+            [.separator()],
+            items(.newTag),
+            owned.choices(.deleteTag),
+        ])
+    }
+
+    /// Continue, Skip and Abort come first while an operation has stopped partway, since finishing
+    /// it is what the window is waiting for.
     private static func commitMenu(_ owned: OwnedItems) -> NSMenuItem {
         submenu(named: "Commit", items: [
+            items(.continueOperation, .skipCommit, .abortOperation),
+            [.separator()],
             items(.commitChanges, .amendLastCommit),
             [.separator()],
             items(.toggleFileStaging, .toggleHunkStaging, .discardFile, .discardHunk),
@@ -109,6 +139,22 @@ enum MainMenu {
             owned.commitGoTo,
             [.separator()],
             items(.showFullMessage),
+            [.separator()],
+            items(.checkOutCommit, .newBranchFromCommit, .newTagOnCommit),
+            [.separator()],
+            items(.cherryPickCommit, .revertCommit),
+            [.separator()],
+            items(.softResetToCommit, .mixedResetToCommit, .hardResetToCommit),
+            [.separator()],
+            items(.rewordCommit, .editCommit),
+        ])
+    }
+
+    private static func stashMenu(_ owned: OwnedItems) -> NSMenuItem {
+        submenu(named: "Stash", items: [
+            items(.stashChanges, .stashIncludingUntracked),
+            [.separator()],
+            owned.choices(.applyStash, .popStash, .dropStash),
         ])
     }
 
@@ -123,6 +169,7 @@ enum MainMenu {
             items(.addRemote),
             owned.remoteChoices,
             [.separator()],
+            owned.choices(.deleteRemoteBranch),
             owned.tagChoices,
         ])
     }

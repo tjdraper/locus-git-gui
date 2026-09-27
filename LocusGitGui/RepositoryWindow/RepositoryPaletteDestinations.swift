@@ -13,8 +13,14 @@ extension RepositoryWindowController: CommandPaletteDestinationSource {
         case .goToStash: kinds = [.stash]
         case .goToParentCommit: return commitColumns.history.parentChoices
         case .revealCommitInSidebar: return commitColumns.history.labelChoices
-        default: return remotes.paletteChoices(for: command, selection: sidebar.selection)
+        default:
+            return OperationPaletteChoices.choices(for: command, in: operations)
+                ?? remotes.paletteChoices(for: command, selection: sidebar.selection)
         }
         return paletteDestinations.filter { kinds.contains($0.kind) }
+    }
+
+    func menuTitle(for command: AppCommand) -> String? {
+        OperationPaletteChoices.title(for: command, in: operations)
     }
 }

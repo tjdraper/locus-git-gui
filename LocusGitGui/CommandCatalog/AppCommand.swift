@@ -66,6 +66,20 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case showActivity
     case showOnlyMissingRepositories
 
+    case checkOutBranch
+    case newBranch
+    case renameBranch
+    case deleteBranch
+    case setUpstream
+    case unsetUpstream
+    case mergeIntoCurrentBranch
+    case rebaseCurrentBranch
+    case newTag
+    case deleteTag
+
+    case continueOperation
+    case skipCommit
+    case abortOperation
     case commitChanges
     case amendLastCommit
     case toggleFileStaging
@@ -80,6 +94,22 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case goToParentCommit
     case revealCommitInSidebar
     case showFullMessage
+    case checkOutCommit
+    case newBranchFromCommit
+    case newTagOnCommit
+    case cherryPickCommit
+    case revertCommit
+    case softResetToCommit
+    case mixedResetToCommit
+    case hardResetToCommit
+    case rewordCommit
+    case editCommit
+
+    case stashChanges
+    case stashIncludingUntracked
+    case applyStash
+    case popStash
+    case dropStash
 
     case fetch
     case fetchWithoutOptions
@@ -97,13 +127,17 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case removeRemote
     case pushTag
     case deleteRemoteTag
+    case deleteRemoteBranch
 
     case minimize
     case zoom
     case bringAllToFront
 
     case setupChecklist
+}
 
+/// Titles and shortcuts, which the menus and the palette show.
+nonisolated extension AppCommand {
     var title: String {
         switch self {
         case .about: "About Locus Git Gui"
@@ -164,6 +198,19 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .showLessContext: "Fewer Context Lines"
         case .showActivity: "Show Activity"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
+        case .checkOutBranch: "Check Out Branch…"
+        case .newBranch: "New Branch…"
+        case .renameBranch: "Rename Branch…"
+        case .deleteBranch: "Delete Branch…"
+        case .setUpstream: "Set Upstream…"
+        case .unsetUpstream: "Unset Upstream"
+        case .mergeIntoCurrentBranch: "Merge into Current Branch…"
+        case .rebaseCurrentBranch: "Rebase Current Branch onto…"
+        case .newTag: "New Tag…"
+        case .deleteTag: "Delete Tag…"
+        case .continueOperation: "Continue"
+        case .skipCommit: "Skip Commit"
+        case .abortOperation: "Abort…"
         case .commitChanges: "Commit"
         case .amendLastCommit: "Amend Last Commit"
         case .toggleFileStaging: "Stage File"
@@ -178,6 +225,21 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .goToParentCommit: "Go to Parent"
         case .revealCommitInSidebar: "Reveal in Sidebar"
         case .showFullMessage: "Show Full Message"
+        case .checkOutCommit: "Check Out Commit"
+        case .newBranchFromCommit: "New Branch from Commit…"
+        case .newTagOnCommit: "New Tag on Commit…"
+        case .cherryPickCommit: "Cherry-Pick Commit"
+        case .revertCommit: "Revert Commit"
+        case .softResetToCommit: "Soft Reset to Commit"
+        case .mixedResetToCommit: "Mixed Reset to Commit"
+        case .hardResetToCommit: "Hard Reset to Commit…"
+        case .rewordCommit: "Reword Commit…"
+        case .editCommit: "Edit Commit…"
+        case .stashChanges: "Stash Changes…"
+        case .stashIncludingUntracked: "Stash Including Untracked Files…"
+        case .applyStash: "Apply Stash…"
+        case .popStash: "Pop Stash…"
+        case .dropStash: "Drop Stash…"
         case .fetch: "Fetch"
         case .fetchWithoutOptions: "Fetch without Pruning or Tags"
         case .fetchAndPrune: "Fetch and Prune"
@@ -194,6 +256,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .removeRemote: "Remove Remote…"
         case .pushTag: "Push Tag…"
         case .deleteRemoteTag: "Delete Tag from Remote…"
+        case .deleteRemoteBranch: "Delete Branch from Remote…"
         case .minimize: "Minimize"
         case .zoom: "Zoom"
         case .bringAllToFront: "Bring All to Front"
@@ -245,6 +308,11 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
         case .showOnlyMissingRepositories: KeyShortcut("m", [.command, .shift])
         case .goToUncommittedChanges: KeyShortcut("u", [.command, .shift])
         case .openUncommittedChangesWindow: KeyShortcut("u", [.command, .option, .shift])
+        case .checkOutBranch: KeyShortcut("b", [.command, .shift])
+        case .newBranch: KeyShortcut("n", [.command, .shift])
+        case .continueOperation: KeyShortcut(KeyShortcut.returnKey, [.command, .option])
+        case .stashChanges: KeyShortcut("s", [.command, .shift])
+        case .stashIncludingUntracked: KeyShortcut("s", [.command, .option, .shift])
         case .commitChanges: KeyShortcut(KeyShortcut.returnKey)
         case .stageAll: KeyShortcut("a", [.command, .shift])
         case .unstageAll: KeyShortcut("a", [.command, .option, .shift])

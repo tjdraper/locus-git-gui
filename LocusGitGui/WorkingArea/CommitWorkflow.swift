@@ -75,8 +75,28 @@ final class CommitWorkflow {
         guard editor.message.isEmpty, !editor.isAmending,
               let text = try? String(contentsOf: url, encoding: .utf8), text != offeredMergeMessage else { return }
         offeredMergeMessage = text
-        // Git's comments, such as the list of conflicts, which `git commit` would take out itself.
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).filter { !$0.hasPrefix("#") }
-        editor.replaceMessage(with: CommitMessage(parsing: lines.joined(separator: "\n")))
+        Task { [weak self, commands] in
+            let comment = await Self.commentCharacter(for: text, running: commands.run)
+            guard let self, editor.message.isEmpty, !editor.isAmending else { return }
+            // Git's comments, such as the list of conflicts, which `git commit` would take out itself.
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false).filter { !$0.hasPrefix(comment) }
+            editor.replaceMessage(with: CommitMessage(parsing: lines.joined(separator: "\n")))
+        }
+    }
+
+    /// `core.commentChar`, which some people set to something other than `#`. Set to `auto`, Git
+    /// picks one the message doesn't start a line with, which the list of conflicts shows.
+    private static func commentCharacter(
+        for message: String,
+        running run: (GitCommand) async throws -> ChildProcess.Result
+    ) async -> String {
+        let configured = try? await run(.reading(["config", "--get", "core.commentChar"]))
+        let value = configured.flatMap { $0.status == 0 ? String(bytes: $0.standardOutput, encoding: .utf8) : nil }?
+            .trimmingCharacters(in: .newlines) ?? ""
+        if !value.isEmpty, value != "auto" {
+            return value
+        }
+        let conflicts = message.split(separator: "\n").first { $0.count > 1 && $0.dropFirst() == " Conflicts:" }
+        return conflicts.map { String($0.prefix(1)) } ?? "#"
     }
 }

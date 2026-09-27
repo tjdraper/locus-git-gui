@@ -9,7 +9,7 @@ nonisolated struct GitFailure: Equatable, Sendable {
     let result: ChildProcess.Result
 
     var recognized: RecognizedGitFailure? {
-        RecognizedGitFailure.recognize(result)
+        RecognizedGitFailure.recognize(result, arguments: arguments)
     }
 
     /// Errors go to standard error, but some commands explain themselves on standard output, such

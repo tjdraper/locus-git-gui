@@ -10,6 +10,8 @@ nonisolated struct GitCommand: Sendable, Equatable {
     /// Where Git and SSH ask for a password, passphrase or answer while this command runs. Nil for
     /// a command that shouldn't ask, which then fails rather than waits.
     var askpass: AskpassChannel?
+    /// Added to the environment Git runs with, such as the editor a rebase uses.
+    var environment: [String: String] = [:]
 
     static func reading(_ arguments: [String]) -> GitCommand {
         GitCommand(arguments: arguments, isReadOnly: true)

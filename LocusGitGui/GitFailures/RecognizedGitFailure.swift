@@ -32,8 +32,22 @@ nonisolated enum RecognizedGitFailure: Equatable, Sendable {
     case hostKeyChanged(host: String?)
     /// The server couldn't be found or reached, which is the network rather than the repository.
     case unreachable(host: String?)
+    /// A checkout, merge, rebase, cherry-pick or revert refused to start because it would overwrite
+    /// changes that aren't committed. `files` is empty when Git doesn't name them, as a rebase
+    /// doesn't. `includesUntracked` when some are untracked files, which only a stash that includes
+    /// untracked files takes out of the way.
+    case localChangesWouldBeOverwritten(files: [String], includesUntracked: Bool)
+    /// `git branch -d` on a branch with commits its upstream or HEAD doesn't have.
+    case branchNotMerged(branch: String)
+    /// A merge, rebase, cherry-pick or revert stopped on conflicts, waiting for them to be resolved.
+    case stoppedOnConflicts
+    /// Continuing before every conflicted file was marked resolved.
+    case unresolvedConflicts
+    /// Applying or popping a stash conflicted, and Git kept the stash.
+    case stashConflicts
 
-    static func recognize(_ result: ChildProcess.Result) -> RecognizedGitFailure? {
+    /// `arguments` are the command's, for failures whose wording another command shares.
+    static func recognize(_ result: ChildProcess.Result, arguments: [String] = []) -> RecognizedGitFailure? {
         guard result.status != 0 else {
             return nil
         }
@@ -42,6 +56,9 @@ nonisolated enum RecognizedGitFailure: Equatable, Sendable {
         let output = TerminalOutput.rendered(standardError + "\n" + standardOutput)
         if let match = output.firstMatch(of: #/Unable to create '(?<path>[^']+\.lock)': File exists\./#) {
             return .lockExists(URL(filePath: String(match.output.path)))
+        }
+        if let local = recognizeLocalOperation(output, arguments: arguments) {
+            return local
         }
         if output.contains("REMOTE HOST IDENTIFICATION HAS CHANGED") {
             return .hostKeyChanged(host: output.firstMatch(of: #/Host key for (?<host>\S+) has changed/#).map { String($0.host) })
@@ -67,6 +84,58 @@ nonisolated enum RecognizedGitFailure: Equatable, Sendable {
             return .accessDenied
         }
         return nil
+    }
+
+    /// Failures of the commands that change branches and history in this repository.
+    private static func recognizeLocalOperation(_ output: String, arguments: [String]) -> RecognizedGitFailure? {
+        let isStash = arguments.first == "stash"
+        if isStash, output.contains("CONFLICT ") {
+            return .stashConflicts
+        }
+        if !isStash, let overwritten = recognizeOverwrittenChanges(output) {
+            return overwritten
+        }
+        if let match = output.firstMatch(of: #/[Tt]he branch '(?<branch>[^']+)' is not fully merged/#) {
+            return .branchNotMerged(branch: String(match.branch))
+        }
+        if output.contains("Committing is not possible because you have unmerged files")
+            || output.contains("You must edit all merge conflicts") {
+            return .unresolvedConflicts
+        }
+        if output.contains("Automatic merge failed; fix conflicts")
+            || output.contains("error: could not apply ")
+            || output.contains("error: could not revert ") {
+            return .stoppedOnConflicts
+        }
+        return nil
+    }
+
+    /// Git lists the files a tab in, under a line saying what they'd be overwritten by.
+    private static func recognizeOverwrittenChanges(_ output: String) -> RecognizedGitFailure? {
+        var files: [String] = []
+        var includesUntracked = false
+        var isListing = false
+        var isRecognized = false
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.contains("Your local changes to the following files would be overwritten by") {
+                isRecognized = true
+                isListing = true
+            } else if line.contains("untracked working tree files would be overwritten by") {
+                isRecognized = true
+                isListing = true
+                includesUntracked = true
+            } else if isListing, line.hasPrefix("\t") {
+                files.append(String(line.dropFirst()))
+            } else {
+                isListing = false
+            }
+            if line.contains("cannot rebase: You have unstaged changes")
+                || line.contains("cannot rebase: Your index contains uncommitted changes")
+                || line.contains("your local changes would be overwritten by") {
+                isRecognized = true
+            }
+        }
+        return isRecognized ? .localChangesWouldBeOverwritten(files: files, includesUntracked: includesUntracked) : nil
     }
 
     /// Git lists each ref it tried, such as ` ! [rejected]        main -> main (fetch first)`.

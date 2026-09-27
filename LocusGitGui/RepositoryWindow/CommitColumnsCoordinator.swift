@@ -17,6 +17,8 @@ final class CommitColumnsCoordinator {
     /// Every labelled commit's labels, as of the last refresh.
     private(set) var labels: [String: [CommitRefLabel]] = [:]
     var present: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?
+    /// When the history selects a commit, or nothing.
+    var onCommitSelected: ((Commit?) -> Void)?
 
     /// Where each sidebar item's history was left, saved with the repository's view state.
     private(set) var historyPlaces: HistoryPlaceMemory
@@ -31,6 +33,7 @@ final class CommitColumnsCoordinator {
     private var hasShownHistory = false
     /// As of the last refresh.
     private var workingAreaSummary: WorkingAreaSummary?
+    private var rebasingBranch: String?
 
     init(
         commands: RepositoryCommandRunner,
@@ -60,6 +63,7 @@ final class CommitColumnsCoordinator {
             case let .commit(commit):
                 detailColumn.showWorkingArea(false)
                 detail.show(commit, labels: history.labels(of: commit))
+                onCommitSelected?(commit)
             case nil:
                 detailColumn.showWorkingArea(false)
                 detail.show(nil, labels: [])
@@ -87,6 +91,11 @@ final class CommitColumnsCoordinator {
     /// After each refresh, before the history is shown, so a repository with no commits yet still
     /// has its working area to make the first one in.
     func show(_ snapshot: RepositorySnapshot) {
+        if case let .rebasing(branch, _, _) = snapshot.operation {
+            rebasingBranch = branch
+        } else {
+            rebasingBranch = nil
+        }
         workingAreaSummary = WorkingAreaSummary(snapshot.status)
         workingArea.show(snapshot)
     }
@@ -109,7 +118,9 @@ final class CommitColumnsCoordinator {
         )
         shownSelection = selection
         hasShownHistory = true
-        history.showWorkingArea(HistoryScope.isCheckedOut(selection: selection, branch: head.name) ? workingAreaSummary : nil)
+        // A rebase detaches HEAD while it works, but the branch it rebases is still the one being worked on.
+        let branch = head.name ?? rebasingBranch
+        history.showWorkingArea(HistoryScope.isCheckedOut(selection: selection, branch: branch) ? workingAreaSummary : nil)
         labels = CommitRefLabel.byCommit(refs: refs, detachedHead: head.name == nil ? head.commit : nil)
         history.showLabels(labels)
         if let commit = detail.commit {

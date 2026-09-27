@@ -134,6 +134,27 @@ struct GitFailureSheet: View {
                     fetch()
                 }
             }
+        case (.localChangesWouldBeOverwritten, _):
+            if let stashAndContinue = nextSteps.stashAndContinue {
+                Button("Stash and Continue") {
+                    dismiss()
+                    stashAndContinue()
+                }
+            }
+        case (.branchNotMerged, _):
+            if let deleteAnyway = nextSteps.deleteAnyway {
+                Button("Delete Anyway…") {
+                    dismiss()
+                    deleteAnyway()
+                }
+            }
+        case (.stoppedOnConflicts, _), (.unresolvedConflicts, _), (.stashConflicts, _):
+            if let showConflicts = nextSteps.showConflicts {
+                Button("Show Conflicts") {
+                    dismiss()
+                    showConflicts()
+                }
+            }
         case (.authenticationFailed, _), (.unreachable, _):
             if let retry {
                 Button("Try Again") {

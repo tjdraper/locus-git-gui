@@ -7,6 +7,8 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
     /// The working area's row, whose menu only opens it in a window of its own.
     var isWorkingAreaForMenu: (() -> Bool)?
     var openWorkingArea: (() -> Void)?
+    /// The branch, tag and history commands for the commit, in groups after the menu's own.
+    var operationItems: ((Commit) -> [[NSMenuItem]])?
     private let commitForMenu: () -> Commit?
     private let labels: (String) -> [CommitRefLabel]
     private let parentTitle: (String) -> String
@@ -51,6 +53,10 @@ final class HistoryContextMenu: NSObject, NSMenuDelegate {
         ))
         let revealable = labels(commit.hash).compactMap { label in label.sidebarItem.map { (title: label.name, value: $0) } }
         menu.addItem(choiceItem(.revealCommitInSidebar, #selector(revealItem(_:)), choices: revealable))
+        for group in operationItems?(commit) ?? [] {
+            menu.addItem(.separator())
+            group.forEach(menu.addItem)
+        }
     }
 
     private func item(_ command: AppCommand, _ action: Selector, _ value: Any?) -> NSMenuItem {
