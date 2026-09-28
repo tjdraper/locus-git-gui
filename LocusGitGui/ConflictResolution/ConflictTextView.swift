@@ -9,6 +9,8 @@ final class ConflictTextView: NSTextView {
         let color: NSColor
     }
 
+    private var fontWatch: NotificationWatch?
+
     var highlights: [Highlight] = [] {
         didSet {
             if highlights != oldValue {
@@ -54,11 +56,8 @@ final class ConflictTextView: NSTextView {
         textView.backgroundColor = .textBackgroundColor
         textView.textColor = .labelColor
         scrollView.documentView = textView
-        Task { [weak textView] in
-            for await _ in NotificationCenter.default.notifications(named: DiffPreferences.didChange) {
-                guard let textView else { return }
-                textView.useDiffFont()
-            }
+        textView.fontWatch = NotificationWatch(DiffPreferences.didChange) { [weak textView] in
+            textView?.useDiffFont()
         }
         return (scrollView, textView)
     }

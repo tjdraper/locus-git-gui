@@ -36,6 +36,7 @@ final class HistoryViewController: NSViewController {
     /// Told when the text or field Find in History looks in changes, for the window to remember.
     var onFindChange: (() -> Void)?
     var reportingPlace: Task<Void, Never>?
+    var scrollWatch: NotificationWatch?
     /// Where the history being read was left, until it's been read and can be shown there.
     var pendingPlace: HistoryPlace?
     var showFailure: ((GitFailure, _ retry: @escaping () -> Void) -> Void)?

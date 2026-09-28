@@ -88,6 +88,7 @@ final class DiffViewController: NSViewController {
     private let summaryBar = DiffSummaryBar()
     private lazy var summaryHeight = summaryBar.heightAnchor.constraint(equalToConstant: 0)
     private var appearance = DiffAppearance()
+    private var appearanceWatch: NotificationWatch?
 
     private(set) var files: [DiffFile] = []
     var collapsedFiles: Set<DiffFile.Identity> = [] {
@@ -306,15 +307,16 @@ final class DiffViewController: NSViewController {
 /// Settings' font and layout, which every diff shown follows as they change.
 private extension DiffViewController {
     func followAppearance() {
-        Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: DiffPreferences.didChange) {
-                guard let self else { return }
-                let appearance = DiffAppearance()
-                guard appearance.differs(from: self.appearance) else { continue }
-                self.appearance = appearance
-                rebuild(keepingPlace: true)
-            }
+        appearanceWatch = NotificationWatch(DiffPreferences.didChange) { [weak self] in
+            self?.appearanceDidChange()
         }
+    }
+
+    func appearanceDidChange() {
+        let appearance = DiffAppearance()
+        guard appearance.differs(from: self.appearance) else { return }
+        self.appearance = appearance
+        rebuild(keepingPlace: true)
     }
 }
 

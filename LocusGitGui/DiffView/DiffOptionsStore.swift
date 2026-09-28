@@ -10,6 +10,7 @@ final class DiffOptionsStore {
     /// Called after the repository's own choices change, such as to save them with its view state.
     var onChange: ((DiffOptionChoices) -> Void)?
     private var observers: [ObjectIdentifier: (weak: Weak, handler: (DiffOptions) -> Void)] = [:]
+    private var watch: NotificationWatch?
 
     private struct Weak {
         weak var object: AnyObject?
@@ -19,11 +20,8 @@ final class DiffOptionsStore {
         self.choices = choices
         self.defaults = defaults
         options = choices.applied(to: defaults)
-        Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: DiffPreferences.didChange) {
-                guard let self else { return }
-                useDefaults(DiffPreferences().defaultOptions)
-            }
+        watch = NotificationWatch(DiffPreferences.didChange) { [weak self] in
+            self?.useDefaults(DiffPreferences().defaultOptions)
         }
     }
 

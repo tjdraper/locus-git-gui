@@ -34,10 +34,8 @@ extension HistoryViewController {
     func observeScrolling() {
         let clipView = scrollView.contentView
         clipView.postsBoundsChangedNotifications = true
-        Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: NSView.boundsDidChangeNotification, object: clipView) {
-                self?.placeDidChange()
-            }
+        scrollWatch = NotificationWatch(NSView.boundsDidChangeNotification, object: clipView) { [weak self] in
+            self?.placeDidChange()
         }
     }
 
