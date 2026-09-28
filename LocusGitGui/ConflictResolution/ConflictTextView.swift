@@ -9,8 +9,6 @@ final class ConflictTextView: NSTextView {
         let color: NSColor
     }
 
-    static let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-
     var highlights: [Highlight] = [] {
         didSet {
             if highlights != oldValue {
@@ -35,7 +33,7 @@ final class ConflictTextView: NSTextView {
         textView.textContainer?.containerSize = NSSize(width: contentSize.width, height: .greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.textContainerInset = NSSize(width: 4, height: 6)
-        textView.font = font
+        textView.useDiffFont()
         textView.isRichText = false
         textView.importsGraphics = false
         textView.isEditable = isEditable
@@ -55,9 +53,21 @@ final class ConflictTextView: NSTextView {
         textView.drawsBackground = true
         textView.backgroundColor = .textBackgroundColor
         textView.textColor = .labelColor
-        textView.typingAttributes = [.font: font, .foregroundColor: NSColor.labelColor]
         scrollView.documentView = textView
+        Task { [weak textView] in
+            for await _ in NotificationCenter.default.notifications(named: DiffPreferences.didChange) {
+                guard let textView else { return }
+                textView.useDiffFont()
+            }
+        }
         return (scrollView, textView)
+    }
+
+    private func useDiffFont() {
+        let font = DiffPreferences().font
+        guard font != self.font else { return }
+        self.font = font
+        typingAttributes = [.font: font, .foregroundColor: NSColor.labelColor]
     }
 
     /// Only the marks in the laid-out part of the text are looked at, so a file with thousands of

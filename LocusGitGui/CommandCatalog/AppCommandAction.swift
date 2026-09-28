@@ -1,5 +1,4 @@
 import AppKit
-import Sparkle
 
 /// What each command does, as the action its menu item sends. Most go up the responder chain to
 /// whichever window, controller or the app handles them, which also decides whether they're enabled.
@@ -7,7 +6,9 @@ extension AppCommand {
     var action: Selector {
         switch self {
         case .about: #selector(AppDelegate.showAboutPanel(_:))
-        case .checkForUpdates: #selector(SPUStandardUpdaterController.checkForUpdates(_:))
+        case .installWaitingUpdate: #selector(UpdateController.installWaitingUpdate(_:))
+        case .checkForUpdates: #selector(UpdateController.checkForUpdates(_:))
+        case .settings: #selector(AppDelegate.showSettings(_:))
         case .hide: #selector(NSApplication.hide(_:))
         case .hideOthers: #selector(NSApplication.hideOtherApplications(_:))
         case .showAll: #selector(NSApplication.unhideAllApplications(_:))
@@ -152,7 +153,29 @@ extension AppCommand {
 
     /// `target` is for a command that belongs to one object rather than to the responder chain.
     func makeMenuItem(target: AnyObject? = nil) -> NSMenuItem {
-        makeMenuItem(shortcut: shortcut, target: target)
+        makeMenuItem(shortcut: menuShortcut, target: target)
+    }
+
+    /// The shortcut as Settings has it, which can differ from the catalog's (see
+    /// `CopyPathShortcutPreference`).
+    var menuShortcut: KeyShortcut? {
+        shortcut(optionCommandCCopiesPathFromRoot: CopyPathShortcutPreference().copiesPathFromRoot)
+    }
+
+    /// Gives the menu bar's items the shortcuts Settings now has for them. Context menus are made as
+    /// they open, so they already do.
+    static func refreshMenuBarShortcuts(in menu: NSMenu? = NSApp.mainMenu) {
+        for item in menu?.items ?? [] {
+            if let submenu = item.submenu {
+                refreshMenuBarShortcuts(in: submenu)
+            }
+            guard let command = AppCommand(menuItem: item), [.copyAbsolutePath, .copyPathFromRepositoryRoot].contains(command) else {
+                continue
+            }
+            let shortcut = command.menuShortcut
+            item.keyEquivalent = shortcut?.key ?? ""
+            item.keyEquivalentModifierMask = shortcut?.modifiers ?? []
+        }
     }
 
     private func makeMenuItem(shortcut: KeyShortcut?, target: AnyObject?) -> NSMenuItem {

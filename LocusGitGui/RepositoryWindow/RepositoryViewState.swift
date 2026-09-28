@@ -21,7 +21,7 @@ nonisolated struct RepositoryViewState: Codable, Equatable, Sendable {
     var columns: Columns?
     /// As `NSWindow.frameDescriptor` writes it, which records the screen as well as the frame.
     var windowFrame: String?
-    var diffOptions = DiffOptions()
+    var diffChoices = DiffOptionChoices()
     /// View > Show Message as Markdown.
     var showsMessageAsMarkdown = true
     var diffPlaces = DiffPlaceMemory()
@@ -44,11 +44,26 @@ nonisolated extension RepositoryViewState {
         workingAreaFilter = try container.decodeIfPresent(WorkingAreaFilter.self, forKey: .workingAreaFilter) ?? .all
         columns = try container.decodeIfPresent(Columns.self, forKey: .columns)
         windowFrame = try container.decodeIfPresent(String.self, forKey: .windowFrame)
-        diffOptions = try container.decodeIfPresent(DiffOptions.self, forKey: .diffOptions) ?? DiffOptions()
+        diffChoices = try container.decodeIfPresent(DiffOptionChoices.self, forKey: .diffChoices)
+            ?? Self.legacyDiffChoices(from: decoder)
         showsMessageAsMarkdown = try container.decodeIfPresent(Bool.self, forKey: .showsMessageAsMarkdown) ?? true
         diffPlaces = try container.decodeIfPresent(DiffPlaceMemory.self, forKey: .diffPlaces) ?? DiffPlaceMemory()
         historyPlaces = try container.decodeIfPresent(HistoryPlaceMemory.self, forKey: .historyPlaces) ?? HistoryPlaceMemory()
         openWindows = try container.decodeIfPresent(OpenWindows.self, forKey: .openWindows) ?? OpenWindows()
         commitDraft = try container.decodeIfPresent(CommitMessage.self, forKey: .commitDraft)
+    }
+
+    private enum LegacyKeys: String, CodingKey {
+        case diffOptions
+    }
+
+    /// Saved before Settings had diff defaults, when every repository kept both options whether or
+    /// not they'd been changed. Only the ones changed from Git's defaults count as choices.
+    private static func legacyDiffChoices(from decoder: any Decoder) throws -> DiffOptionChoices {
+        let container = try decoder.container(keyedBy: LegacyKeys.self)
+        guard let options = try container.decodeIfPresent(DiffOptions.self, forKey: .diffOptions) else {
+            return DiffOptionChoices()
+        }
+        return DiffOptionChoices(options, defaults: DiffOptions())
     }
 }

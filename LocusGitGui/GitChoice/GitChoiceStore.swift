@@ -16,6 +16,8 @@ final class GitChoiceStore {
     /// Nil while searching.
     private(set) var searchResult: GitFinder.Result?
     private(set) var rejectedChoice: Rejection?
+    /// Where Git's environment came from, once the login shell has been read.
+    private(set) var environmentSource: LoginShellEnvironment.Source?
 
     /// Lets folders the user asked to open before choosing a Git open once they have.
     @ObservationIgnored var onGitChosen: (() -> Void)?
@@ -27,11 +29,15 @@ final class GitChoiceStore {
         self.loginShell = loginShell
     }
 
+    /// A check that finishes after the user picked another Git leaves the pick's state alone.
     @discardableResult
     func checkAvailability() async -> GitChoice.Availability {
+        let checked = choice.executableURL
         let environment = await loginShell.value.variables
         let availability = await choice.availability { await GitInstallation.isUsable($0, environment: environment) }
-        self.availability = availability
+        if choice.executableURL == checked {
+            self.availability = availability
+        }
         return availability
     }
 
@@ -47,11 +53,15 @@ final class GitChoiceStore {
     /// Checks the chosen Git and searches again, since either can change while the checklist is
     /// open, such as when the Command Line Tools finish installing.
     func refresh() async {
+        let checked = choice.executableURL
+        environmentSource = await loginShell.value.source
         let environment = await loginShell.value.variables
+        var installation: GitInstallation?
         if case let .available(url) = await checkAvailability() {
-            chosenInstallation = try? await GitInstallation.probe(url, environment: environment)
-        } else {
-            chosenInstallation = nil
+            installation = try? await GitInstallation.probe(url, environment: environment)
+        }
+        if choice.executableURL == checked {
+            chosenInstallation = installation
         }
         searchResult = await GitFinder.find(environment: environment)
     }

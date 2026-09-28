@@ -3,11 +3,10 @@ import os
 
 /// A diff of any number of files: a commit's changes in the detail column or a commit window, or
 /// one file's in a file window. Side by side when there's room for both versions, and inline when
-/// there isn't. Where the changes come from is up to whoever shows them, through `readFile` and
-/// `readImage`.
+/// there isn't, unless Settings asks for one of them always. Where the changes come from is up to
+/// whoever shows them, through `readFile` and `readImage`.
 final class DiffViewController: NSViewController {
     private static let log = Logger(subsystem: "com.buzzingpixel.LocusGitGui", category: "DiffView")
-    private static let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
 
     /// Reads a file's changes whatever their size, for changes that were left out.
     var readFile: ((DiffFile) async throws -> DiffFile)? {
@@ -88,8 +87,7 @@ final class DiffViewController: NSViewController {
     private let emptyMessage = NSTextField(labelWithString: "")
     private let summaryBar = DiffSummaryBar()
     private lazy var summaryHeight = summaryBar.heightAnchor.constraint(equalToConstant: 0)
-    private let metrics: DiffLayout.Metrics
-    private let painter: DiffRowPainter
+    private var appearance = DiffAppearance()
 
     private(set) var files: [DiffFile] = []
     var collapsedFiles: Set<DiffFile.Identity> = [] {
@@ -111,10 +109,6 @@ final class DiffViewController: NSViewController {
     init(options: DiffOptionsStore, workTree: URL) {
         self.options = options
         self.workTree = workTree
-        let advance = ("0" as NSString).size(withAttributes: [.font: Self.font]).width
-        let fontHeight = Self.font.ascender - Self.font.descender + Self.font.leading
-        metrics = DiffLayout.Metrics(advance: advance, lineHeight: (fontHeight + 5).rounded(.up))
-        painter = DiffRowPainter(font: Self.font, metrics: metrics)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -154,6 +148,7 @@ final class DiffViewController: NSViewController {
         emptyMessage.alignment = .center
         emptyMessage.isHidden = true
         connectBlockViews()
+        followAppearance()
         summaryBar.onCollapseAll = { [weak self] in self?.collapseAllFiles(nil) }
         summaryBar.onExpandAll = { [weak self] in self?.expandAllFiles(nil) }
         for subview in [summaryBar, scrollView, emptyMessage] {
@@ -249,13 +244,16 @@ final class DiffViewController: NSViewController {
             return
         }
         let started = ContinuousClock.now
-        let style = DiffLayout.style(forWidth: width, metrics: metrics, numberColumns: numberColumns)
+        let metrics = appearance.metrics
+        let style = DiffLayout.style(forWidth: width, metrics: metrics, numberColumns: numberColumns, layout: appearance.layout)
         let collapsed = Set(files.indices.filter { collapsedFiles.contains(files[$0].id) })
         let document = DiffDocument(files: files, collapsed: collapsed, style: style, headsGroups: describeGroup != nil)
         let layout = DiffLayout(document: document, files: files, metrics: metrics, width: width, numberColumns: numberColumns)
         let isSameShape = canvas.content.map { $0.document == document } ?? false
         canvas.show(
-            DiffCanvasView.Content(files: files, document: document, layout: layout, painter: painter, tintsHunkBands: hunkActions == nil),
+            DiffCanvasView.Content(
+                files: files, document: document, layout: layout, painter: appearance.painter, tintsHunkBands: hunkActions == nil
+            ),
             keepingSelection: isSameShape
         )
         canvas.frame = NSRect(x: 0, y: 0, width: width, height: layout.height)
@@ -301,6 +299,21 @@ final class DiffViewController: NSViewController {
                 files[index].reading = .failed(summary: failed.summary)
             }
             rebuild(keepingPlace: true)
+        }
+    }
+}
+
+/// Settings' font and layout, which every diff shown follows as they change.
+private extension DiffViewController {
+    func followAppearance() {
+        Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: DiffPreferences.didChange) {
+                guard let self else { return }
+                let appearance = DiffAppearance()
+                guard appearance.differs(from: self.appearance) else { continue }
+                self.appearance = appearance
+                rebuild(keepingPlace: true)
+            }
         }
     }
 }

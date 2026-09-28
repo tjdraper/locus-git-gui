@@ -97,6 +97,34 @@ struct RepositoryViewStateFilesTests {
     }
 
     @Test
+    func diffOptionsSavedBeforeSettingsHadDefaultsKeepOnlyWhatWasChanged() throws {
+        // Arrange
+        let changed = Data(#"{"diffOptions":{"ignoresWhitespace":false,"contextLines":10}}"#.utf8)
+        let unchanged = Data(#"{"diffOptions":{"ignoresWhitespace":false,"contextLines":3}}"#.utf8)
+
+        // Act
+        let changedState = try JSONDecoder().decode(RepositoryViewState.self, from: changed)
+        let unchangedState = try JSONDecoder().decode(RepositoryViewState.self, from: unchanged)
+
+        // Assert
+        #expect(changedState.diffChoices == DiffOptionChoices(contextLines: 10))
+        #expect(unchangedState.diffChoices == DiffOptionChoices())
+    }
+
+    @Test
+    func diffChoicesReadBack() throws {
+        // Arrange
+        var state = RepositoryViewState()
+        state.diffChoices = DiffOptionChoices(ignoresWhitespace: false)
+
+        // Act
+        let decoded = try JSONDecoder().decode(RepositoryViewState.self, from: JSONEncoder().encode(state))
+
+        // Assert
+        #expect(decoded.diffChoices == DiffOptionChoices(ignoresWhitespace: false))
+    }
+
+    @Test
     func openWindowsSavedBeforeHistoryWindowsStillRead() throws {
         // Arrange
         let json = Data(#"{"commits":[{"commit":"abc"}],"files":[],"isActivityShown":true}"#.utf8)

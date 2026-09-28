@@ -7,7 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let loginShellEnvironment = Task { await LoginShellEnvironment.capture() }
     private lazy var gitChoice = GitChoiceStore(loginShell: loginShellEnvironment)
     /// Finishing the checklist leads to the dashboard, which it kept from showing at launch.
-    private lazy var firstRunWindow: FirstRunWindowPresenter = FirstRunWindowPresenter(gitChoice: gitChoice) { [weak self] in
+    private lazy var firstRunWindow = FirstRunWindowPresenter(gitChoice: gitChoice, updates: updates) { [weak self] in
         guard let self, !repositoryWindows.hasOpenWindows else { return }
         dashboard.show()
     }
@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let askpass = AskpassServer()
     private let fetchPreferences = FetchPreferences()
     private let conflictMenuItems = ConflictMenuItems()
+    private lazy var settingsWindow = SettingsWindowPresenter(gitChoice: gitChoice, updates: updates, fetchPreferences: fetchPreferences)
     private lazy var repositoryWindows: RepositoryWindowCoordinator = RepositoryWindowCoordinator(
         gitChoice: gitChoice,
         logs: logs,
@@ -77,7 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         MainMenu.install(appName: "Locus Git Gui", items: MainMenu.OwnedItems(
-            checkForUpdates: updates.makeMenuItem(),
+            updates: updates.makeMenuItems(),
             openRecent: recentMenus.openRecentItem,
             dashboardFile: dashboard.fileMenuItems,
             dashboardView: dashboard.viewMenuItems,
@@ -210,6 +211,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the windows it restores into.
     func restoreWindow(for repository: Repository, completionHandler: @escaping (NSWindow?, (any Error)?) -> Void) {
         repositoryWindows.restore(repository, completionHandler: completionHandler)
+    }
+
+    /// Reached through the responder chain from the app menu's Settings….
+    @objc func showSettings(_: Any?) {
+        settingsWindow.show()
     }
 
     /// Reached through the responder chain from the Help menu.

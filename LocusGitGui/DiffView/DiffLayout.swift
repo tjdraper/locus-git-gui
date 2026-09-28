@@ -49,8 +49,19 @@ nonisolated struct DiffLayout: Sendable {
         tops.last ?? 0
     }
 
-    /// Side by side when both sides have room for a line of the usual length.
-    static func style(forWidth width: Double, metrics: Metrics, numberColumns: Int) -> DiffDocument.Style {
+    /// Side by side when both sides have room for a line of the usual length, unless Settings
+    /// asks for one of them always.
+    static func style(
+        forWidth width: Double,
+        metrics: Metrics,
+        numberColumns: Int,
+        layout: DiffPreferences.Layout = .automatic
+    ) -> DiffDocument.Style {
+        switch layout {
+        case .sideBySide: return .sideBySide
+        case .inline: return .inline
+        case .automatic: break
+        }
         let side = sideGeometry(minX: 0, maxX: width / 2, numbers: 1, numberColumns: numberColumns, metrics: metrics)
         return side.textColumns >= sideBySideColumns ? .sideBySide : .inline
     }

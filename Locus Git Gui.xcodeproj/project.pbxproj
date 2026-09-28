@@ -99,6 +99,7 @@
 				DiffView/DiffImage.swift,
 				DiffView/DiffLayout.swift,
 				DiffView/DiffOptions.swift,
+				DiffView/DiffPreferences.swift,
 				DiffView/DiffScrollAnchor.swift,
 				DiffView/DiffSelection.swift,
 				DiffView/FilePatch.swift,

@@ -54,4 +54,15 @@ struct DiffLayoutTests {
         #expect(narrow == .inline)
         #expect(wide == .sideBySide)
     }
+
+    @Test
+    func settingsCanAskForEitherLayoutWhateverTheWidth() {
+        // Act
+        let narrowSideBySide = DiffLayout.style(forWidth: 400, metrics: metrics, numberColumns: 3, layout: .sideBySide)
+        let wideInline = DiffLayout.style(forWidth: 4000, metrics: metrics, numberColumns: 3, layout: .inline)
+
+        // Assert
+        #expect(narrowSideBySide == .sideBySide)
+        #expect(wideInline == .inline)
+    }
 }

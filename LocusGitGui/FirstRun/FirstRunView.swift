@@ -5,6 +5,7 @@ import SwiftUI
 /// while the checklist is open shows up when the user comes back to the app.
 struct FirstRunView: View {
     let gitChoice: GitChoiceStore
+    @Bindable var updates: UpdateController
     let screenFit: ScreenFit
     let onDone: () -> Void
 
@@ -20,6 +21,15 @@ struct FirstRunView: View {
                 Section {
                     ApplicationsFolderRow()
                 }
+            }
+
+            Section {
+                Toggle("Check for updates automatically", isOn: $updates.automaticallyChecksForUpdates)
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("You can change this later in Settings.")
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

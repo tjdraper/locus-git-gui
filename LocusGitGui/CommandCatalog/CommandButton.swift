@@ -8,7 +8,7 @@ struct CommandButton: View {
     let action: () -> Void
 
     var body: some View {
-        if let shortcut = command.shortcut.flatMap(KeyboardShortcut.init) {
+        if let shortcut = command.menuShortcut.flatMap(KeyboardShortcut.init) {
             button.keyboardShortcut(shortcut)
         } else {
             button

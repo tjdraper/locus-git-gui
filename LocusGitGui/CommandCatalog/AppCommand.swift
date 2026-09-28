@@ -5,7 +5,9 @@ import AppKit
 /// which keys reach it. Its action is in `AppCommandAction`, which reaches into the rest of the app.
 nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case about
+    case installWaitingUpdate
     case checkForUpdates
+    case settings
     case hide
     case hideOthers
     case showAll
@@ -151,7 +153,9 @@ nonisolated extension AppCommand {
     var title: String {
         switch self {
         case .about: "About Locus Git Gui"
+        case .installWaitingUpdate: "Install Update…"
         case .checkForUpdates: "Check for Updates…"
+        case .settings: "Settings…"
         case .hide: "Hide Locus Git Gui"
         case .hideOthers: "Hide Others"
         case .showAll: "Show All"
@@ -286,6 +290,7 @@ nonisolated extension AppCommand {
 
     var shortcut: KeyShortcut? {
         switch self {
+        case .settings: KeyShortcut(",")
         case .hide: KeyShortcut("h")
         case .hideOthers: KeyShortcut("h", [.command, .option])
         case .quit: KeyShortcut("q")
@@ -364,6 +369,17 @@ nonisolated extension AppCommand {
         case .openSelectedRepositories: count > 1 ? "Open \(count) Repositories" : "Open Repository"
         case .removeSelectedRepositories: count > 1 ? "Remove \(count) Repositories from List" : "Remove Repository from List"
         default: title
+        }
+    }
+
+    /// The shortcut in the menus, which for the two Copy Path commands depends on which path the
+    /// user wants ⌥⌘C to copy. The other one takes ⌥⇧⌘C.
+    func shortcut(optionCommandCCopiesPathFromRoot: Bool) -> KeyShortcut? {
+        guard optionCommandCCopiesPathFromRoot else { return shortcut }
+        switch self {
+        case .copyAbsolutePath: return AppCommand.copyPathFromRepositoryRoot.shortcut
+        case .copyPathFromRepositoryRoot: return AppCommand.copyAbsolutePath.shortcut
+        default: return shortcut
         }
     }
 

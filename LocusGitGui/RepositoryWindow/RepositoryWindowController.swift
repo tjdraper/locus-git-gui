@@ -76,7 +76,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         windowFrame = viewState.windowFrame
         sidebar = SidebarModel(state: viewState)
         pinning = SidebarPinWorkflow(sidebar: sidebar, workTree: repository.workTree)
-        diffOptions = DiffOptionsStore(options: viewState.diffOptions)
+        diffOptions = DiffOptionsStore(choices: viewState.diffChoices)
         messageFormat = MessageFormatStore(showsMarkdown: viewState.showsMessageAsMarkdown)
         diffPlaces = DiffPlaceStore(memory: viewState.diffPlaces)
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
@@ -277,7 +277,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         state.findField = commitColumns.history.find.searchField
         state.workingAreaFilter = commitColumns.workingArea.filter
         state.columns = columns.columns
-        state.diffOptions = diffOptions.options
+        state.diffChoices = diffOptions.choices
         state.showsMessageAsMarkdown = messageFormat.showsMarkdown
         state.diffPlaces = diffPlaces.memory
         state.historyPlaces = commitColumns.historyPlaces

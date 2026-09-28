@@ -4,12 +4,14 @@ import SwiftUI
 /// Shows the setup checklist on a first run, and again whenever the user asks for it.
 final class FirstRunWindowPresenter: NSObject, NSWindowDelegate {
     private let gitChoice: GitChoiceStore
+    private let updates: UpdateController
     private let onDone: () -> Void
     private let screenFit = ScreenFit()
     private var window: NSWindow?
 
-    init(gitChoice: GitChoiceStore, onDone: @escaping () -> Void) {
+    init(gitChoice: GitChoiceStore, updates: UpdateController, onDone: @escaping () -> Void) {
         self.gitChoice = gitChoice
+        self.updates = updates
         self.onDone = onDone
     }
 
@@ -18,6 +20,7 @@ final class FirstRunWindowPresenter: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        updates.defaultToAutomaticChecks()
         let window = window ?? makeWindow()
         self.window = window
         screenFit.update(for: window)
@@ -39,6 +42,7 @@ final class FirstRunWindowPresenter: NSObject, NSWindowDelegate {
         let window = NSWindow(contentViewController: NSHostingController(
             rootView: FirstRunView(
                 gitChoice: gitChoice,
+                updates: updates,
                 screenFit: screenFit,
                 // Only Done finishes the first run. Closing the window or quitting, including the
                 // relaunch after moving to Applications, brings the checklist back next launch.

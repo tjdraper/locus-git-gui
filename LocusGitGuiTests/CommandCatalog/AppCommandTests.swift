@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import Testing
 
 struct AppCommandTests {
@@ -12,6 +12,20 @@ struct AppCommandTests {
 
         // Assert
         #expect(distinct.count == shortcuts.count)
+    }
+
+    @Test
+    func theCopyPathCommandsSwapShortcutsWhenOptionCommandCCopiesThePathFromTheRoot() {
+        // Act
+        let absolute = AppCommand.copyAbsolutePath.shortcut(optionCommandCCopiesPathFromRoot: true)
+        let fromRoot = AppCommand.copyPathFromRepositoryRoot.shortcut(optionCommandCCopiesPathFromRoot: true)
+        let other = AppCommand.copyCommitHash.shortcut(optionCommandCCopiesPathFromRoot: true)
+
+        // Assert
+        #expect(fromRoot == KeyShortcut("c", [.command, .option]))
+        #expect(absolute == KeyShortcut("c", [.command, .option, .shift]))
+        #expect(other == AppCommand.copyCommitHash.shortcut)
+        #expect(AppCommand.copyAbsolutePath.shortcut(optionCommandCCopiesPathFromRoot: false) == AppCommand.copyAbsolutePath.shortcut)
     }
 
     @Test

@@ -6,7 +6,8 @@ enum MainMenu {
     /// Items made by the objects they belong to: some are sent to that object alone, and some it
     /// shows only while its window is in front.
     struct OwnedItems {
-        let checkForUpdates: NSMenuItem
+        /// Install Update… and Check for Updates….
+        let updates: [NSMenuItem]
         let openRecent: NSMenuItem
         let dashboardFile: [NSMenuItem]
         let dashboardView: [NSMenuItem]
@@ -34,7 +35,10 @@ enum MainMenu {
 
         main.addItem(submenu(named: appName, items: [
             items(.about),
-            [owned.checkForUpdates, .separator(), services, .separator()],
+            owned.updates,
+            [.separator()],
+            items(.settings),
+            [.separator(), services, .separator()],
             items(.hide, .hideOthers, .showAll),
             [.separator()],
             items(.quit),

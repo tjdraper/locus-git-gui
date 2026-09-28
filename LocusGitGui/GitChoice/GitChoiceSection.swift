@@ -36,7 +36,13 @@ struct GitChoiceSection: View {
         case .available:
             if let installation = store.chosenInstallation {
                 LabeledContent {
-                    if !isChanging {
+                    if isChanging {
+                        Button("Cancel") {
+                            isChanging = false
+                            typedPath = ""
+                            store.dismissRejection()
+                        }
+                    } else {
                         Button("Change…") { isChanging = true }
                     }
                 } label: {
