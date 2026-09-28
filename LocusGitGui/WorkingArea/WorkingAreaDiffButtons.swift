@@ -48,7 +48,7 @@ extension WorkingAreaViewController {
     private func groupActions(_ group: WorkingAreaGroup) -> [DiffAction] {
         switch group {
         case .conflicted:
-            []
+            [DiffAction(title: AppCommand.showConflicts.title) { [weak self] in self?.session.showConflicts?(nil) }]
         case .staged:
             [DiffAction(title: AppCommand.unstageAll.title) { [weak self] in self?.unstageAll(nil) }]
         case .unstaged:
@@ -77,7 +77,10 @@ extension WorkingAreaViewController {
         }
         switch WorkingAreaGroup(file) {
         case .conflicted:
-            return [DiffAction(title: targets.resolveButtonTitle, menuTitle: "Mark as Resolved") { [weak self] in
+            let resolve = DiffAction(title: "Resolve…", menuTitle: "Resolve in Conflict Window") { [weak self] in
+                self?.session.showConflicts?(file.changed.path)
+            }
+            return [resolve, DiffAction(title: targets.resolveButtonTitle, menuTitle: "Mark as Resolved") { [weak self] in
                 self?.staging.stage(targets.toResolve)
             }]
         case .staged:

@@ -5,6 +5,8 @@ final class WorkingAreaSession {
     let editor = CommitMessageEditor()
     let queue = WorkingAreaCommandQueue()
     let committing: CommitWorkflow
+    /// Opens the conflict window, with a file picked when one is given.
+    var showConflicts: ((String?) -> Void)?
 
     init(commands: RepositoryCommandRunner, draft: CommitMessage?) {
         editor.message = draft ?? CommitMessage()

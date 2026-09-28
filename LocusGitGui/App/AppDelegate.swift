@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let viewStates = RepositoryViewStateStore()
     private let askpass = AskpassServer()
     private let fetchPreferences = FetchPreferences()
+    private let conflictMenuItems = ConflictMenuItems()
     private lazy var repositoryWindows: RepositoryWindowCoordinator = RepositoryWindowCoordinator(
         gitChoice: gitChoice,
         logs: logs,
@@ -80,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openRecent: recentMenus.openRecentItem,
             dashboardFile: dashboard.fileMenuItems,
             dashboardView: dashboard.viewMenuItems,
+            conflicts: conflictMenuItems,
             commandPalette: commandPalette.paletteMenuItems,
             goTo: commandPalette.goToMenuItems,
             commitGoTo: commandPalette.commitGoToMenuItems,

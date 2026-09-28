@@ -159,6 +159,7 @@ nonisolated struct DiffDocument: Equatable, Sendable {
         case .renamed: "Renamed without changes."
         case .copied: "Copied without changes."
         case .added, .deleted: "Empty file."
+        case .unmerged: "This file has conflicts to resolve."
         default: "Only whitespace changed."
         }
     }

@@ -26,10 +26,18 @@ nonisolated struct OpenWindows: Codable, Equatable, Sendable {
         var filter = WorkingAreaFilter.all
     }
 
+    struct ConflictWindow: Codable, Equatable, Sendable {
+        var frame: String?
+        /// The file picked in its list.
+        var file: String?
+        var showsBase = false
+    }
+
     var commits: [CommitWindow] = []
     var files: [FileWindow] = []
     var histories: [HistoryWindow] = []
     var workingArea: WorkingAreaWindow?
+    var conflicts: ConflictWindow?
     var isActivityShown = false
 }
 
@@ -42,6 +50,7 @@ nonisolated extension OpenWindows {
         files = try container.decodeIfPresent([FileWindow].self, forKey: .files) ?? []
         histories = try container.decodeIfPresent([HistoryWindow].self, forKey: .histories) ?? []
         workingArea = try container.decodeIfPresent(WorkingAreaWindow.self, forKey: .workingArea)
+        conflicts = try container.decodeIfPresent(ConflictWindow.self, forKey: .conflicts)
         isActivityShown = try container.decodeIfPresent(Bool.self, forKey: .isActivityShown) ?? false
     }
 }

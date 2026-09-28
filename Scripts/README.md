@@ -70,6 +70,13 @@ swift Scripts/GenerateTestRepository.swift ~/Scratch/working --commits 2000 --wo
 TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/working xcodebuild -project "Locus Git Gui.xcodeproj" -scheme "Locus Git Gui" -destination "platform=macOS" -configuration Release test -only-testing:"Locus Git Gui Tests/WorkingAreaPerformanceTests"
 ```
 
+`--conflicts <n>` ends with a merge stopped on `<n>` conflicted files in `conflicts/` and on `conflicts/large.txt`, 200,000 lines with 1,000 conflicts, for the conflict window. `ConflictPerformanceTests` times reading status with every conflict, and reading the large file, finding its conflicts, indexing each side and finding them there, and changes nothing:
+
+```
+swift Scripts/GenerateTestRepository.swift ~/Scratch/conflicts --commits 1000 --branches 0 --tags 0 --conflicts 5000
+TEST_RUNNER_LOCUS_PERFORMANCE_REPOSITORY=~/Scratch/conflicts xcodebuild -project "Locus Git Gui.xcodeproj" -scheme "Locus Git Gui" -destination "platform=macOS" -configuration Release test -only-testing:"Locus Git Gui Tests/ConflictPerformanceTests"
+```
+
 `SidebarPerformanceTests` times what each refresh reads for the sidebar, filtering it, and the palette's search over every branch. Pack the refs first unless loose ones are the point, since a clone or `git gc` packs them. For ahead and behind counts, add a remote named `origin` and give some branches upstreams in `.git/config`, since generated branches have none:
 
 ```

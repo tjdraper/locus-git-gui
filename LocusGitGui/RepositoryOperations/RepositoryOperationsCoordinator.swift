@@ -57,8 +57,7 @@ final class RepositoryOperationsCoordinator {
     }
 
     /// Once the window exists: where a failure shows, on the window the command was started from
-    /// while it's open, and how to reach the working area, where conflicts are resolved and an edit
-    /// is made.
+    /// while it's open, and how to reach the working area, where an edit is made.
     func connect(
         window: @escaping () -> NSWindow?,
         failureSheet: GitFailureSheetPresenter,
@@ -70,7 +69,6 @@ final class RepositoryOperationsCoordinator {
             guard let target = source?.isVisible == true ? source : window() else { return }
             failureSheet.present(failure, repository: repository, on: target, wasOpenedByUser: false, retry: retry, nextSteps: nextSteps)
         }
-        runner.showConflicts = goToUncommittedChanges
         branches.repositoryWindow = window
         stashes.repositoryWindow = window
         tags.repositoryWindow = window

@@ -25,6 +25,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         diffOptions: diffOptions,
         diffPlaces: diffPlaces,
         session: commitColumns.workingAreaSession,
+        operationStatus: operations.status,
         repositoryName: name,
         repositoryWindow: self
     )
@@ -131,7 +132,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         if HistoryWindowCommand.actions.contains(action) {
             return historyWindowCommand
         }
-        if let target = remotes.target(forAction: action) {
+        if let target = remotes.target(forAction: action) ?? openedWindows.target(forAction: action) {
             return target
         }
         if let target = operations.target(forAction: action) ?? messageFormat.target(forAction: action) {
@@ -320,6 +321,8 @@ extension RepositoryWindowController {
         session.queue.presentFailure = { [weak self] failure in self?.presentCommandFailure(failure) }
         session.editor.onDraftChange = { [weak self] _ in self?.saveViewState() }
         commitColumns.openWorkingArea = { [weak self] in self?.openWorkingAreaWindow() }
+        session.showConflicts = { [weak self] file in self?.showConflicts(file: file) }
+        failureSheet.conflictWindow = { [weak self] in self?.showConflicts() }
         commitColumns.onHistoryPlacesChange = { [weak self] in self?.saveViewState() }
         commitColumns.history.onFindChange = { [weak self] in self?.saveViewState() }
         commitColumns.workingArea.onFilterChange = { [weak self] in self?.saveViewState() }
@@ -340,13 +343,20 @@ extension RepositoryWindowController {
     /// A command the user ran, such as a commit, that failed, on the window it was run from. They
     /// acknowledge it with OK.
     fileprivate func presentCommandFailure(_ failure: GitFailure) {
-        let windows = [openedWindows.workingAreaWindow, window].compactMap(\.self)
+        let windows = [openedWindows.workingAreaWindow, openedWindows.conflictWindow, window].compactMap(\.self)
         guard let target = windows.first(where: \.isKeyWindow) ?? window else { return }
         failureSheet.present(failure, repository: repository, on: target, wasOpenedByUser: false, retry: nil)
     }
 
     func openWorkingAreaWindow() {
         openedWindows.openWorkingArea(from: window)
+    }
+
+    /// From whichever of the repository's windows is in front, with `file` picked when it has a
+    /// conflict.
+    @discardableResult
+    func showConflicts(file: String? = nil) -> NSWindow? {
+        openedWindows.showConflicts(file: file, from: NSApp.keyWindow ?? window)
     }
 
     /// Opened by the user from a warning or a column's Show Details, so it has a Try Again.

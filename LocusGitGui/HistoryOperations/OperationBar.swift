@@ -6,6 +6,8 @@ import SwiftUI
 /// took away. It takes no room otherwise.
 struct OperationBar: View {
     let status: OperationStatus
+    /// The conflict window shows only the stopped operation, since a notice is about the history.
+    var showsNotice = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,7 +35,7 @@ struct OperationBar: View {
                         .buttonStyle(.borderedProminent)
                 }
             }
-            if let notice = status.notice {
+            if showsNotice, let notice = status.notice {
                 bar {
                     Text(notice.message)
                         .font(.callout)

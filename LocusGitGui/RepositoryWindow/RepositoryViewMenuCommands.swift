@@ -38,8 +38,10 @@ extension RepositoryWindowController {
         .union(RemoteEditingWorkflow.actions)
         .union(OperationMenuCommands.repositoryActions)
         .union([#selector(MessageFormatStore.toggleMessageMarkdown(_:))])
+        .union(ConflictWindowCommand.actions)
 
     func repositoryTarget(for action: Selector) -> Any {
-        remotes.target(forAction: action) ?? operations.target(forAction: action) ?? messageFormat.target(forAction: action) ?? self
+        remotes.target(forAction: action) ?? operations.target(forAction: action) ?? messageFormat.target(forAction: action)
+            ?? openedWindows.target(forAction: action) ?? self
     }
 }

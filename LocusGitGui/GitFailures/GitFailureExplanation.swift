@@ -64,8 +64,8 @@ struct GitFailureExplanation: View {
             """)
         case .stoppedOnConflicts:
             Text("""
-            Some changes conflict, so Git stopped partway. Resolve each conflicted file and stage \
-            it, then Continue from the bar above the history. Abort puts everything back as it was.
+            Some changes conflict, so Git stopped partway. Resolve each conflicted file and mark it \
+            resolved, then Continue. Abort puts everything back as it was.
             """)
         case .unresolvedConflicts:
             Text("Some files still have conflicts. Resolve each one and stage it, or mark it resolved, then Continue.")

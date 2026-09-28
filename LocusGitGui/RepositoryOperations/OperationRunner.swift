@@ -31,8 +31,6 @@ final class OperationRunner {
 
     /// Shows a failure on the window the command was started from.
     var present: ((GitFailure, NSWindow?, _ retry: (() -> Void)?, GitFailureNextSteps) -> Void)?
-    /// What every failure offers: Show Conflicts, which takes the repository's window to them.
-    var showConflicts: (() -> Void)?
     /// As each operation starts, which takes away the notice the one before it left.
     var willPerform: (() -> Void)?
     let commands: RepositoryCommandRunner
@@ -43,7 +41,7 @@ final class OperationRunner {
         self.queue = queue
     }
 
-    /// `nextSteps` adds what a failure offers beyond Show Conflicts, such as Stash and Continue.
+    /// `nextSteps` adds what a failure offers, such as Stash and Continue.
     func perform(
         from window: NSWindow?,
         retry: (() -> Void)? = nil,
@@ -92,8 +90,6 @@ final class OperationRunner {
     }
 
     private func show(_ failure: GitFailure, from window: NSWindow?, retry: (() -> Void)?, nextSteps: GitFailureNextSteps) {
-        var nextSteps = nextSteps
-        nextSteps.showConflicts = nextSteps.showConflicts ?? showConflicts
         present?(failure, window, retry, nextSteps)
     }
 }

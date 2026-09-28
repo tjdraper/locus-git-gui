@@ -10,6 +10,7 @@ enum MainMenu {
         let openRecent: NSMenuItem
         let dashboardFile: [NSMenuItem]
         let dashboardView: [NSMenuItem]
+        let conflicts: ConflictMenuItems
         let commandPalette: [NSMenuItem]
         let goTo: [NSMenuItem]
         let commitGoTo: [NSMenuItem]
@@ -48,6 +49,7 @@ enum MainMenu {
             items(.openInEditor, .revealChangedFileInFinder, .copyAbsolutePath, .copyPathFromRepositoryRoot, .openFileInNewWindow),
             [.separator()],
             items(.close),
+            owned.conflicts.fileItems,
         ]))
 
         main.addItem(submenu(named: "Edit", items: [
@@ -88,7 +90,7 @@ enum MainMenu {
             [.separator()],
             items(.showSidebar, .filterSidebar, .togglePinInSidebar, .openHistoryInNewWindow, .showToolbar, .customizeToolbar),
             [.separator()],
-            items(.goToUncommittedChanges, .openUncommittedChangesWindow),
+            items(.goToUncommittedChanges, .openUncommittedChangesWindow, .showConflicts),
             owned.goTo,
             [.separator()],
             items(.showAllChanges, .showStagedChanges, .showUnstagedChanges),
@@ -96,6 +98,7 @@ enum MainMenu {
             items(.collapseFile, .expandFile, .collapseAllFiles, .expandAllFiles, .goToNextFile, .goToPreviousFile),
             [.separator()],
             items(.ignoreWhitespace, .showMoreContext, .showLessContext, .showMessageAsMarkdown),
+            owned.conflicts.viewItems,
             [.separator()],
             items(.showActivity),
             owned.dashboardView,
@@ -125,6 +128,7 @@ enum MainMenu {
     private static func commitMenu(_ owned: OwnedItems) -> NSMenuItem {
         submenu(named: "Commit", items: [
             items(.continueOperation, .skipCommit, .abortOperation),
+            owned.conflicts.commitItems,
             [.separator()],
             items(.commitChanges, .amendLastCommit),
             [.separator()],

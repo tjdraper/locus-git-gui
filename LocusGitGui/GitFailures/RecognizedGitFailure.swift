@@ -46,6 +46,15 @@ nonisolated enum RecognizedGitFailure: Equatable, Sendable {
     /// Applying or popping a stash conflicted, and Git kept the stash.
     case stashConflicts
 
+    /// Whether the command left conflicts in the files for the user to resolve, which the conflict
+    /// window opens for.
+    var stopsOnConflicts: Bool {
+        switch self {
+        case .stoppedOnConflicts, .stashConflicts: true
+        default: false
+        }
+    }
+
     /// `arguments` are the command's, for failures whose wording another command shares.
     static func recognize(_ result: ChildProcess.Result, arguments: [String] = []) -> RecognizedGitFailure? {
         guard result.status != 0 else {

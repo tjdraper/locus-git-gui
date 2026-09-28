@@ -27,6 +27,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case copyPathFromRepositoryRoot
     case openFileInNewWindow
     case close
+    case saveConflictResolution
 
     case undo
     case redo
@@ -48,6 +49,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case customizeToolbar
     case goToUncommittedChanges
     case openUncommittedChangesWindow
+    case showConflicts
     case goToBranch
     case goToTag
     case goToStash
@@ -64,6 +66,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case showMoreContext
     case showLessContext
     case showMessageAsMarkdown
+    case showConflictBase
     case showActivity
     case showOnlyMissingRepositories
 
@@ -81,6 +84,12 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case continueOperation
     case skipCommit
     case abortOperation
+    case goToPreviousConflict
+    case goToNextConflict
+    case takeOurs
+    case takeTheirs
+    case takeBoth
+    case markConflictResolved
     case commitChanges
     case amendLastCommit
     case toggleFileStaging
@@ -163,6 +172,7 @@ nonisolated extension AppCommand {
         case .copyPathFromRepositoryRoot: "Copy Path from Repository Root"
         case .openFileInNewWindow: "Open File in New Window"
         case .close: "Close"
+        case .saveConflictResolution: "Save"
         case .undo: "Undo"
         case .redo: "Redo"
         case .cut: "Cut"
@@ -182,6 +192,7 @@ nonisolated extension AppCommand {
         case .customizeToolbar: "Customize Toolbar…"
         case .goToUncommittedChanges: "Go to Uncommitted Changes"
         case .openUncommittedChangesWindow: "Open Uncommitted Changes in New Window"
+        case .showConflicts: "Show Conflicts"
         case .goToBranch: "Go to Branch…"
         case .goToTag: "Go to Tag…"
         case .goToStash: "Go to Stash…"
@@ -198,6 +209,7 @@ nonisolated extension AppCommand {
         case .showMoreContext: "More Context Lines"
         case .showLessContext: "Fewer Context Lines"
         case .showMessageAsMarkdown: "Show Message as Markdown"
+        case .showConflictBase: "Show Base"
         case .showActivity: "Show Activity"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
         case .checkOutBranch: "Check Out Branch…"
@@ -213,6 +225,12 @@ nonisolated extension AppCommand {
         case .continueOperation: "Continue"
         case .skipCommit: "Skip Commit"
         case .abortOperation: "Abort…"
+        case .goToPreviousConflict: "Previous Conflict"
+        case .goToNextConflict: "Next Conflict"
+        case .takeOurs: "Take Ours"
+        case .takeTheirs: "Take Theirs"
+        case .takeBoth: "Take Both"
+        case .markConflictResolved: "Mark as Resolved"
         case .commitChanges: "Commit"
         case .amendLastCommit: "Amend Last Commit"
         case .toggleFileStaging: "Stage File"
@@ -285,6 +303,7 @@ nonisolated extension AppCommand {
         case .copyAbsolutePath: KeyShortcut("c", [.command, .option])
         case .copyPathFromRepositoryRoot: KeyShortcut("c", [.command, .option, .shift])
         case .close: KeyShortcut("w")
+        case .saveConflictResolution: KeyShortcut("s")
         case .undo: KeyShortcut("z")
         case .redo: KeyShortcut("z", [.command, .shift])
         case .cut: KeyShortcut("x")
@@ -313,6 +332,13 @@ nonisolated extension AppCommand {
         case .checkOutBranch: KeyShortcut("b", [.command, .shift])
         case .newBranch: KeyShortcut("n", [.command, .shift])
         case .continueOperation: KeyShortcut(KeyShortcut.returnKey, [.command, .option])
+        // Not ⌃⌘ with the arrows, which macOS takes for tiling windows, moving the window instead.
+        case .goToPreviousConflict: KeyShortcut("[", [.command, .control])
+        case .goToNextConflict: KeyShortcut("]", [.command, .control])
+        case .takeOurs: KeyShortcut("o", [.command, .control])
+        case .takeTheirs: KeyShortcut("t", [.command, .control])
+        case .takeBoth: KeyShortcut("b", [.command, .control])
+        case .markConflictResolved: KeyShortcut(KeyShortcut.returnKey, [.command, .control])
         case .stashChanges: KeyShortcut("s", [.command, .shift])
         case .stashIncludingUntracked: KeyShortcut("s", [.command, .option, .shift])
         case .commitChanges: KeyShortcut(KeyShortcut.returnKey)

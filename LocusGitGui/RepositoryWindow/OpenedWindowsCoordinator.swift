@@ -1,8 +1,9 @@
 import AppKit
 
 /// The windows opened from a repository's window: its commits', its files', its branches' and
-/// other histories, its working area's and its Activity. They name the repository as its tab does, keep up with its refreshes, close with
-/// it, and open again with it, where they were left.
+/// other histories, its working area's, its conflicts' and its Activity. They name the repository
+/// as its tab does, keep up with its refreshes, close with it, and open again with it, where they
+/// were left.
 final class OpenedWindowsCoordinator {
     /// Brings the repository's window forward to show something in its sidebar.
     var reveal: ((SidebarItemID) -> Void)?
@@ -22,13 +23,19 @@ final class OpenedWindowsCoordinator {
     private let files: FileWindowCoordinator
     private let histories: HistoryWindowCoordinator
     private let workingArea: WorkingAreaWindowCoordinator
+    private let conflicts: ConflictWindowCoordinator
     private let activity: ActivityWindowPresenter
+    private lazy var conflictCommand = ConflictWindowCommand(
+        canShow: { [weak self] in self?.conflicts.hasConflicts == true || self?.conflicts.window != nil },
+        show: { [weak self] in self?.showConflicts(from: NSApp.keyWindow) }
+    )
 
     init(
         commands: RepositoryCommandRunner,
         diffOptions: DiffOptionsStore,
         diffPlaces: DiffPlaceStore,
         session: WorkingAreaSession,
+        operationStatus: OperationStatus,
         repositoryName: String,
         repositoryWindow: RepositoryWindowController
     ) {
@@ -55,11 +62,18 @@ final class OpenedWindowsCoordinator {
             session: session,
             repositoryWindow: repositoryWindow
         )
+        conflicts = ConflictWindowCoordinator(
+            commands: commands,
+            queue: session.queue,
+            operationStatus: operationStatus,
+            repositoryWindow: repositoryWindow
+        )
         activity = ActivityWindowPresenter(log: commands.log, repositoryName: repositoryName)
         commits.reveal = { [weak self] id in self?.reveal?(id) }
         commits.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.showFailure = { [weak self] failure, window, retry in self?.showFailure?(failure, window, retry) }
+        conflicts.showFailure = { [weak self] failure, window, retry in self?.showFailure?(failure, window, retry) }
         histories.reveal = { [weak self] id in self?.reveal?(id) }
         histories.openCommit = { [weak self] commit, window in self?.openCommit(commit, from: window) }
         histories.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
@@ -67,6 +81,7 @@ final class OpenedWindowsCoordinator {
         commits.onChange = { [weak self] in self?.windowsChanged() }
         files.onChange = { [weak self] in self?.windowsChanged() }
         workingArea.onChange = { [weak self] in self?.windowsChanged() }
+        conflicts.onChange = { [weak self] in self?.windowsChanged() }
         activity.onChange = { [weak self] in self?.windowsChanged() }
     }
 
@@ -79,6 +94,7 @@ final class OpenedWindowsCoordinator {
             files: files.records,
             histories: histories.records,
             workingArea: workingArea.record,
+            conflicts: conflicts.record,
             isActivityShown: activity.isShown
         )
     }
@@ -90,6 +106,15 @@ final class OpenedWindowsCoordinator {
 
     var workingAreaWindow: NSWindow? {
         workingArea.window
+    }
+
+    var conflictWindow: NSWindow? {
+        conflicts.window
+    }
+
+    /// View > Show Conflicts, from any of the repository's windows.
+    func target(forAction action: Selector) -> Any? {
+        ConflictWindowCommand.actions.contains(action) ? conflictCommand : nil
     }
 
     func openCommit(_ commit: Commit, from window: NSWindow?) {
@@ -108,6 +133,12 @@ final class OpenedWindowsCoordinator {
         workingArea.show(from: window, repositoryName: repositoryName)
     }
 
+    /// With `file` picked in its list, when it has a conflict.
+    @discardableResult
+    func showConflicts(file: String? = nil, from window: NSWindow?) -> NSWindow? {
+        conflicts.show(file: file, from: window, repositoryName: repositoryName)
+    }
+
     func showActivity() {
         activity.show()
     }
@@ -118,12 +149,14 @@ final class OpenedWindowsCoordinator {
         files.showRepositoryName(name)
         histories.showRepositoryName(name)
         workingArea.showRepositoryName(name)
+        conflicts.showRepositoryName(name)
         activity.showRepositoryName(name)
     }
 
     /// After every refresh. The working area's files are only listed when a file window shows one.
     func show(_ snapshot: RepositorySnapshot, workingAreaFiles: () -> [DiffFile]) {
         workingArea.show(snapshot)
+        conflicts.show(snapshot)
         if files.showsWorkingArea {
             files.showWorkingArea(workingAreaFiles())
         }
@@ -133,6 +166,7 @@ final class OpenedWindowsCoordinator {
     func show(refs: [Ref], head: String?, contents: SidebarContents, labels: [String: [CommitRefLabel]]) {
         commits.showLabels(labels)
         histories.show(refs: refs, head: head, contents: contents, labels: labels)
+        conflicts.show(refs: refs)
     }
 
     func closeAll() {
@@ -142,15 +176,20 @@ final class OpenedWindowsCoordinator {
         files.closeAll()
         histories.closeAll()
         workingArea.close()
+        conflicts.close()
     }
 
     /// Once the repository has been read, so the working area's files are known. Commits that are
-    /// gone, and working area files with no changes now, are left closed.
+    /// gone, working area files with no changes now, and the conflict window once there's nothing
+    /// to resolve, are left closed.
     func restoreIfNeeded(from window: NSWindow?, workingAreaFiles: () -> [DiffFile]) {
         guard let record = toRestore, !isRestoring else { return }
         isRestoring = true
         if let workingAreaRecord = record.workingArea {
             workingArea.show(from: window, repositoryName: repositoryName, record: workingAreaRecord)
+        }
+        if let conflictRecord = record.conflicts, conflicts.hasConflicts {
+            conflicts.show(from: window, repositoryName: repositoryName, record: conflictRecord)
         }
         if record.isActivityShown {
             activity.show()

@@ -19,6 +19,7 @@ struct Options {
     var writesCommitGraph = false
     var addsLargeChanges = false
     var workingChanges = 0
+    var conflicts = 0
 }
 
 func parseOptions() -> Options {
@@ -40,6 +41,7 @@ func parseOptions() -> Options {
         case "--commit-graph": options.writesCommitGraph = true
         case "--large-changes": options.addsLargeChanges = true
         case "--working-changes": options.workingChanges = number(for: argument)
+        case "--conflicts": options.conflicts = number(for: argument)
         case "--help", "-h": usage()
         default:
             guard options.folder.isEmpty, !argument.hasPrefix("-") else { fail("Unknown option \(argument)") }
@@ -64,6 +66,8 @@ func usage() -> Never {
                              thousands of files, a huge file, one enormous line, a large image
       --working-changes <n>  Leave <n> changed files and <n> untracked files in the working tree,
                              in work/, for the working area's performance check
+      --conflicts <n>        Leave a merge stopped on <n> conflicted files in conflicts/, and on
+                             conflicts/large.txt, 200,000 lines with 1,000 conflicts
     """)
     exit(0)
 }
@@ -304,6 +308,9 @@ if options.writesCommitGraph {
 if options.workingChanges > 0 {
     addWorkingChanges(options.workingChanges, in: folder)
 }
+if options.conflicts > 0 {
+    addConflicts(options.conflicts, in: folder)
+}
 
 /// Commits `count` files, then changes every one and adds as many untracked files beside them.
 func addWorkingChanges(_ count: Int, in folder: URL) {
@@ -324,5 +331,34 @@ func addWorkingChanges(_ count: Int, in folder: URL) {
         write("tracked", index, changed: true)
         write("untracked", index, changed: false)
     }
+}
+/// Commits `count` small files and one large one, changes the same lines of each on `main` and on a
+/// branch, and merges the branch, which stops on every file.
+func addConflicts(_ count: Int, in folder: URL) {
+    let conflicts = folder.appending(path: "conflicts")
+    try? FileManager.default.createDirectory(at: conflicts, withIntermediateDirectories: true)
+    let author = ["-c", "user.name=Test Author", "-c", "user.email=author@example.com"]
+    func write(side: String?) {
+        for index in 0 ..< count {
+            let text = (0 ..< 20).map { line in
+                (line % 5 == 0 ? side.map { "\($0) changed " } ?? "" : "") + "Line \(line) of file \(index), with enough words to be typical"
+            }.joined(separator: "\n") + "\n"
+            try? Data(text.utf8).write(to: conflicts.appending(path: "file-\(index).txt"))
+        }
+        let large = (0 ..< 200_000).map { line in
+            (line % 200 == 100 ? side.map { "\($0) changed " } ?? "" : "") + "Line \(line) of the large file, with enough words to be typical"
+        }.joined(separator: "\n") + "\n"
+        try? Data(large.utf8).write(to: conflicts.appending(path: "large.txt"))
+    }
+    write(side: nil)
+    git(["add", "conflicts"], in: folder)
+    git(author + ["commit", "--quiet", "--message", "Add files that will conflict"], in: folder)
+    git(["switch", "--quiet", "--create", "incoming"], in: folder)
+    write(side: "incoming")
+    git(author + ["commit", "--quiet", "--all", "--message", "Change them on a branch"], in: folder)
+    git(["switch", "--quiet", "-"], in: folder)
+    write(side: "main")
+    git(author + ["commit", "--quiet", "--all", "--message", "Change them on main"], in: folder)
+    git(author + ["merge", "--quiet", "--no-edit", "incoming"], in: folder)
 }
 print("Made \(options.commits) commits in \(folder.path) in \(Int(Date().timeIntervalSince(started))) seconds")
