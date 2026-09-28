@@ -93,21 +93,45 @@ final class DiffBlockViews {
             }
             shownFiles.insert(document.blocks[block].file)
         }
-        for file in shownFiles {
-            let headerTop = layout.top(of: document.fileStarts[file])
-            let fileEnd = layout.top(of: document.fileEnds[file])
-            let height = layout.metrics.headerHeight
-            let y = min(max(visible.minY, headerTop), fileEnd - height)
-            let view = headers[file] ?? add(from: &spareHeaders, below: false)
-            headers[file] = view
-            view.frame = NSRect(x: 0, y: y, width: canvas.bounds.width, height: height)
-            configureHeader?(view, file)
+        let heading = DiffStickyHeadings.heading(atTop: visible.minY, document: document, layout: layout)
+        if let heading {
+            shownGroups.insert(heading.block)
+            holdAtTop(heading, width: canvas.bounds.width, height: layout.metrics.groupHeight, file: document.blocks[heading.block].file)
         }
+        placeHeaders(of: shownFiles, in: content, below: heading)
         retire(&groups, keeping: shownGroups, into: &spareGroups)
         retire(&hunks, keeping: shownHunks, into: &spareHunks)
         retire(&headers, keeping: shownFiles, into: &spareHeaders)
         retire(&notices, keeping: shownNotices, into: &spareNotices)
         retire(&images, keeping: shownImages, into: &spareImages)
+    }
+
+    /// Each at the top of its file, or held at the top of the view, below the held group heading
+    /// when the file is in its group, until the file's end pushes it up.
+    private func placeHeaders(of files: Set<Int>, in content: DiffCanvasView.Content, below heading: DiffStickyHeadings.Heading?) {
+        let (document, layout, top) = (content.document, content.layout, canvas.visibleRect.minY)
+        let cover = DiffStickyHeadings.cover(atTop: top, document: document, layout: layout)
+        for file in files {
+            let headerTop = layout.top(of: document.fileStarts[file])
+            let fileEnd = layout.top(of: document.fileEnds[file])
+            let height = layout.metrics.headerHeight
+            let held = heading != nil && document.fileGroupHeadings[file] == heading?.block ? top + cover : top
+            let view = headers[file] ?? add(from: &spareHeaders, below: false)
+            headers[file] = view
+            view.frame = NSRect(x: 0, y: min(max(held, headerTop), fileEnd - height), width: canvas.bounds.width, height: height)
+            configureHeader?(view, file)
+        }
+    }
+
+    /// Over the rows, the hunk bars and the file headers, which slide under it as they scroll up.
+    private func holdAtTop(_ heading: DiffStickyHeadings.Heading, width: CGFloat, height: Double, file: Int) {
+        let view = groups[heading.block] ?? add(from: &spareGroups, below: false)
+        groups[heading.block] = view
+        view.frame = NSRect(x: 0, y: heading.y, width: width, height: height)
+        if canvas.subviews.last !== view {
+            canvas.addSubview(view, positioned: .above, relativeTo: nil)
+        }
+        configureGroup?(view, file)
     }
 
     /// Everything but the file headers, which go over them.

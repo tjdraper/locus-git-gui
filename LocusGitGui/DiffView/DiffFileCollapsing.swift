@@ -31,7 +31,9 @@ extension DiffViewController {
             rebuild(keepingPlace: true)
             return
         }
-        let distance = max(content.layout.top(of: content.document.fileStarts[file]) - canvas.visibleRect.minY, 0)
+        // A header held at the top, or below its group's heading, stays held there.
+        let held = DiffStickyHeadings.offset(ofFile: file, document: content.document, layout: content.layout)
+        let distance = max(content.layout.top(of: content.document.fileStarts[file]) - canvas.visibleRect.minY, held)
         rebuild(keepingPlace: false)
         guard let rebuilt = canvas.content else { return }
         canvas.scroll(to: rebuilt.layout.top(of: rebuilt.document.fileStarts[file]) - distance)

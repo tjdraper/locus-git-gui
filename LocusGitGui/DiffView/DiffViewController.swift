@@ -328,7 +328,8 @@ extension DiffViewController {
             document: content.document,
             layout: content.layout,
             selection: canvas.selection,
-            visibleTop: canvas.visibleRect.minY + content.layout.metrics.headerHeight,
+            visibleTop: canvas.visibleRect.minY + content.layout.metrics.headerHeight
+                + DiffStickyHeadings.cover(atTop: canvas.visibleRect.minY, document: content.document, layout: content.layout),
             visibleBottom: canvas.visibleRect.maxY,
             markedFile: markedFile.flatMap(index(of:))
         )

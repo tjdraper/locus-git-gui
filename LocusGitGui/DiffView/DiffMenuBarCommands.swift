@@ -79,7 +79,7 @@ extension DiffViewController {
         guard let content = canvas.content, let current = commandTarget?.file else { return }
         let starts = content.document.fileStarts
         var target = current + offset
-        if offset < 0, content.layout.top(of: starts[current]) < canvas.visibleRect.minY - 0.5 {
+        if offset < 0, scrollTop(ofFile: current, in: content) < canvas.visibleRect.minY - 0.5 {
             target = current
         }
         guard starts.indices.contains(target) else {
@@ -88,7 +88,7 @@ extension DiffViewController {
         }
         canvas.clearSelection()
         markedFile = files[target].id
-        canvas.scroll(to: content.layout.top(of: starts[target]))
+        canvas.scroll(to: scrollTop(ofFile: target, in: content))
         blockViews.update()
     }
 

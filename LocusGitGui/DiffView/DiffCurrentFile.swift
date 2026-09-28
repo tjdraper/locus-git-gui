@@ -31,7 +31,13 @@ extension DiffViewController {
     func scrollToMarkedFileIfOutOfView() {
         guard let content = canvas.content, let target = commandTarget, let marked = target.markedFile,
               !target.isInView(file: marked) else { return }
-        canvas.scroll(to: content.layout.top(of: content.document.fileStarts[marked]))
+        canvas.scroll(to: scrollTop(ofFile: marked, in: content))
         blockViews.update()
+    }
+
+    /// Where the view starts for a file's header to be at its top, or just below its group's heading.
+    func scrollTop(ofFile file: Int, in content: DiffCanvasView.Content) -> Double {
+        content.layout.top(of: content.document.fileStarts[file])
+            - DiffStickyHeadings.offset(ofFile: file, document: content.document, layout: content.layout)
     }
 }

@@ -65,6 +65,10 @@ nonisolated struct DiffDocument: Equatable, Sendable {
     /// The index of the block after each file's last one, which is the group heading or the space
     /// above the next file.
     let fileEnds: [Int]
+    /// The index of the heading of each file's group, or nil when the diff doesn't head groups.
+    let fileGroupHeadings: [Int?]
+    /// For each group heading's index, the index of the block after the group's last.
+    let groupEnds: [Int: Int]
 
     /// `headsGroups` is false for a diff that doesn't show its files' groups, such as a file window
     /// showing one of the working area's files.
@@ -103,6 +107,26 @@ nonisolated struct DiffDocument: Equatable, Sendable {
         self.blocks = blocks
         self.fileStarts = fileStarts
         self.fileEnds = fileEnds
+        (fileGroupHeadings, groupEnds) = Self.groups(of: files, blocks: blocks, fileStarts: fileStarts)
+    }
+
+    private static func groups(of files: [DiffFile], blocks: [Block], fileStarts: [Int]) -> (headings: [Int?], ends: [Int: Int]) {
+        var headings: [Int?] = []
+        var ends: [Int: Int] = [:]
+        var heading: Int?
+        for (index, start) in fileStarts.enumerated() {
+            if start > 0, case .group = blocks[start - 1] {
+                if let heading {
+                    ends[heading] = start - 1
+                }
+                heading = start - 1
+            }
+            headings.append(files[index].group == nil ? nil : heading)
+        }
+        if let heading {
+            ends[heading] = blocks.count
+        }
+        return (headings, ends)
     }
 
     /// The file a block belongs to.

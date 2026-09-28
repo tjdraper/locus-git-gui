@@ -101,6 +101,7 @@
 				DiffView/DiffOptions.swift,
 				DiffView/DiffPreferences.swift,
 				DiffView/DiffScrollAnchor.swift,
+				DiffView/DiffStickyHeadings.swift,
 				DiffView/DiffSelection.swift,
 				DiffView/FilePatch.swift,
 				DiffView/LineWrap.swift,
