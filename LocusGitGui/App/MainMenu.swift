@@ -104,7 +104,7 @@ enum MainMenu {
             items(.ignoreWhitespace, .showMoreContext, .showLessContext, .showMessageAsMarkdown),
             owned.conflicts.viewItems,
             [.separator()],
-            items(.showActivity),
+            items(.showActivity, .showNotices),
             owned.dashboardView,
         ])
     }

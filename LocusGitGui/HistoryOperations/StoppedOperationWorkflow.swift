@@ -1,7 +1,7 @@
 import AppKit
 
 /// Continue, Skip and Abort for a merge, rebase, cherry-pick or revert that stopped partway, from
-/// the bar above the history and the Commit menu. Continuing a merge commits it with the message
+/// the window's status and the Commit menu. Continuing a merge commits it with the message
 /// written in the working area, or Git's own when that's empty.
 final class StoppedOperationWorkflow {
     var context: () -> OperationContext = { OperationContext() }

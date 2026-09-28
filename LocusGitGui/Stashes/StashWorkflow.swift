@@ -62,7 +62,7 @@ final class StashWorkflow {
                 guard let index = try await StashCommand.index(of: commit, running: steps.commands.run) else { return }
                 try await steps.run(StashCommand.drop(at: index), failing: "Git couldn’t drop the stash \(name).")
                 self?.notice?(OperationStatus.Notice(
-                    message: "Dropped the stash “\(entry?.message ?? commit)”. Its commit was \(commit.prefix(7)).",
+                    message: "Dropped the stash at \(commit.prefix(7))\(entry.map { " (“\($0.message)”)" } ?? "").",
                     hash: commit
                 ))
             }

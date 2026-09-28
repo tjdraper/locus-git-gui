@@ -70,6 +70,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case showMessageAsMarkdown
     case showConflictBase
     case showActivity
+    case showNotices
     case showOnlyMissingRepositories
 
     case checkOutBranch
@@ -215,6 +216,7 @@ nonisolated extension AppCommand {
         case .showMessageAsMarkdown: "Show Message as Markdown"
         case .showConflictBase: "Show Base"
         case .showActivity: "Show Activity"
+        case .showNotices: "Show Notices"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
         case .checkOutBranch: "Check Out Branch…"
         case .newBranch: "New Branch…"

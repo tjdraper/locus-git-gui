@@ -158,7 +158,7 @@ final class RemoteSyncWorkflow: NSObject {
             enqueuePush(RemoteCommand.forcePush, titled: "Force pushing “\(branch)”", from: window) { [weak self] in
                 guard let replaced else { return }
                 self?.runner.progress.show(RemoteProgress.Notice(
-                    message: "Force pushed “\(branch)”. “\(upstream)” was at \(replaced.shortHash), which this repository still has.",
+                    message: "“\(upstream)” was at \(replaced.shortHash) before the force push. This repository still has it.",
                     hash: replaced.hash
                 ))
             }

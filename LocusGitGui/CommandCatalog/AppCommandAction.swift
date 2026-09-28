@@ -68,6 +68,7 @@ extension AppCommand {
         case .showMessageAsMarkdown: #selector(MessageFormatStore.toggleMessageMarkdown(_:))
         case .showConflictBase: #selector(ConflictWindowController.toggleConflictBase(_:))
         case .showActivity: #selector(RepositoryWindowController.showActivity(_:))
+        case .showNotices: #selector(RepositoryWindowController.showNotices(_:))
         case .showOnlyMissingRepositories: #selector(DashboardWindowPresenter.toggleShowOnlyMissing(_:))
         case .checkOutBranch: #selector(CommandPalettePresenter.checkOutBranch(_:))
         case .newBranch: #selector(OperationMenuCommands.newBranch(_:))

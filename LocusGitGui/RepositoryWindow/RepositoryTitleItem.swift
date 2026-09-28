@@ -38,6 +38,12 @@ final class RepositoryTitleItem: NSObject {
         overflowItem.title = displayName ?? folder.lastPathComponent
     }
 
+    /// Where the title starts, just right of the sidebar, in its window's coordinates.
+    var leadingEdgeInWindow: CGFloat? {
+        guard container.window != nil else { return nil }
+        return container.convert(NSPoint.zero, to: nil).x
+    }
+
     /// True when the click was on the title and the menu was shown.
     func showPathMenu(for event: NSEvent) -> Bool {
         guard container.window != nil else { return false }

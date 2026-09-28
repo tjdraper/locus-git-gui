@@ -1,7 +1,7 @@
 import AppKit
 
 /// The windows opened from a repository's window: its commits', its files', its branches' and
-/// other histories, its working area's, its conflicts' and its Activity. They name the repository
+/// other histories, its working area's, its conflicts', its Activity and its Notices. They name the repository
 /// as its tab does, keep up with its refreshes, close with it, and open again with it, where they
 /// were left.
 final class OpenedWindowsCoordinator {
@@ -25,6 +25,7 @@ final class OpenedWindowsCoordinator {
     private let workingArea: WorkingAreaWindowCoordinator
     private let conflicts: ConflictWindowCoordinator
     private let activity: ActivityWindowPresenter
+    private let notices: NoticesWindowPresenter
     private lazy var conflictCommand = ConflictWindowCommand(
         canShow: { [weak self] in self?.conflicts.hasConflicts == true || self?.conflicts.window != nil },
         show: { [weak self] in self?.showConflicts(from: NSApp.keyWindow) }
@@ -36,6 +37,7 @@ final class OpenedWindowsCoordinator {
         diffPlaces: DiffPlaceStore,
         session: WorkingAreaSession,
         operationStatus: OperationStatus,
+        status: ToolbarStatus,
         repositoryName: String,
         repositoryWindow: RepositoryWindowController
     ) {
@@ -69,6 +71,7 @@ final class OpenedWindowsCoordinator {
             repositoryWindow: repositoryWindow
         )
         activity = ActivityWindowPresenter(log: commands.log, repositoryName: repositoryName)
+        notices = NoticesWindowPresenter(status: status, repositoryName: repositoryName)
         commits.reveal = { [weak self] id in self?.reveal?(id) }
         commits.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
@@ -83,6 +86,7 @@ final class OpenedWindowsCoordinator {
         workingArea.onChange = { [weak self] in self?.windowsChanged() }
         conflicts.onChange = { [weak self] in self?.windowsChanged() }
         activity.onChange = { [weak self] in self?.windowsChanged() }
+        notices.onChange = { [weak self] in self?.windowsChanged() }
     }
 
     var openWindows: OpenWindows {
@@ -95,7 +99,8 @@ final class OpenedWindowsCoordinator {
             histories: histories.records,
             workingArea: workingArea.record,
             conflicts: conflicts.record,
-            isActivityShown: activity.isShown
+            isActivityShown: activity.isShown,
+            isNoticesShown: notices.isShown
         )
     }
 
@@ -143,6 +148,18 @@ final class OpenedWindowsCoordinator {
         activity.show()
     }
 
+    func showNotices() {
+        notices.show()
+    }
+
+    /// From the toolbar's status.
+    func show(_ opening: ToolbarStatusItem.Opening) {
+        switch opening {
+        case .notices: notices.show()
+        case .activity: activity.show()
+        }
+    }
+
     func showRepositoryName(_ name: String) {
         repositoryName = name
         commits.showRepositoryName(name)
@@ -151,6 +168,7 @@ final class OpenedWindowsCoordinator {
         workingArea.showRepositoryName(name)
         conflicts.showRepositoryName(name)
         activity.showRepositoryName(name)
+        notices.showRepositoryName(name)
     }
 
     /// After every refresh. The working area's files are only listed when a file window shows one.
@@ -172,6 +190,7 @@ final class OpenedWindowsCoordinator {
     func closeAll() {
         isClosingAll = true
         activity.close()
+        notices.close()
         commits.closeAll()
         files.closeAll()
         histories.closeAll()
@@ -193,6 +212,9 @@ final class OpenedWindowsCoordinator {
         }
         if record.isActivityShown {
             activity.show()
+        }
+        if record.isNoticesShown {
+            notices.show()
         }
         for historyRecord in record.histories {
             histories.show(historyRecord.item, from: window, repositoryName: repositoryName, record: historyRecord)

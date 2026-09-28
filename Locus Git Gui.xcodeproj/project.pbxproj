@@ -157,6 +157,7 @@
 				RepositoryWindow/RepositoryViewState.swift,
 				RepositoryWindow/RepositoryViewStateFiles.swift,
 				RepositoryWindow/RepositoryWindowNames.swift,
+				RepositoryWindow/WholeWordShortening.swift,
 				Shared/DistinctFolderNames.swift,
 				Shared/FuzzyMatcher.swift,
 				Shared/LocusFolder.swift,

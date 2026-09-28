@@ -49,7 +49,8 @@ final class RemoteBranchDeletionWorkflow {
                 case .succeeded:
                     if let point {
                         runner.progress.show(RemoteProgress.Notice(
-                            message: "Deleted “\(branch)” from “\(remote)”. It was at \(point.described), which this repository still has.",
+                            message: "“\(branch)” was at \(point.described) on “\(remote)” before it was deleted. "
+                                + "This repository still has it.",
                             hash: point.hash
                         ))
                     }

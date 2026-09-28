@@ -26,6 +26,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         diffPlaces: diffPlaces,
         session: commitColumns.workingAreaSession,
         operationStatus: operations.status,
+        status: status,
         repositoryName: name,
         repositoryWindow: self
     )
@@ -34,13 +35,13 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     let operations: RepositoryOperationsCoordinator
     let columns: RepositorySplitViewController
     private let failureSheet = GitFailureSheetPresenter()
-    private lazy var warning: BackgroundFailureWarning =
-        BackgroundFailureWarning(repository: repository, sheet: failureSheet, toolbar: toolbar)
+    private lazy var warning = BackgroundFailureWarning(repository: repository, sheet: failureSheet, toolbar: toolbar)
     private let titleItem: RepositoryTitleItem
+    private lazy var status = ToolbarStatus(remote: remotes.progress, operation: operations.status)
     private lazy var toolbar: RepositoryToolbar = RepositoryToolbar(
         title: titleItem,
-        fetchOptions: remotes.makeFetchOptionsMenu(),
-        activity: ActivityIndicator(log: commands.log) { [weak self] in self?.openedWindows.showActivity() }
+        status: ToolbarStatusItem(status: status, title: titleItem, log: commands.log) { [weak self] in self?.openedWindows.show($0) },
+        fetchOptions: remotes.makeFetchOptionsMenu()
     ) { [weak self] in self?.warning.showDetails(on: self?.window) }
     private lazy var scheduler = RefreshScheduler { [weak self] reason in await self?.refresh(because: reason) }
     private lazy var watcher = RepositoryFileWatcher(repository: repository) { [weak self] in
@@ -94,7 +95,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         operations = RepositoryOperationsCoordinator(commands: commands, session: commitColumns.workingAreaSession)
         columns = RepositorySplitViewController(
             sidebar: sidebarController,
-            history: HistoryColumnController(history: commitColumns.history, bar: HistoryBars.make(remotes.progress, operations.status)),
+            history: HistoryColumnController(history: commitColumns.history),
             detail: commitColumns.detailColumn,
             columns: viewState.columns
         )
@@ -213,7 +214,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             openedWindows.restoreIfNeeded(from: window, workingAreaFiles: workingAreaFiles)
             // Read only once Git has reached the repository, so a folder that's gone or out of
             // reach isn't taken for one whose name was cleared.
-            let displayName = await Self.readDisplayName(in: repository.workTree)
+            let displayName = await readDisplayName(in: repository.workTree)
             if displayName != self.displayName {
                 titleItem.setDisplayName(displayName)
                 onDisplayNameRead?(displayName)
@@ -224,7 +225,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
                 try await Ref.readList(running: commands.run)
             }
             lastRefs = refs
-            sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run), pins: await Self.pins(in: repository.workTree))
+            sidebar.show(try await SidebarContents.read(refs: refs, running: commands.run), pins: await readPins(in: repository.workTree))
             commitColumns.show(refs: refs, head: snapshot.status.branch, selection: sidebar.selection, contents: sidebar.contents)
             if let contents = sidebar.contents {
                 openedWindows.show(refs: refs, head: snapshot.status.branch.commit, contents: contents, labels: commitColumns.labels)
@@ -246,18 +247,6 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
             warning.report(refreshFailure.failure, from: .refresh)
             Self.log.error("Background refresh failed with status \(refreshFailure.failure.result.status, privacy: .public)")
         }
-    }
-
-    /// Off the main actor, since reading the folder can wait on macOS asking for permission.
-    @concurrent
-    private static func readDisplayName(in workTree: URL) async -> String? {
-        RepositoryDisplayName.read(from: workTree).name
-    }
-
-    /// Read after Git's reads, so a pin changed meanwhile is less likely to be put back for a moment.
-    @concurrent
-    private static func pins(in workTree: URL) async -> SidebarPins {
-        SidebarPins.read(from: workTree)
     }
 
     private func rememberFrame() {
@@ -395,4 +384,16 @@ extension RepositoryWindowController {
         operations.connect(window: window, failureSheet: failureSheet, goToUncommittedChanges: goToUncommittedChanges)
         operations.attach(sidebar: sidebar, commitColumns: commitColumns, remotes: remotes)
     }
+}
+
+/// Off the main actor, since reading the folder can wait on macOS asking for permission.
+@concurrent
+private func readDisplayName(in workTree: URL) async -> String? {
+    RepositoryDisplayName.read(from: workTree).name
+}
+
+/// Read after Git's reads, so a pin changed meanwhile is less likely to be put back for a moment.
+@concurrent
+private func readPins(in workTree: URL) async -> SidebarPins {
+    SidebarPins.read(from: workTree)
 }

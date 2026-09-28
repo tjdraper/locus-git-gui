@@ -2,12 +2,12 @@ import AppKit
 import SwiftUI
 
 /// A repository window's commands for its remotes: fetching, pulling and pushing, the remotes
-/// themselves, tags on them, and fetching by itself now and then. Their progress shows in a bar
-/// above the history.
+/// themselves, tags on them, and fetching by itself now and then. Their progress shows in the
+/// toolbar.
 final class RemotesCoordinator {
     let sync: RemoteSyncWorkflow
     let editing: RemoteEditingWorkflow
-    /// Shown in a bar above the history.
+    /// Shown in the toolbar (`ToolbarStatus`).
     let progress: RemoteProgress
     /// After a fetch or pull, which may have brought in commits.
     private var didFetch: (() -> Void)?
@@ -42,7 +42,10 @@ final class RemotesCoordinator {
         tags = RemoteTagWorkflow(runner: runner, queue: queue)
         remoteBranches = RemoteBranchDeletionWorkflow(runner: runner, commands: commands, queue: queue)
         progress = runner.progress
-        sync.didFetch = { [weak self] in self?.didFetch?() }
+        sync.didFetch = { [weak self] in
+            self?.progress.noteFetched()
+            self?.didFetch?()
+        }
         sync.fetchOptions = { [preferences] in preferences.options }
         sync.willStart = { [weak self] in self?.automaticFetch.cancelCurrent() }
     }
@@ -93,6 +96,8 @@ final class RemotesCoordinator {
         let checkedOut = contents.branches.first(where: \.isCheckedOut)
         sync.state = RemoteState(branch: branch, isUpstreamGone: checkedOut?.isUpstreamGone ?? false, remotes: remotes)
         editing.remotes = remotes
+        progress.noteRemotes(exist: !remotes.isEmpty)
+        noteFetchHead()
     }
 
     /// The sidebar's remote and tag commands reach the workflows from anywhere in the window.
@@ -276,10 +281,23 @@ final class RemotesCoordinator {
         guard let result = try? await commands.run(command), !Task.isCancelled else { return }
         if result.status == 0 {
             warning?.clear(.automaticFetch)
+            progress.noteFetched()
             didFetch?()
         } else {
             let failure = GitFailure(summary: "Git couldn’t fetch in the background.", arguments: command.arguments, result: result)
             warning?.report(failure, from: .automaticFetch)
         }
+    }
+}
+
+private extension RemotesCoordinator {
+    /// Git rewrites `FETCH_HEAD` on every fetch and pull, the app's and Terminal's alike, apart from
+    /// the automatic fetch, which leaves it alone and notes its own.
+    func noteFetchHead() {
+        let fetchHead = commands.repository.gitDirectory.appending(path: "FETCH_HEAD")
+        guard let modified = try? fetchHead.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
+            return
+        }
+        progress.noteFetched(at: modified)
     }
 }

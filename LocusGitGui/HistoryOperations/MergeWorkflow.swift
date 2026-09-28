@@ -2,7 +2,7 @@ import AppKit
 
 /// Merges into a branch and rebases one onto another, from the Branch menu, the sidebar and a
 /// branch dragged onto another. A branch that isn't checked out is checked out first. Stopping on
-/// conflicts puts the window into that state, with Continue, Skip and Abort above the history.
+/// conflicts puts the window into that state, with Continue, Skip and Abort in the toolbar.
 final class MergeWorkflow {
     var context: () -> OperationContext = { OperationContext() }
     var repositoryWindow: () -> NSWindow? = { nil }

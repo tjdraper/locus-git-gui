@@ -45,7 +45,7 @@ final class TagWorkflow {
                 try await steps.run(TagCommand.delete(tag), failing: "Git couldn’t delete the tag “\(tag)”.")
                 if let point {
                     self?.notice?(OperationStatus.Notice(
-                        message: "Deleted the tag “\(tag)”, which was on \(point.described).",
+                        message: "The tag “\(tag)” was on \(point.described) before it was deleted.",
                         hash: point.hash
                     ))
                 }

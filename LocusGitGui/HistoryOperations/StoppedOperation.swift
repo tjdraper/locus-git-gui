@@ -1,7 +1,7 @@
 import Foundation
 
-/// A merge, rebase, cherry-pick or revert that stopped partway, as the bar above the history
-/// describes it: what's underway, and what it's waiting for.
+/// A merge, rebase, cherry-pick or revert that stopped partway, as the window's status and the
+/// conflict window describe it: what's underway, and what it's waiting for.
 nonisolated struct StoppedOperation: Equatable, Sendable {
     let kind: HistoryOperationCommand.Stopped
     let title: String

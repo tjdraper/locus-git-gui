@@ -39,6 +39,7 @@ nonisolated struct OpenWindows: Codable, Equatable, Sendable {
     var workingArea: WorkingAreaWindow?
     var conflicts: ConflictWindow?
     var isActivityShown = false
+    var isNoticesShown = false
 }
 
 nonisolated extension OpenWindows {
@@ -52,5 +53,6 @@ nonisolated extension OpenWindows {
         workingArea = try container.decodeIfPresent(WorkingAreaWindow.self, forKey: .workingArea)
         conflicts = try container.decodeIfPresent(ConflictWindow.self, forKey: .conflicts)
         isActivityShown = try container.decodeIfPresent(Bool.self, forKey: .isActivityShown) ?? false
+        isNoticesShown = try container.decodeIfPresent(Bool.self, forKey: .isNoticesShown) ?? false
     }
 }

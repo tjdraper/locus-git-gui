@@ -1,11 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// A repository window's commands for branches, stashes, tags and the history's commits, and the bar
-/// above the history that shows an operation stopped partway. They take turns with staging and
+/// A repository window's commands for branches, stashes, tags and the history's commits, and the
+/// status that shows an operation stopped partway. They take turns with staging and
 /// committing in the working area's queue, and each failure shows on the window it was started from.
 final class RepositoryOperationsCoordinator {
-    /// Shown in a bar above the history.
+    /// Shown in the toolbar (`ToolbarStatus`).
     let status = OperationStatus()
     let branches: BranchWorkflow
     let stashes: StashWorkflow

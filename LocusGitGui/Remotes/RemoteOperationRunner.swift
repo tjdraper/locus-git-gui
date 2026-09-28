@@ -1,7 +1,7 @@
 import AppKit
 
-/// Runs a command the user started that talks to a remote. The bar above the history shows how far
-/// it has got, with Cancel, and a question Git or SSH asks goes to a sheet on the window it was
+/// Runs a command the user started that talks to a remote. The window's status shows how far it has
+/// got, with Cancel, and a question Git or SSH asks goes to a sheet on the window it was
 /// started from. One runs at a time.
 final class RemoteOperationRunner {
     enum Outcome {

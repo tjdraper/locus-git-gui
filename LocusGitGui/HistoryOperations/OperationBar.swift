@@ -1,13 +1,11 @@
 import AppKit
 import SwiftUI
 
-/// A bar above the history while a merge, rebase, cherry-pick or revert waits partway, with
-/// Continue, Skip and Abort, and after a destructive command, the commit that brings back what it
-/// took away. It takes no room otherwise.
+/// A bar at the top of the conflict window while a merge, rebase, cherry-pick or revert waits
+/// partway, with Continue, Skip and Abort. The window exists only while one does, so the bar never
+/// comes and goes under the user.
 struct OperationBar: View {
     let status: OperationStatus
-    /// The conflict window shows only the stopped operation, since a notice is about the history.
-    var showsNotice = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,23 +31,6 @@ struct OperationBar: View {
                     Button("Continue") { status.continueOperation?() }
                         .controlSize(.small)
                         .buttonStyle(.borderedProminent)
-                }
-            }
-            if showsNotice, let notice = status.notice {
-                bar {
-                    Text(notice.message)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Button("Copy Hash") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(notice.hash, forType: .string)
-                    }
-                    .controlSize(.small)
-                    Button("Close", systemImage: "xmark.circle.fill", action: status.dismissNotice)
-                        .labelStyle(.iconOnly)
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.secondary)
                 }
             }
         }

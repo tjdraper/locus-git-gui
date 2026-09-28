@@ -1,14 +1,11 @@
 import AppKit
 
-/// The window's middle column: the history, under the bar that shows a fetch, pull or push in
-/// progress. The bar takes no room while nothing runs.
+/// The window's middle column: the history, kept below the toolbar.
 final class HistoryColumnController: NSViewController {
     let history: HistoryViewController
-    private let bar: NSView
 
-    init(history: HistoryViewController, bar: NSView) {
+    init(history: HistoryViewController) {
         self.history = history
-        self.bar = bar
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -20,15 +17,10 @@ final class HistoryColumnController: NSViewController {
     override func loadView() {
         let view = NSView()
         addChild(history)
-        for subview in [bar, history.view] {
-            subview.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(subview)
-        }
+        history.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(history.view)
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            history.view.topAnchor.constraint(equalTo: bar.bottomAnchor),
+            history.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             history.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             history.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             history.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),

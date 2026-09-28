@@ -1,8 +1,9 @@
 import AppKit
 
 /// The repository window's toolbar, customizable the usual way. It holds the sidebar button, the
-/// title, Fetch, Pull and Push, the activity indicator, and the quiet warning for a failure the
-/// user didn't ask for, such as a background refresh, which never interrupts with a sheet.
+/// title, the status (what Git is doing, and the latest notice), Fetch, Pull and Push, and the quiet
+/// warning for a failure the user didn't ask for, such as a background refresh, which never
+/// interrupts with a sheet.
 final class RepositoryToolbar: NSObject, NSToolbarDelegate {
     private static let warningIdentifier = NSToolbarItem.Identifier("GitFailureWarning")
     private static let offeredItemsKey = "RepositoryToolbarOfferedItems"
@@ -11,25 +12,33 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
     private static let firstItems: [NSToolbarItem.Identifier] = [
         .toggleSidebar, .sidebarTrackingSeparator, RepositoryTitleItem.identifier, .flexibleSpace, warningIdentifier,
     ]
+    /// Items earlier versions had, taken out of layouts saved with them. The activity spinner moved
+    /// into the status.
+    private static let retiredItems: [NSToolbarItem.Identifier] = [NSToolbarItem.Identifier("Activity")]
 
     /// Titled and reaching their commands as the Remote menu's items do.
     private static let commands: [AppCommand] = [.fetch, .pull, .push]
 
     let toolbar = NSToolbar(identifier: "RepositoryWindow")
     private let title: RepositoryTitleItem
+    private let status: ToolbarStatusItem
     /// Fetch's options, which a menu on its button sets.
     private let fetchOptions: NSMenu
-    private let activity: ActivityIndicator
     private let showDetails: () -> Void
     private var warningItem: NSToolbarItem?
     private var commandItems: [AppCommand: NSToolbarItem] = [:]
     /// The checked-out branch's commits to push and to pull, shown on Push and Pull.
     private var tracking: (ahead: Int, behind: Int) = (0, 0)
 
-    init(title: RepositoryTitleItem, fetchOptions: NSMenu, activity: ActivityIndicator, showDetails: @escaping () -> Void) {
+    init(
+        title: RepositoryTitleItem,
+        status: ToolbarStatusItem,
+        fetchOptions: NSMenu,
+        showDetails: @escaping () -> Void
+    ) {
         self.title = title
+        self.status = status
         self.fetchOptions = fetchOptions
-        self.activity = activity
         self.showDetails = showDetails
         super.init()
         toolbar.delegate = self
@@ -41,12 +50,19 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
     func attach(to window: NSWindow) {
         window.toolbar = toolbar
         window.toolbarStyle = .unified
+        removeRetiredItems()
         offerNewItems()
+    }
+
+    private func removeRetiredItems() {
+        while let index = toolbar.items.firstIndex(where: { Self.retiredItems.contains($0.itemIdentifier) }) {
+            toolbar.removeItem(at: index)
+        }
     }
 
     /// AppKit only uses the default items for a toolbar with no saved layout, so an item added in a
     /// later version never appears in one saved before it. Each new item is put in once, before the
-    /// activity indicator or the warning, and remembered, so an item the user takes out in Customize
+    /// warning, and remembered, so an item the user takes out in Customize
     /// Toolbar stays out. Called once the toolbar is in a window, which is when it reads its saved
     /// layout.
     private func offerNewItems(defaults: UserDefaults = .standard) {
@@ -55,10 +71,26 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
         let defaultItems = toolbarDefaultItemIdentifiers(toolbar)
         for identifier in defaultItems where !offered.contains(identifier) {
             guard !toolbar.items.contains(where: { $0.itemIdentifier == identifier }) else { continue }
-            let following = toolbar.items.firstIndex { [ActivityIndicator.identifier, Self.warningIdentifier].contains($0.itemIdentifier) }
+            if identifier == ToolbarStatusItem.identifier {
+                offerStatus()
+                continue
+            }
+            let following = toolbar.items.firstIndex { $0.itemIdentifier == Self.warningIdentifier }
             toolbar.insertItem(withItemIdentifier: identifier, at: following ?? toolbar.items.count)
         }
         defaults.set(offered.union(defaultItems).map(\NSToolbarItem.Identifier.rawValue).sorted(), forKey: Self.offeredItemsKey)
+    }
+
+    /// Just after the title, with room after it, as in the default layout.
+    private func offerStatus() {
+        guard let titleIndex = toolbar.items.firstIndex(where: { $0.itemIdentifier == RepositoryTitleItem.identifier }) else { return }
+        toolbar.insertItem(withItemIdentifier: .space, at: titleIndex + 1)
+        let index = titleIndex + 2
+        toolbar.insertItem(withItemIdentifier: ToolbarStatusItem.identifier, at: index)
+        let following = toolbar.items.indices.contains(index + 1) ? toolbar.items[index + 1].itemIdentifier : nil
+        if following != .flexibleSpace {
+            toolbar.insertItem(withItemIdentifier: .flexibleSpace, at: index + 1)
+        }
     }
 
     /// `summary` is the failure's when there's one, and a count shows when there are more.
@@ -84,9 +116,11 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
             .toggleSidebar,
             .sidebarTrackingSeparator,
             RepositoryTitleItem.identifier,
+            // Keeps the toolbar from drawing the status in the title's glass.
+            .space,
+            ToolbarStatusItem.identifier,
             .flexibleSpace,
         ] + Self.commands.map(\.toolbarIdentifier) + [
-            ActivityIndicator.identifier,
             Self.warningIdentifier,
         ]
     }
@@ -96,17 +130,18 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
             .toggleSidebar,
             .sidebarTrackingSeparator,
             RepositoryTitleItem.identifier,
+            ToolbarStatusItem.identifier,
         ] + Self.commands.map(\.toolbarIdentifier) + [
-            ActivityIndicator.identifier,
             .flexibleSpace,
             .space,
             Self.warningIdentifier,
         ]
     }
 
-    /// The title has nowhere else to go, and a warning that could be removed would hide failures.
+    /// The title has nowhere else to go, and a status or warning that could be removed would hide a
+    /// stopped operation or a failure.
     func toolbarImmovableItemIdentifiers(_: NSToolbar) -> Set<NSToolbarItem.Identifier> {
-        [.sidebarTrackingSeparator, RepositoryTitleItem.identifier, Self.warningIdentifier]
+        [.sidebarTrackingSeparator, RepositoryTitleItem.identifier, ToolbarStatusItem.identifier, Self.warningIdentifier]
     }
 
     func toolbar(
@@ -117,8 +152,8 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
         if identifier == RepositoryTitleItem.identifier {
             return title.makeItem()
         }
-        if identifier == ActivityIndicator.identifier {
-            return activity.makeItem()
+        if identifier == ToolbarStatusItem.identifier {
+            return status.makeItem()
         }
         if let command = Self.commands.first(where: { $0.toolbarIdentifier == identifier }) {
             return makeItem(for: command)

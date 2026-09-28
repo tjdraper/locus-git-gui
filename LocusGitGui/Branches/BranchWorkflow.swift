@@ -167,7 +167,10 @@ final class BranchWorkflow {
         runner.perform(from: window, nextSteps: nextSteps) { [weak self] steps in
             try await steps.run(BranchCommand.delete(branch, force: force), failing: "Git couldn’t delete the branch “\(branch)”.")
             if let point {
-                self?.notice?(OperationStatus.Notice(message: "Deleted “\(branch)”, which was at \(point.described).", hash: point.hash))
+                self?.notice?(OperationStatus.Notice(
+                    message: "“\(branch)” was at \(point.described) before it was deleted.",
+                    hash: point.hash
+                ))
             }
         }
     }

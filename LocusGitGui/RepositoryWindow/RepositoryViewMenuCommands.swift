@@ -6,6 +6,12 @@ extension RepositoryWindowController {
     @objc func showActivity(_: Any?) {
         openedWindows.showActivity()
     }
+
+    /// Reached through the responder chain from View > Show Notices.
+    @objc func showNotices(_: Any?) {
+        openedWindows.showNotices()
+    }
+
     /// Reached through the responder chain from View > Filter Sidebar.
     @objc func filterSidebar(_: Any?) {
         columns.showSidebar()
@@ -33,7 +39,9 @@ extension RepositoryWindowController {
     }
 
     /// Commands the repository's other windows pass on to `repositoryTarget(for:)`.
-    static let repositoryActions: Set<Selector> = Set([#selector(openUncommittedChangesWindow(_:)), #selector(showActivity(_:))])
+    static let repositoryActions: Set<Selector> = Set([
+        #selector(openUncommittedChangesWindow(_:)), #selector(showActivity(_:)), #selector(showNotices(_:)),
+    ])
         .union(RemoteSyncWorkflow.actions)
         .union(RemoteEditingWorkflow.actions)
         .union(OperationMenuCommands.repositoryActions)

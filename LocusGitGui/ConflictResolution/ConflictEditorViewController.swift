@@ -41,7 +41,7 @@ final class ConflictEditorViewController: NSViewController {
     }
 
     override func loadView() {
-        let operationBar = HeightForWidthHostingView(rootView: OperationBar(status: operationStatus, showsNotice: false))
+        let operationBar = HeightForWidthHostingView(rootView: OperationBar(status: operationStatus))
         operationBar.sizingOptions = [.intrinsicContentSize]
         let editorBar = HeightForWidthHostingView(rootView: ConflictEditorBar(state: state))
         editorBar.sizingOptions = [.intrinsicContentSize]

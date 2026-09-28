@@ -66,7 +66,7 @@ final class CommitOperationWorkflow {
                 )
                 if let previous, previous.hash != commit.hash {
                     self?.notice?(OperationStatus.Notice(
-                        message: "Reset \(branch) to \(commit.hash.prefix(7)). It was at \(previous.described).",
+                        message: "\(branch) was at \(previous.described) before the reset to \(commit.hash.prefix(7)).",
                         hash: previous.hash
                     ))
                 }
