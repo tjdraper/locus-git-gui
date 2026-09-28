@@ -22,8 +22,7 @@ final class DiffGroupHeaderView: NSView {
         buttons.orientation = .horizontal
         buttons.spacing = 6
         let stack = NSStackView()
-        stack.setViews([title, count], in: .leading)
-        stack.setViews([buttons], in: .trailing)
+        stack.setViews([title, count, buttons], in: .leading)
         stack.orientation = .horizontal
         stack.alignment = .firstBaseline
         stack.spacing = 8

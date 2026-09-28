@@ -51,17 +51,26 @@ extension WorkingAreaViewController {
             [DiffAction(title: AppCommand.showConflicts.title) { [weak self] in self?.session.showConflicts?(nil) }]
         case .staged:
             [DiffAction(title: AppCommand.unstageAll.title) { [weak self] in self?.unstageAll(nil) }]
+                + pickedAction("Unstage", in: group) { [weak self] files in self?.staging.unstage(files) }
         case .unstaged:
             [DiffAction(title: AppCommand.stageAll.title) { [weak self] in
                 guard let self else { return }
                 staging.stageTracked(excluding: files(in: [.conflicted]))
-            }]
+            }] + pickedAction("Stage", in: group) { [weak self] files in self?.staging.stage(files) }
         case .untracked:
             [DiffAction(title: AppCommand.stageAll.title) { [weak self] in
                 guard let self else { return }
                 staging.stageUntracked(files(in: [.untracked]))
-            }]
+            }] + pickedAction("Stage", in: group) { [weak self] files in self?.staging.stage(files) }
         }
+    }
+
+    /// Acts on the files picked in this group alone, since a heading speaks for its own files.
+    /// Nothing while none of them is picked.
+    private func pickedAction(_ verb: String, in group: WorkingAreaGroup, perform: @escaping ([DiffFile]) -> Void) -> [DiffAction] {
+        let picked = diff.files.filter { diff.selectedFiles.contains($0.id) && WorkingAreaGroup($0) == group }
+        guard !picked.isEmpty else { return [] }
+        return [DiffAction(title: "\(verb) \(picked.count) Selected") { perform(picked) }]
     }
 
     /// The button that acts goes last, as in a dialog, after one that discards. A picked file's
