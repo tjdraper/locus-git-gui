@@ -95,7 +95,7 @@ enum MainMenu {
             [.separator()],
             items(.collapseFile, .expandFile, .collapseAllFiles, .expandAllFiles, .goToNextFile, .goToPreviousFile),
             [.separator()],
-            items(.ignoreWhitespace, .showMoreContext, .showLessContext),
+            items(.ignoreWhitespace, .showMoreContext, .showLessContext, .showMessageAsMarkdown),
             [.separator()],
             items(.showActivity),
             owned.dashboardView,

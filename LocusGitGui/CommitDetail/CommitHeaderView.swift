@@ -13,6 +13,8 @@ final class CommitHeader {
     var isSignatureUnavailable = false
     /// Kept from one commit to the next, for someone who reads every message in full.
     var isMessageExpanded = false
+    /// Whether the body reads as Markdown, which the repository's other commit views share.
+    @ObservationIgnored var messageFormat: MessageFormatStore?
     @ObservationIgnored var goToCommit: ((String) -> Void)?
     @ObservationIgnored var reveal: ((SidebarItemID) -> Void)?
 }
@@ -62,9 +64,8 @@ struct CommitHeaderView: View {
         }
         if model.isMessageExpanded, let body = model.body {
             ScrollView {
-                Text(body)
+                MessageBodyView(text: body, showsMarkdown: model.messageFormat?.showsMarkdown ?? false)
                     .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)
             // Its own height up to the limit, rather than all the room it's offered.

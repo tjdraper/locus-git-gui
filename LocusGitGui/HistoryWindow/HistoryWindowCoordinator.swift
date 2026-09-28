@@ -49,6 +49,7 @@ final class HistoryWindowCoordinator {
             diffPlaces: diffPlaces
         )
         controller.repositoryWindow = repositoryWindow
+        controller.detail.messageFormat = repositoryWindow?.messageFormat
         connect(controller)
         controllers.append(controller)
         if let refs, let contents {

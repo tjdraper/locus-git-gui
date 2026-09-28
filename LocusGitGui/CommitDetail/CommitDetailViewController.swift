@@ -75,6 +75,12 @@ final class CommitDetailViewController: NSViewController {
         set { header.reveal = newValue }
     }
 
+    /// The repository's, which its other commit views share.
+    var messageFormat: MessageFormatStore? {
+        get { header.messageFormat }
+        set { header.messageFormat = newValue }
+    }
+
     var commit: Commit? {
         header.commit
     }

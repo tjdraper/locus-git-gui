@@ -22,6 +22,8 @@ nonisolated struct RepositoryViewState: Codable, Equatable, Sendable {
     /// As `NSWindow.frameDescriptor` writes it, which records the screen as well as the frame.
     var windowFrame: String?
     var diffOptions = DiffOptions()
+    /// View > Show Message as Markdown.
+    var showsMessageAsMarkdown = true
     var diffPlaces = DiffPlaceMemory()
     var historyPlaces = HistoryPlaceMemory()
     var openWindows = OpenWindows()
@@ -43,6 +45,7 @@ nonisolated extension RepositoryViewState {
         columns = try container.decodeIfPresent(Columns.self, forKey: .columns)
         windowFrame = try container.decodeIfPresent(String.self, forKey: .windowFrame)
         diffOptions = try container.decodeIfPresent(DiffOptions.self, forKey: .diffOptions) ?? DiffOptions()
+        showsMessageAsMarkdown = try container.decodeIfPresent(Bool.self, forKey: .showsMessageAsMarkdown) ?? true
         diffPlaces = try container.decodeIfPresent(DiffPlaceMemory.self, forKey: .diffPlaces) ?? DiffPlaceMemory()
         historyPlaces = try container.decodeIfPresent(HistoryPlaceMemory.self, forKey: .historyPlaces) ?? HistoryPlaceMemory()
         openWindows = try container.decodeIfPresent(OpenWindows.self, forKey: .openWindows) ?? OpenWindows()

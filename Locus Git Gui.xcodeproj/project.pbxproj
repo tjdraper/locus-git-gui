@@ -77,6 +77,7 @@
 				CommandPalette/CommandPaletteSearch.swift,
 				CommitDetail/CommitDetail.swift,
 				CommitDetail/CommitSignature.swift,
+				CommitDetail/MessageMarkdown.swift,
 				Credentials/AskpassChannel.swift,
 				Credentials/CredentialPrompt.swift,
 				Dashboard/DashboardSearch.swift,

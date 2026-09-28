@@ -62,6 +62,7 @@ extension AppCommand {
         case .ignoreWhitespace: #selector(DiffViewController.toggleIgnoreWhitespace(_:))
         case .showMoreContext: #selector(DiffViewController.showMoreContext(_:))
         case .showLessContext: #selector(DiffViewController.showLessContext(_:))
+        case .showMessageAsMarkdown: #selector(MessageFormatStore.toggleMessageMarkdown(_:))
         case .showActivity: #selector(RepositoryWindowController.showActivity(_:))
         case .showOnlyMissingRepositories: #selector(DashboardWindowPresenter.toggleShowOnlyMissing(_:))
         case .checkOutBranch: #selector(CommandPalettePresenter.checkOutBranch(_:))

@@ -18,6 +18,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
     }
     let commitColumns: CommitColumnsCoordinator
     private let diffOptions: DiffOptionsStore
+    let messageFormat: MessageFormatStore
     private let diffPlaces: DiffPlaceStore
     private(set) lazy var openedWindows = OpenedWindowsCoordinator(
         commands: commands,
@@ -75,6 +76,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         sidebar = SidebarModel(state: viewState)
         pinning = SidebarPinWorkflow(sidebar: sidebar, workTree: repository.workTree)
         diffOptions = DiffOptionsStore(options: viewState.diffOptions)
+        messageFormat = MessageFormatStore(showsMarkdown: viewState.showsMessageAsMarkdown)
         diffPlaces = DiffPlaceStore(memory: viewState.diffPlaces)
         let sidebarController = NSHostingController(rootView: SidebarView(model: sidebar))
         // The split view sets the columns' sizes, not SwiftUI.
@@ -132,7 +134,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         if let target = remotes.target(forAction: action) {
             return target
         }
-        if let target = operations.target(forAction: action) {
+        if let target = operations.target(forAction: action) ?? messageFormat.target(forAction: action) {
             return target
         }
         return commitColumns.target(forAction: action) ?? super.supplementalTarget(forAction: action, sender: sender)
@@ -275,6 +277,7 @@ final class RepositoryWindowController: NSWindowController, NSWindowDelegate {
         state.workingAreaFilter = commitColumns.workingArea.filter
         state.columns = columns.columns
         state.diffOptions = diffOptions.options
+        state.showsMessageAsMarkdown = messageFormat.showsMarkdown
         state.diffPlaces = diffPlaces.memory
         state.historyPlaces = commitColumns.historyPlaces
         state.openWindows = openedWindows.openWindows
@@ -304,6 +307,8 @@ extension RepositoryWindowController {
     }
 
     fileprivate func connectCommitColumns(restoring openWindows: OpenWindows) {
+        messageFormat.onChange = { [weak self] in self?.saveViewState() }
+        commitColumns.detail.messageFormat = messageFormat
         openedWindows.toRestore = openWindows
         openedWindows.onChange = { [weak self] in self?.saveViewState() }
         commitColumns.reveal = { [weak self] id in self?.revealInSidebar(id) }

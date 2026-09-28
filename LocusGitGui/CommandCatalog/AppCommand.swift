@@ -63,6 +63,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case ignoreWhitespace
     case showMoreContext
     case showLessContext
+    case showMessageAsMarkdown
     case showActivity
     case showOnlyMissingRepositories
 
@@ -196,6 +197,7 @@ nonisolated extension AppCommand {
         case .ignoreWhitespace: "Ignore Whitespace"
         case .showMoreContext: "More Context Lines"
         case .showLessContext: "Fewer Context Lines"
+        case .showMessageAsMarkdown: "Show Message as Markdown"
         case .showActivity: "Show Activity"
         case .showOnlyMissingRepositories: "Show Only Missing Repositories"
         case .checkOutBranch: "Check Out Branch…"

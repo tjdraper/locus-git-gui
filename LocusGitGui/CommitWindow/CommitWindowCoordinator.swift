@@ -42,6 +42,7 @@ final class CommitWindowCoordinator {
             diffPlaces: diffPlaces
         )
         controller.repositoryWindow = self.repositoryWindow
+        controller.detail.messageFormat = self.repositoryWindow?.messageFormat
         controller.detail.reveal = { [weak self] item in self?.reveal?(item) }
         controller.detail.openFileWindow = { [weak self, weak controller] request in
             self?.openFileWindow?(request, controller?.window)
