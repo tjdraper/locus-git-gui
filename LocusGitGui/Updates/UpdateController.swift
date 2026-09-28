@@ -51,6 +51,7 @@ final class UpdateController: NSObject, NSMenuItemValidation {
         )
         super.init()
         reminder.onChange = { [weak self] in self?.showReminder() }
+        UpdateAvailability.shared.show = { [weak self] in self?.checkForUpdates(nil) }
         showReminder()
         // Sparkle's own prompt, which installs from before the checklist still see, sets it too.
         automaticChecksObservation = updaterController.updater.observe(\.automaticallyChecksForUpdates) { [weak self] _, _ in
@@ -129,6 +130,28 @@ private final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     /// the checklist never see it, so Sparkle still asks them.
     nonisolated func updaterShouldPromptForPermissionToCheck(forUpdates _: SPUUpdater) -> Bool {
         FirstRunStatus().state == .existingInstall
+    }
+
+    /// How many releases newer than this one this Mac can install, for the Update Available button.
+    nonisolated func updater(_: SPUUpdater, didFinishLoading appcast: SUAppcast) {
+        let current = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
+        let channels = UpdateChannelPreference().allowedChannels
+        let comparator = SUStandardVersionComparator.default
+        let count = appcast.items.filter { item in
+            comparator.compareVersion(current, toVersion: item.versionString) == .orderedAscending
+                && item.channel.map(channels.contains) ?? true
+                && item.minimumOperatingSystemVersionIsOK && item.maximumOperatingSystemVersionIsOK
+        }.count
+        // Sparkle calls its delegates on the main thread.
+        MainActor.assumeIsolated {
+            UpdateAvailability.shared.showCount(count)
+        }
+    }
+
+    nonisolated func updaterDidNotFindUpdate(_: SPUUpdater) {
+        MainActor.assumeIsolated {
+            reminder.noUpdateWaiting()
+        }
     }
 
     nonisolated func updater(

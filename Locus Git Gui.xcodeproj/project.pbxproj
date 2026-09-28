@@ -169,6 +169,7 @@
 				Sidebar/SidebarSection.swift,
 				Sidebar/SidebarTypeSelect.swift,
 				Updates/UpdateChannelPreference.swift,
+				Updates/UpdateNagClock.swift,
 				WorkingArea/CommitMessage.swift,
 				WorkingArea/PartialPatch.swift,
 				WorkingArea/RawFilePatch.swift,

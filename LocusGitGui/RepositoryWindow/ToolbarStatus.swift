@@ -1,7 +1,7 @@
 import Foundation
 
-/// What the window has to say: a fetch, pull or push running, an operation stopped partway, and the
-/// notice a command that took something away leaves. The toolbar shows the latest, and the Notices
+/// What the window has to say: a fetch, pull or push running, an operation stopped partway, the
+/// notice a command that took something away leaves, and an update to the app waiting. The toolbar shows the latest, and the Notices
 /// panel and window list them all. With none of them, the toolbar says when the repository last
 /// fetched, so the status keeps its place rather than coming and going.
 @Observable
@@ -11,14 +11,17 @@ final class ToolbarStatus {
         case stopped
         case remoteNotice
         case operationNotice
+        case update
     }
 
     let remote: RemoteProgress
     let operation: OperationStatus
+    let updates: UpdateAvailability
 
-    init(remote: RemoteProgress, operation: OperationStatus) {
+    init(remote: RemoteProgress, operation: OperationStatus, updates: UpdateAvailability = .shared) {
         self.remote = remote
         self.operation = operation
+        self.updates = updates
     }
 
     /// The latest first.
@@ -35,6 +38,9 @@ final class ToolbarStatus {
         }
         if let notice = operation.notice {
             dated.append((.operationNotice, notice.shown))
+        }
+        if updates.isAvailable {
+            dated.append((.update, updates.found ?? .distantPast))
         }
         return dated.sorted { $0.date > $1.date }.map(\.entry)
     }
@@ -65,6 +71,11 @@ final class ToolbarStatus {
         case .stopped: operation.stopped?.title
         case .remoteNotice: remote.notice?.message
         case .operationNotice: operation.notice?.message
+        case .update: updateMessage
         }
+    }
+
+    var updateMessage: String? {
+        updates.version.map { "Version \($0) is ready." }
     }
 }

@@ -27,6 +27,8 @@
 	<string>Locus Git Gui reads the Git repositories you open on network volumes.</string>
 	<key>NSRemovableVolumesUsageDescription</key>
 	<string>Locus Git Gui reads the Git repositories you open on external drives.</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
 	<key>SUFeedURL</key>
 	<string>https://tjdraper.github.io/locus-git-gui/appcast.xml</string>
 	<key>SUPublicEDKey</key>

@@ -66,6 +66,12 @@ struct NoticesView: View {
             if let notice = status.operation.notice {
                 noticeCard(notice.message, hash: notice.hash, dismiss: status.operation.dismissNotice)
             }
+        case .update:
+            NoticeCard {
+                Text(status.updateMessage ?? "")
+            } buttons: {
+                UpdateButton(updates: status.updates)
+            }
         }
     }
 

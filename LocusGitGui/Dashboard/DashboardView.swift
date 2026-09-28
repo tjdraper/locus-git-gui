@@ -92,9 +92,17 @@ struct DashboardView: View {
         }
     }
 
+    private var updates: UpdateAvailability {
+        .shared
+    }
+
     private var bottomBar: some View {
         let missingCount = session.missingRepositories.count
         return HStack {
+            if updates.isAvailable {
+                Button(updates.buttonTitle) { updates.show?() }
+                    .buttonStyle(.borderedProminent)
+            }
             if missingCount > 0 {
                 Toggle(isOn: $session.showsOnlyMissing) {
                     Label("\(missingCount) Missing", systemImage: "exclamationmark.triangle")

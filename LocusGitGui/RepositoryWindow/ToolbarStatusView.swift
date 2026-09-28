@@ -33,7 +33,7 @@ struct ToolbarStatusView: View {
     /// a notice without the commit Copy Hash copies.
     static func fullWidth(for entry: ToolbarStatus.Entry?) -> CGFloat {
         switch entry {
-        case .stopped, .remoteNotice, .operationNotice: 300
+        case .stopped, .remoteNotice, .operationNotice, .update: 300
         case .remoteRunning: 200
         case nil: 150
         }
@@ -59,6 +59,11 @@ struct ToolbarStatusView: View {
                 if let notice = status.operation.notice {
                     self.notice(notice.message, hash: notice.hash, dismiss: status.operation.dismissNotice)
                 }
+            case .update:
+                WholeWordsText(text: status.updateMessage ?? "")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .help(status.updateMessage ?? "")
+                UpdateButton(updates: status.updates)
             case nil:
                 idle
             }
@@ -116,6 +121,9 @@ struct ToolbarStatusView: View {
         case .remoteNotice, .operationNotice:
             Image(systemName: "arrow.uturn.backward.circle")
                 .accessibilityLabel("Notice")
+        case .update:
+            Image(systemName: "arrow.down.circle")
+                .accessibilityLabel("Update available")
         case nil:
             Image(systemName: "clock")
                 .foregroundStyle(.secondary)
@@ -239,6 +247,16 @@ struct StoppedOperationButtons: View {
                 .buttonStyle(.glass)
         }
         Button("Continue") { status.continueOperation?() }
+            .buttonStyle(.glassProminent)
+    }
+}
+
+/// The same button as the dashboard's, opening Sparkle's window with the release notes.
+struct UpdateButton: View {
+    let updates: UpdateAvailability
+
+    var body: some View {
+        Button(updates.buttonTitle) { updates.show?() }
             .buttonStyle(.glassProminent)
     }
 }

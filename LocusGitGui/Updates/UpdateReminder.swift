@@ -1,7 +1,9 @@
 import Sparkle
 
-/// Keeps an update found by a scheduled check from interrupting: unless the check ran just after
-/// launch, the update waits behind a quiet sign until the user asks to see it.
+/// Keeps an update found by a scheduled check from interrupting, even just after launch, since the
+/// user opened the app to do something else. The update waits behind the dashboard's and the
+/// repository windows' Update Available button, the app menu and the Dock badge until the user asks
+/// to see it, or until it has waited two weeks (`UpdateNagClock`).
 /// https://sparkle-project.org/documentation/gentle-reminders
 final class UpdateReminder: NSObject, SPUStandardUserDriverDelegate {
     var onChange: (() -> Void)?
@@ -28,6 +30,18 @@ final class UpdateReminder: NSObject, SPUStandardUserDriverDelegate {
     /// Called by the updater's delegate, just before Sparkle ends the session.
     func userDidMake(_ choice: SPUUserUpdateChoice, forVersion version: String) {
         dismissedVersion = choice == .dismiss ? version : nil
+        if choice == .skip {
+            noUpdateWaiting()
+        }
+    }
+
+    /// Called by the updater's delegate when a check finds nothing to install, as after the update
+    /// was installed or skipped.
+    func noUpdateWaiting() {
+        scheduledVersion = nil
+        dismissedVersion = nil
+        UpdateAvailability.shared.clear()
+        UpdateNagClock().reset()
     }
 
     /// The check finds the update again if it's still there, and shows it.
@@ -42,9 +56,9 @@ final class UpdateReminder: NSObject, SPUStandardUserDriverDelegate {
 
     nonisolated func standardUserDriverShouldHandleShowingScheduledUpdate(
         _: SUAppcastItem,
-        andInImmediateFocus immediateFocus: Bool
+        andInImmediateFocus _: Bool
     ) -> Bool {
-        immediateFocus
+        UpdateNagClock().isOverdue()
     }
 
     nonisolated func standardUserDriverWillHandleShowingUpdate(
@@ -54,6 +68,8 @@ final class UpdateReminder: NSObject, SPUStandardUserDriverDelegate {
     ) {
         let version = update.displayVersionString
         onMain {
+            UpdateNagClock().noteFound()
+            UpdateAvailability.shared.showFound(version)
             if !handleShowingUpdate {
                 scheduledVersion = version
             }

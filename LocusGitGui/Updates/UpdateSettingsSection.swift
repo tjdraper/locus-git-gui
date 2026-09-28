@@ -17,8 +17,8 @@ struct UpdateSettingsSection: View {
             .disabled(updates.isRunningBeta)
         } footer: {
             Text("""
-            An update found while you’re working waits in the Locus Git Gui menu, with a badge on \
-            the app’s icon in the Dock, until you’re ready for it.
+            A new version never interrupts: the dashboard and each repository window offer it, \
+            with a badge on the app’s icon in the Dock, until you’re ready. After two weeks, it asks.
             """)
             .foregroundStyle(.secondary)
         }
