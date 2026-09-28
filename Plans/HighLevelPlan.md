@@ -521,13 +521,42 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 12. **Merge conflict window**
 
+    Done. Driven by script in the running app in dark mode on a scratch repository (2026-09-27): a merge stopped on five files of every kind, a merge started from the Branch menu, a rebase and a stash apply that conflicted, taking sides from the menus, buttons and shortcuts, undo and redo, saving, marking resolved with and without conflicts left, choosing whole versions, Continue, Show Base, the working area's buttons, closing and quitting with unsaved edits, and a merge stopped on 5,001 files. Then tried by hand in light and dark mode (2026-09-27), with Open in Editor, Reveal in Finder, the Copy Path commands, and Return and ⌃Tab between the list and the panes. The colours were kept as they are after weighing them against colour blindness.
+
     - Conflicted files get their own window, opened from the working area or automatically when an operation stops on conflicts. One window per repository, listing the conflicted files.
+      - Built as `ConflictWindowCoordinator` and `ConflictWindowController` in `ConflictResolution/`, opened from View > Show Conflicts, Show Conflicts on the working area's Conflicts group, Resolve… on each conflicted file, and Show Conflicts in a failure's sheet. A merge, rebase, cherry-pick, revert, pull or stash that stops on conflicts opens it and shows Git's output as a sheet there (`GitFailureSheetPresenter.conflictWindow`). It closes with the repository's window, and opens again with it, with its file and Show Base, while there's something left to resolve.
+      - A conflicted file in the working area said “Only whitespace changed.”, and now says it has conflicts to resolve.
+      - A file stays in the list, marked resolved, once it is, so the list shows how far the operation has got. Conflicts arriving after none were left are another operation's and start the list again. Resolving the file shown moves on to the next.
+      - The sides are named for what they are rather than ours and theirs, which swap meaning in a rebase (`ConflictSideNames`): the checked-out branch, or in a rebase the branch it's going onto, and what Git wrote after the conflict's closing marker, such as “feature”, “d6fe47a (Fix the parser)” or “Stashed changes”. Without markers to read, the commit being brought in is named by a branch at it.
     - Three panes: ours, the result, and theirs, with the base available. Take ours, take theirs, or take both for each conflict. The result is editable.
+      - Built with the two sides side by side above the result, which runs the full width (decided on 2026-09-27). View > Show Base puts the common ancestor between them. Each version's pane marks every conflict's side in it and scrolls to the current one; the current conflict is marked more strongly everywhere.
+      - The result is the file as it is on disk, markers and all, rather than a fresh merge, so edits made elsewhere and conflicts `git rerere` resolved are kept. Conflicts are found by their markers (`ConflictMarkers`), in the merge, diff3 and zdiff3 styles, at the size a `conflict-marker-size` attribute sets, with Windows line endings. They're found again shortly after each edit, away from the main actor.
+      - Git doesn't say where a conflict's side is in each version, so each side's lines are looked for in order (`ConflictSideLocator`). Lines repeated nearby can put a mark on the wrong copy; taking a side uses the result's own text either way. The ancestor is only marked when Git wrote it into the file (diff3 or zdiff3).
+      - Taking a side is one step for Undo, and moves on to the next conflict. The window shares the file's undo history, since the file list keeps Undo for itself while it has focus; taking a side or moving between conflicts puts focus in the result.
+      - Edits reach the file on Save (⌘S), Mark as Resolved, picking another file, closing the window and quitting (decided on 2026-09-27), and the close button's dot shows while there are some. A file changed on disk while it has no edits here is read again.
+      - The panes have no line numbers.
     - The keyboard moves between conflicts and picks a side without touching the mouse
+      - Commit > Previous Conflict (⌃⌘[), Next Conflict (⌃⌘]), Take Ours (⌃⌘O), Take Theirs (⌃⌘T), Take Both (⌃⌘B) and Mark as Resolved (⌃⌘↩), with File > Save and View > Show Base, shown only while a conflict window is in front (`ConflictMenuItems`). Take Ours and Take Theirs are named for the sides. ⌃⌘ with the arrows was the first choice, but macOS took ⌃⌘→ for tiling the window. Next File and Previous File (⌥⌘↓, ⌥⌘↑) move through the list.
     - Mark Resolved stages the file. When every file is resolved, the window offers to continue the operation that stopped.
+      - Marking a file with conflicts left asks first, since the markers would be committed. The stopped operation's bar is at the top of the window, with Continue, Skip and Abort, and says when every conflict is resolved. After a stash conflict there's no operation to continue, and the window doesn't offer to drop the stash.
     - Conflicts that aren't about content, such as deleted on one side and changed on the other, get a plain choice between the two
+      - Built for a file deleted on one side, deleted on both, binary, not UTF-8, a symbolic link or a submodule (`ConflictVersionChoice`): Take “main”, Take “feature”, or Delete the File, each saying what it keeps. Taking a side that deleted the file deletes it. A submodule is put in the index directly, since `git checkout --ours` doesn't take one.
     - Open in Editor, for anyone who would rather resolve in their own tool
+      - Built, with Reveal in Finder and the Copy Path commands, from the File menu. Open in Editor saves first.
     - Performance check (see Decisions): a conflict in a very large file, and a merge that stops with many conflicted files
+      - `Scripts/GenerateTestRepository.swift --conflicts <n>` and `ConflictPerformanceTests`. Measured in an optimized build on 5,000 conflicted files and a 12.6 MB file of 200,000 lines with 1,000 conflicts (2026-09-27):
+
+        | | Time |
+        |---|---|
+        | Status listing 5,001 conflicted files | 79 ms |
+        | Reading the large file's versions | 135 ms |
+        | Finding its 1,000 conflicts | 62 ms |
+        | Indexing both sides' lines | 102 ms |
+        | Finding the conflicts in both sides | 4 ms |
+        | Taking a side and finding the conflicts again | 64 ms |
+
+      - Indexing the sides' lines as strings took 1.5 s on the main actor; hashing their bytes brought it to 102 ms, and it now runs away from the main actor. In the Debug app the large file showed in under a second after it was picked, and the list of 5,001 files kept up.
+      - Reading the large file's text through Accessibility took 47 seconds, which slice 17's VoiceOver pass should know about.
 
 13. **Settings**
 
