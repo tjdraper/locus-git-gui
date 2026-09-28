@@ -36,6 +36,7 @@ enum MainMenu {
         main.addItem(submenu(named: appName, items: [
             items(.about),
             owned.updates,
+            items(.purchase),
             [.separator()],
             items(.settings),
             [.separator(), services, .separator()],

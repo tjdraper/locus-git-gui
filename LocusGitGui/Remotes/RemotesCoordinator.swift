@@ -272,9 +272,10 @@ final class RemotesCoordinator {
     }
 
     /// Declines every question, since nobody asked for this fetch and a sheet out of nowhere would
-    /// interrupt them.
+    /// interrupt them. After the trial it waits quietly for a license, since talking to a remote
+    /// needs one.
     private func fetchAutomatically() async {
-        guard !runner.isBusy, !sync.state.remotes.isEmpty else { return }
+        guard !runner.isBusy, !sync.state.remotes.isEmpty, !ReadOnlyLock.isLocked else { return }
         var command = RemoteCommand.automaticFetch(prunes: preferences.options.prunes)
         command.askpass = askpass.open { _ in nil }
         defer { askpass.close(command.askpass) }

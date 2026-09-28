@@ -24,7 +24,7 @@ final class RemoteEditingWorkflow: NSObject {
     /// Named `origin` when it's the first, as a clone's is, and with an address from the clipboard
     /// when it holds one.
     @objc func addRemote(_: Any?) {
-        guard let window = NSApp.keyWindow ?? repositoryWindow?() else { return }
+        guard let window = NSApp.keyWindow ?? repositoryWindow?(), ReadOnlyLock.allowsChange(in: window) else { return }
         let clipboard = NSPasteboard.general.string(forType: .string) ?? ""
         var sheet: NSWindow?
         let close = { [weak window] in
@@ -47,6 +47,7 @@ final class RemoteEditingWorkflow: NSObject {
     }
 
     func edit(_ remote: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         guard let window = window ?? repositoryWindow?() else { return }
         Task { [weak self] in
             guard let self else { return }
@@ -74,6 +75,7 @@ final class RemoteEditingWorkflow: NSObject {
 
     /// Asks first, and gives the address, which is what adding it back needs.
     func remove(_ remote: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         Task { [weak self] in
             guard let self else { return }
             let address = await url(of: remote)

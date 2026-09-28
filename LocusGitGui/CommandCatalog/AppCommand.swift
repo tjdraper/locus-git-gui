@@ -7,6 +7,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case about
     case installWaitingUpdate
     case checkForUpdates
+    case purchase
     case settings
     case hide
     case hideOthers
@@ -156,6 +157,7 @@ nonisolated extension AppCommand {
         case .about: "About Locus Git Gui"
         case .installWaitingUpdate: "Install Update…"
         case .checkForUpdates: "Check for Updates…"
+        case .purchase: "Purchase…"
         case .settings: "Settings…"
         case .hide: "Hide Locus Git Gui"
         case .hideOthers: "Hide Others"

@@ -33,7 +33,7 @@ struct ToolbarStatusView: View {
     /// a notice without the commit Copy Hash copies.
     static func fullWidth(for entry: ToolbarStatus.Entry?) -> CGFloat {
         switch entry {
-        case .stopped, .remoteNotice, .operationNotice, .update: 300
+        case .stopped, .remoteNotice, .operationNotice, .update, .trial: 300
         case .remoteRunning: 200
         case nil: 150
         }
@@ -64,6 +64,10 @@ struct ToolbarStatusView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .help(status.updateMessage ?? "")
                 UpdateButton(updates: status.updates)
+            case .trial:
+                if let notice = status.entitlements.notice {
+                    trialNotice(notice)
+                }
             case nil:
                 idle
             }
@@ -124,6 +128,8 @@ struct ToolbarStatusView: View {
         case .update:
             Image(systemName: "arrow.down.circle")
                 .accessibilityLabel("Update available")
+        case .trial:
+            TrialNoticeIcon(notice: status.entitlements.notice)
         case nil:
             Image(systemName: "clock")
                 .foregroundStyle(.secondary)
@@ -191,6 +197,15 @@ struct ToolbarStatusView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .help("\(stopped.title). \(stopped.detail)")
             StoppedOperationButtons(status: status.operation, kind: stopped.kind)
+        }
+    }
+
+    private func trialNotice(_ notice: TrialNotice) -> some View {
+        Group {
+            WholeWordsText(text: notice.message)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(notice.message)
+            PurchaseButton(notice: notice)
         }
     }
 

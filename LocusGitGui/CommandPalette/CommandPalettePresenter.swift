@@ -87,6 +87,7 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
     /// when there's only the one, such as the remote selected in the sidebar. Go to Branch… always
     /// asks, since it's a way to search the branches.
     private func goTo(_ command: AppCommand) {
+        guard !command.changesRepository || ReadOnlyLock.allowsChange(in: windowInFront) else { return }
         let choices = choices(for: command)
         if let only = choices.first, choices.count == 1, Self.goesStraightToOnlyChoice(command) {
             switch only.entry(isListedBeforeTyping: true).action {
@@ -133,6 +134,10 @@ final class CommandPalettePresenter: NSObject, NSMenuItemValidation {
         let commands = MenuBarCommandReader.read(excluding: [.commandPalette]).map { entry in
             guard let command = AppCommand(rawValue: entry.item.id), Self.asksForChoice(command) else {
                 return entry
+            }
+            // Refused as the command is chosen, rather than after its branch or stash has been picked.
+            if command.changesRepository, ReadOnlyLock.isLocked {
+                return CommandPaletteEntry(item: entry.item, action: .perform { _ = ReadOnlyLock.allowsChange(in: nil) })
             }
             let choices = choices(for: command)
             if let only = choices.first, choices.count == 1, Self.goesStraightToOnlyChoice(command) {

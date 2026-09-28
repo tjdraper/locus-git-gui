@@ -14,6 +14,7 @@ final class StashWorkflow {
     }
 
     func stash(includingUntracked: Bool, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self, let window = window ?? repositoryWindow() else { return }
             let result = await FormSheet.ask(on: window) { finish in
@@ -30,6 +31,7 @@ final class StashWorkflow {
     }
 
     func apply(_ commit: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         let name = describe(commit)
         runner.perform(from: window) { steps in
             try await steps.run(StashCommand.apply(commit), failing: "Git couldn’t apply the stash \(name).")
@@ -38,6 +40,7 @@ final class StashWorkflow {
 
     /// Git keeps the stash when its changes conflict, which the failure says.
     func pop(_ commit: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         let name = describe(commit)
         runner.perform(from: window) { steps in
             guard let index = try await StashCommand.index(of: commit, running: steps.commands.run) else { return }
@@ -46,6 +49,7 @@ final class StashWorkflow {
     }
 
     func drop(_ commit: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         let entry = context().contents?.stashes.first { $0.id == .stash(commit) }
         let name = describe(commit)
         Task { [weak self] in

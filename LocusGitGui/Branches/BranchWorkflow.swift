@@ -15,6 +15,7 @@ final class BranchWorkflow {
     }
 
     func checkOut(_ branch: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         run(
             BranchCommand.checkOut(branch),
             purpose: "checking out “\(branch)”",
@@ -26,6 +27,7 @@ final class BranchWorkflow {
     /// A tag or a commit, which leaves HEAD detached. `name` is how the user knows it, such as a
     /// tag's name or a short hash.
     func checkOutDetached(_ revision: String, named name: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         run(
             BranchCommand.checkOutDetached(revision),
             purpose: "checking out \(name)",
@@ -37,6 +39,7 @@ final class BranchWorkflow {
     /// Switches to the local branch that tracks it, or makes one. A local branch of the same name
     /// that tracks something else isn't taken over, so another name is asked for.
     func checkOut(remoteBranch id: SidebarItemID, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         let context = context()
         guard case let .ref(fullName) = id, let (remote, branch) = context.remoteBranch(id) else { return }
         let short = "\(remote)/\(branch.name)"
@@ -73,6 +76,7 @@ final class BranchWorkflow {
     /// `start` is what Git starts it from, and `startTitle` how the sheet names it, such as
     /// “origin/main” or “1a2b3c4 (“Subject”)”.
     func newBranch(at start: String, startTitle: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self, let window = window ?? repositoryWindow() else { return }
             let result = await FormSheet.ask(on: window) { [context] finish in
@@ -97,6 +101,7 @@ final class BranchWorkflow {
     }
 
     func rename(_ branch: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self, let window = window ?? repositoryWindow() else { return }
             let result = await FormSheet.ask(on: window) { [context] finish in
@@ -119,6 +124,7 @@ final class BranchWorkflow {
 
     /// Asks first, naming the commit it's at, which a new branch there brings back.
     func delete(_ branch: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self else { return }
             let point = await RestorePoint.read("refs/heads/\(branch)", running: runner.commands.run)
@@ -136,6 +142,7 @@ final class BranchWorkflow {
 
     /// `upstream` is the remote branch's full name, and `name` its short one.
     func setUpstream(of branch: String, to upstream: String, named name: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         runner.perform(from: window) { steps in
             try await steps.run(
                 BranchCommand.setUpstream(of: branch, to: upstream),
@@ -145,6 +152,7 @@ final class BranchWorkflow {
     }
 
     func unsetUpstream(of branch: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         runner.perform(from: window) { steps in
             try await steps.run(BranchCommand.unsetUpstream(of: branch), failing: "Git couldn’t unset the upstream of “\(branch)”.")
         }

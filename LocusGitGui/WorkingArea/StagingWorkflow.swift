@@ -27,6 +27,7 @@ final class StagingWorkflow {
 
     /// A conflicted file is staged to mark it resolved.
     func stage(_ files: [DiffFile]) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         guard !files.isEmpty else { return }
         let paths = files.map(\.changed.path)
         let summary = files.allSatisfy { WorkingAreaGroup($0) == .conflicted }
@@ -39,6 +40,7 @@ final class StagingWorkflow {
 
     /// Everything but conflicts, which are for the user to mark resolved one by one.
     func stageAll(excluding conflicts: [DiffFile]) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         let paths = conflicts.map(\.changed.path)
         queue.run("Git couldn’t stage all the changes.") { [commands] in
             try await WorkingAreaStaging.stageAll(excluding: paths, running: commands.run)
@@ -46,6 +48,7 @@ final class StagingWorkflow {
     }
 
     func stageTracked(excluding conflicts: [DiffFile]) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         let paths = conflicts.map(\.changed.path)
         queue.run("Git couldn’t stage the unstaged changes.") { [commands] in
             try await WorkingAreaStaging.stageTracked(excluding: paths, running: commands.run)
@@ -53,6 +56,7 @@ final class StagingWorkflow {
     }
 
     func stageUntracked(_ files: [DiffFile]) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         guard !files.isEmpty else { return }
         let paths = files.map(\.changed.path)
         queue.run("Git couldn’t stage \(Self.describe(files)).") { [commands] in
@@ -61,6 +65,7 @@ final class StagingWorkflow {
     }
 
     func unstageAll() {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         queue.run("Git couldn’t unstage the staged changes.") { [commands] in
             try await WorkingAreaStaging.unstageAll(running: commands.run)
         }
@@ -68,6 +73,7 @@ final class StagingWorkflow {
 
     /// Both of a staged rename's paths, so the file isn't left half renamed.
     func unstage(_ files: [DiffFile]) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         guard !files.isEmpty else { return }
         let paths = files.flatMap { [$0.changed.originalPath, $0.changed.path].compactMap(\.self) }
         queue.run("Git couldn’t unstage \(Self.describe(files)).") { [commands] in
@@ -78,6 +84,7 @@ final class StagingWorkflow {
     /// An untracked file goes to the Trash. A tracked one goes back to how it's staged, with the
     /// file as it was kept in the Trash. One confirmation covers them all.
     func discard(_ files: [DiffFile]) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         guard !files.isEmpty, let window = window?() else { return }
         DiscardConfirmation.ask(discardingFiles: files, on: window) { [weak self] in
             self?.discardConfirmed(files[...], keepingCopies: true)
@@ -110,6 +117,7 @@ final class StagingWorkflow {
     /// `lines` are indices into the hunk's lines, and all of its changed lines when empty. Picking
     /// every changed line of the file acts on the whole file, which also stages a deletion as one.
     func apply(_ operation: Operation, lines: [Int], hunk: Int, of file: DiffFile) {
+        guard ReadOnlyLock.allowsChange(in: window?()) else { return }
         guard canActOnHunks, file.patch.hunks.indices.contains(hunk) else {
             NSSound.beep()
             return

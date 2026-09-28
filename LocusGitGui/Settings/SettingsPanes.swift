@@ -7,6 +7,7 @@ enum SettingsPane: String, CaseIterable {
     case diffs
     case remotes
     case updates
+    case license
 
     var title: String {
         switch self {
@@ -14,6 +15,7 @@ enum SettingsPane: String, CaseIterable {
         case .diffs: "Diffs"
         case .remotes: "Remotes"
         case .updates: "Updates"
+        case .license: "License"
         }
     }
 
@@ -23,6 +25,7 @@ enum SettingsPane: String, CaseIterable {
         case .diffs: "plus.forwardslash.minus"
         case .remotes: "network"
         case .updates: "arrow.down.circle"
+        case .license: "checkmark.seal"
         }
     }
 }
@@ -69,6 +72,16 @@ struct UpdateSettingsPane: View {
     var body: some View {
         SettingsForm {
             UpdateSettingsSection(updates: updates)
+        }
+    }
+}
+
+struct LicenseSettingsPane: View {
+    let entitlements: EntitlementStore
+
+    var body: some View {
+        SettingsForm {
+            LicenseSettingsSection(entitlements: entitlements)
         }
     }
 }

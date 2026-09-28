@@ -206,12 +206,12 @@ final class ConflictWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func markResolved() {
-        guard let contents, contents.isEditable, save() else { return }
+        guard let contents, contents.isEditable, ReadOnlyLock.allowsChange(in: window), save() else { return }
         workflow.markResolved(contents.path, conflictsLeft: editor.result.conflictCount)
     }
 
     private func choose(_ choice: ConflictVersionChoice) {
-        guard let contents else { return }
+        guard let contents, ReadOnlyLock.allowsChange(in: window) else { return }
         workflow.choose(choice, for: contents.path, stages: contents.stages)
     }
 

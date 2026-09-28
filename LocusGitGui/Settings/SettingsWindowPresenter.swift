@@ -40,6 +40,7 @@ final class SettingsWindowPresenter {
             (.diffs, NSHostingController(rootView: AnyView(DiffSettingsPane(store: DiffSettingsStore())))),
             (.remotes, NSHostingController(rootView: AnyView(RemoteSettingsPane(preferences: fetchPreferences)))),
             (.updates, NSHostingController(rootView: AnyView(UpdateSettingsPane(updates: updates)))),
+            (.license, NSHostingController(rootView: AnyView(LicenseSettingsPane(entitlements: .shared)))),
         ])
         let window = NSWindow(contentViewController: panes)
         window.styleMask = [.titled, .closable]

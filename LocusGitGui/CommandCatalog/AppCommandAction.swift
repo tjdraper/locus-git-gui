@@ -8,6 +8,7 @@ extension AppCommand {
         case .about: #selector(AppDelegate.showAboutPanel(_:))
         case .installWaitingUpdate: #selector(UpdateController.installWaitingUpdate(_:))
         case .checkForUpdates: #selector(UpdateController.checkForUpdates(_:))
+        case .purchase: #selector(AppDelegate.showPurchase(_:))
         case .settings: #selector(AppDelegate.showSettings(_:))
         case .hide: #selector(NSApplication.hide(_:))
         case .hideOthers: #selector(NSApplication.hideOtherApplications(_:))

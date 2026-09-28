@@ -20,6 +20,7 @@ final class CommitOperationWorkflow {
     }
 
     func cherryPick(_ commit: Commit, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         let onto = context().checkedOutBranch.map { " onto “\($0)”" } ?? ""
         runStashingIfNeeded(
             HistoryOperationCommand.cherryPick(commit.hash, isMerge: commit.parents.count > 1),
@@ -30,6 +31,7 @@ final class CommitOperationWorkflow {
     }
 
     func revert(_ commit: Commit, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         runStashingIfNeeded(
             HistoryOperationCommand.revert(commit.hash, isMerge: commit.parents.count > 1),
             purpose: "reverting \(commit.hash.prefix(7))",
@@ -41,6 +43,7 @@ final class CommitOperationWorkflow {
     /// A hard reset asks first, since it throws away uncommitted changes. Every reset names the
     /// commit the branch was at afterwards, which a reset back to it brings back.
     func reset(to commit: Commit, mode: HistoryOperationCommand.ResetMode, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         let context = context()
         let branch = context.checkedOutBranch.map { "“\($0)”" } ?? "HEAD"
         Task { [weak self] in
@@ -102,6 +105,7 @@ final class CommitOperationWorkflow {
     }
 
     func reword(_ commit: Commit, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self, let window = window ?? repositoryWindow() else { return }
             let isLast = commit.hash == context().head?.commit
@@ -146,6 +150,7 @@ final class CommitOperationWorkflow {
     /// Stops at the commit, with its changes in the working area to change and stage, until
     /// Continue carries them through the commits after it.
     func edit(_ commit: Commit, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         guard commit.hash != context().head?.commit else {
             amendLastCommit?()
             return

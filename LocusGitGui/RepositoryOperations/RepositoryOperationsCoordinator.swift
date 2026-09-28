@@ -186,6 +186,7 @@ final class RepositoryOperationsCoordinator {
         // Once the drop has finished, since the menu tracks the mouse until it closes, and the drag
         // would wait for it.
         DispatchQueue.main.async {
+            guard ReadOnlyLock.allowsChange(in: window) else { return }
             menu.popUp(positioning: nil, at: location, in: nil)
         }
     }

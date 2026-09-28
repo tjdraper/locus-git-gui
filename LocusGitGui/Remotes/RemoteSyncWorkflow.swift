@@ -73,6 +73,7 @@ final class RemoteSyncWorkflow: NSObject {
     /// Every remote when `remote` is nil, and with the preferences' options when `options` is.
     /// Runs beside staging and committing, which it can't disturb.
     func fetch(_ remote: String?, options: FetchOptions? = nil, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         guard canFetch else {
             NSSound.beep()
             return
@@ -94,6 +95,7 @@ final class RemoteSyncWorkflow: NSObject {
     }
 
     func pull(_ strategy: RemoteCommand.PullStrategy?, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         guard canPull, let branch = state.branch?.name, let upstream = state.branch?.upstream else {
             NSSound.beep()
             return
@@ -120,6 +122,7 @@ final class RemoteSyncWorkflow: NSObject {
     }
 
     func push(from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         guard canPush, let branch = state.branch?.name else {
             NSSound.beep()
             return
@@ -141,6 +144,7 @@ final class RemoteSyncWorkflow: NSObject {
     /// Asks first, naming how many commits the remote's branch has that this one doesn't, and the
     /// commit it's at, which can be pushed back to undo it.
     func forcePush(from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         guard canForcePush, let branch = state.branch?.name, let upstream = state.branch?.upstream else {
             NSSound.beep()
             return

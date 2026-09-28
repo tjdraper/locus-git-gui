@@ -14,6 +14,7 @@ final class MergeWorkflow {
 
     /// `target` is a local branch, checked out first when it's given.
     func merge(_ revision: Revision, into target: String? = nil, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window) else { return }
         let into = target.map { " into “\($0)”" } ?? ""
         let summary = "Git couldn’t merge “\(revision.name)”\(into)."
         perform(from: window, purpose: "merging “\(revision.name)”\(into)", nextToCheckOut: target) { steps, autostash in
@@ -27,6 +28,7 @@ final class MergeWorkflow {
     /// Rebases `branch`, or the checked-out branch when it's nil, onto `upstream`. Git checks
     /// `branch` out itself.
     func rebase(_ branch: String? = nil, onto upstream: Revision, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window) else { return }
         let name = (branch ?? context().checkedOutBranch).map { "“\($0)”" } ?? "HEAD"
         perform(from: window, purpose: "rebasing \(name) onto “\(upstream.name)”", nextToCheckOut: nil) { steps, autostash in
             try await steps.run(

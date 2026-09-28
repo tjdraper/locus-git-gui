@@ -29,6 +29,7 @@ final class StoppedOperationWorkflow {
     }
 
     func continueOperation(from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         guard let kind = stopped?.kind else {
             NSSound.beep()
             return
@@ -44,6 +45,7 @@ final class StoppedOperationWorkflow {
     }
 
     func skip(from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         guard let kind = stopped?.kind, let command = HistoryOperationCommand.skip(kind) else {
             NSSound.beep()
             return
@@ -55,6 +57,7 @@ final class StoppedOperationWorkflow {
 
     /// Asks first, since conflicts already resolved are lost.
     func abort(from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         guard let kind = stopped?.kind else {
             NSSound.beep()
             return

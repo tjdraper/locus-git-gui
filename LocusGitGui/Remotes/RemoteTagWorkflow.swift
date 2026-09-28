@@ -16,6 +16,7 @@ final class RemoteTagWorkflow {
     }
 
     func push(_ tag: String, to remote: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         run(
             RemoteCommand.pushTag(tag, to: remote),
             titled: "Pushing the tag “\(tag)” to “\(remote)”",
@@ -26,6 +27,7 @@ final class RemoteTagWorkflow {
 
     /// Asks first. The tag stays in this repository, so pushing it again undoes it.
     func delete(_ tag: String, from remote: String, window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         Task { [weak self] in
             guard let self else { return }
             let alert = NSAlert()

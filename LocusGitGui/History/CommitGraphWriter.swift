@@ -9,7 +9,7 @@ final class CommitGraphWriter {
     private static let log = Logger(subsystem: "com.buzzingpixel.LocusGitGui", category: "CommitGraph")
     /// `--split` adds a small layer on top when the file is written again later, rather than
     /// rewriting it. `--changed-paths` makes a history of one file fast.
-    static let writeCommand = GitCommand.changing(["commit-graph", "write", "--reachable", "--split", "--changed-paths"])
+    static let writeCommand = GitCommand.housekeeping(["commit-graph", "write", "--reachable", "--split", "--changed-paths"])
     /// Where the file lives, which for a linked worktree is in the main repository's Git directory.
     static let folderCommand = GitCommand.reading(["rev-parse", "--git-path", "objects/info"])
 

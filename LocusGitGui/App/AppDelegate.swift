@@ -92,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tagChoices: commandPalette.tagMenuItems,
             operationChoices: commandPalette.choiceMenuItems
         ))
+        EntitlementStore.shared.start()
         repositoryOpening.showClone = { [weak self] in self?.cloning.show() }
         repositoryOpening.createRepository = { [weak self] folder in self?.creation.create(in: folder) }
         // Settled before Sparkle starts, which marks every install as launched before.
@@ -216,6 +217,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Reached through the responder chain from the app menu's Settings….
     @objc func showSettings(_: Any?) {
         settingsWindow.show()
+    }
+
+    /// Reached through the responder chain from the app menu's Purchase….
+    @objc func showPurchase(_: Any?) {
+        PurchaseSheet.show(on: NSApp.keyWindow)
     }
 
     /// Reached through the responder chain from the Help menu.

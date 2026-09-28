@@ -72,6 +72,19 @@ struct NoticesView: View {
             } buttons: {
                 UpdateButton(updates: status.updates)
             }
+        case .trial:
+            trialCard
+        }
+    }
+
+    @ViewBuilder
+    private var trialCard: some View {
+        if let notice = status.entitlements.notice {
+            NoticeCard {
+                Text(notice.message)
+            } buttons: {
+                PurchaseButton(notice: notice)
+            }
         }
     }
 

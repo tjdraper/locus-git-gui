@@ -27,6 +27,7 @@ final class RepositoryCreationWorkflow {
     }
 
     func showPanel() {
+        guard ReadOnlyLock.allowsChange(in: nil) else { return }
         NSApp.activate()
         let panel = NSOpenPanel()
         panel.message = "Choose or make the folder for the new repository"
@@ -41,6 +42,7 @@ final class RepositoryCreationWorkflow {
     }
 
     func create(in folder: URL) {
+        guard ReadOnlyLock.allowsChange(in: nil) else { return }
         Task {
             guard let runner = await gitChoice.runner() else {
                 showChecklist()

@@ -140,6 +140,12 @@ final class ConflictResultEditor: NSObject, NSTextViewDelegate {
         undo
     }
 
+    /// Typing and taking a side both come through here. After the trial the result can be read but
+    /// not changed, like the rest of the repository, so there's nothing for Save to write.
+    func textView(_ textView: NSTextView, shouldChangeTextIn _: NSRange, replacementString _: String?) -> Bool {
+        ReadOnlyLock.allowsChange(in: textView.window)
+    }
+
     func textDidChange(_: Notification) {
         generation += 1
         if !isEdited {

@@ -103,6 +103,7 @@ struct DashboardView: View {
                 Button(updates.buttonTitle) { updates.show?() }
                     .buttonStyle(.borderedProminent)
             }
+            DashboardTrialNotice(entitlements: .shared)
             if missingCount > 0 {
                 Toggle(isOn: $session.showsOnlyMissing) {
                     Label("\(missingCount) Missing", systemImage: "exclamationmark.triangle")

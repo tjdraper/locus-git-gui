@@ -30,6 +30,7 @@ final class CloneWindowPresenter {
 
     /// Only once there's a Git to clone with. Otherwise the checklist's Git step comes first.
     func show() {
+        guard ReadOnlyLock.allowsChange(in: nil) else { return }
         Task {
             guard await gitChoice.runner() != nil else {
                 showChecklist()

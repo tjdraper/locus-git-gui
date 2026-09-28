@@ -598,15 +598,33 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
     Built and verified with no server and no Paddle, the way locus-todo built its trial.
 
+    Built (2026-09-28). Driven by script in the Debug build on a scratch repository, in light mode: the lock with `--expire-trial` from the diff's buttons, the toolbar, the menu bar and the palette, the notice at each stage in light and dark mode, and a trial ending 100 seconds after launch with the app left alone. Not yet tried: the Keychain and iCloud in an installed build (`Scripts/install-test-build.sh`), a second Mac, a reinstall, dark mode, and the License pane by eye.
+
+    Not to be released before slice 16: a trial that ends has no way to buy a license yet, so everyone on the release would be locked after 30 days with nowhere to go.
+
     - The trial starts at first launch and runs 30 days (see Decisions). No account, no card, nothing to sign up for.
     - The start date is kept in the Keychain and in iCloud key-value storage. Reinstalling doesn't restart it, and a second Mac on the same Apple ID shares the first one's trial rather than starting its own. When two start dates disagree, the earliest wins.
+      - Built as `TrialStartRecords` (in the test target), `TrialStartKeychain` and `EntitlementStore`, in `Licensing/`. The Keychain item is in the data protection keychain, which every build signed by the team shares through the application identifier the iCloud provisioning profile already brings, so a Debug build reads a release build's start without a password prompt. Each place that has no start, or a later one, is given the earliest, and iCloud's changes from another Mac are settled the same way as they arrive, so two Macs that start before iCloud reaches either agree on whichever started first.
     - The trial clock and the entitlement check are pure date math and go in the test target. Port locus-todo's `TrialClock` and its entitlement snapshot, where one "entitled until" date covers trial and license alike and "still checking" counts as entitled.
+      - Built as `TrialClock` and `Entitlement`, whose reasons are only checking and trial for now; slice 16 adds the license's.
     - Fail open: when the trial or the license can't be read, the app works
+      - Until the Keychain has been read, the app counts as entitled. A start neither place can keep is a trial starting at each launch.
     - When the trial ends without a license, the app goes read-only (see Decisions). A command that would change a repository opens the purchase sheet instead of running. It stays enabled in the menu and the palette rather than greyed out, so it's clear what buying unlocks.
+      - Built as `ReadOnlyLock`, asked where each flow starts, before any form or confirmation: the branch, tag, stash, merge, commit operation and stopped operation workflows, fetch, pull, push and the remote editing, tag and branch workflows, staging, discarding and committing, taking a side, choosing a version and marking a conflict resolved, clone and create, and the menu from dragging one branch onto another. The palette refuses a locked command as it's chosen, before asking which branch or stash (`AppCommand.changesRepository`). Buttons, drags, double-clicks and Space reach the same workflows, so they're locked with the menus.
+      - Behind those, `RepositoryCommandRunner` refuses any command that changes a repository while locked, which catches one started during the trial that reaches Git after it ended. Writing the commit-graph file isn't refused: it's a cache Git keeps for itself (`GitCommand.isHousekeeping`).
+      - Typing in the conflict window's result is refused too, since taking a side and typing both go through the text view's change check, and edits reach the file without a command. Save and the saves on switching files, closing and quitting still write edits made before the lock.
+      - Automatic fetch pauses while locked, and carries on once a license arrives.
+      - The purchase sheet only explains the lock for now: what still works, and that changing a repository or talking to a remote needs a license. Slice 16 adds the plans and Purchase.
+      - Removing a stale lock file from the failure sheet stays available, since it's recovering from a crash rather than changing anything.
     - Countdown: nothing for most of the trial, a quiet notice in the last week, a persistent one in the last two days, then the locked state. Port locus-todo's staged banner and its expiry timer, so a trial that ends while the app is open locks then, not at the next click.
+      - Built as `TrialNotice` (in the test target), a notice in each repository window's toolbar status and the Notices panel, and a line in the dashboard's bottom bar. `EntitlementStore` wakes when the days left next go down, and on the last day at the end itself, and again whenever the app becomes active, for a Mac asleep across it.
+      - Changed after trying it (2026-09-28): the notice shows for the whole trial, since it's unobtrusive, and can't be dismissed. It always has Purchase…, which is also in the app menu, the palette and the License pane, and opens the purchase sheet. Its hourglass and button turn yellow with 15 days left, orange with 5, and red on the last day; an ended trial has a red exclamation triangle. It sits behind every other notice, and while it's there the status no longer falls back to when the repository last fetched.
     - `--expire-trial` and `--reset-trial` launch arguments in Debug. They override the clock and never touch the stored date, which syncs through iCloud; locus-todo's plan explains how that goes wrong.
+      - Built, with `--trial-ends-in <seconds>` for the countdown's stages and the lock arriving with the app open. An overridden clock writes no start anywhere.
     - Settings gains a License pane: days left in the trial, or what the license is and when it renews
+      - Built with the days left, when the trial started and when it ends or ended, and what the lock means once it has. Slice 16 adds the license.
     - Decide whether Set Display Name… stays available while locked. It writes into the repository's working tree, though it isn't Git.
+      - Decided: it stays, and so do pins, which write `.locus/.pinned`. Both change how the app shows a repository rather than the work in it, and a locked app is still for reading repositories, which they help with.
 
 15. **License server and Paddle**
 

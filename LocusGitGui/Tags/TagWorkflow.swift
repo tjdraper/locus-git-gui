@@ -14,6 +14,7 @@ final class TagWorkflow {
 
     /// `startTitle` names the commit in the sheet, such as “1a2b3c4 (“Subject”)”.
     func newTag(at commit: String, startTitle: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self, let window = window ?? repositoryWindow() else { return }
             let result = await FormSheet.ask(on: window) { [context] finish in
@@ -30,6 +31,7 @@ final class TagWorkflow {
     }
 
     func delete(_ tag: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow()) else { return }
         Task { [weak self] in
             guard let self else { return }
             let point = await RestorePoint.read("refs/tags/\(tag)", running: runner.commands.run)

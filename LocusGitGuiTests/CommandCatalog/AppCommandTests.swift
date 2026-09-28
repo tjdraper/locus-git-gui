@@ -38,4 +38,16 @@ struct AppCommandTests {
         #expect(one == "Remove Repository from List")
         #expect(three == "Remove 3 Repositories from List")
     }
+
+    @Test
+    func readingAndOrganizingStayUnlockedAfterTheTrial() {
+        // Arrange
+        let unlocked: [AppCommand] = [.open, .showDashboard, .setDisplayName, .togglePinInSidebar, .copyCommitHash, .fetchAutomatically]
+
+        // Assert
+        #expect(unlocked.allSatisfy { !$0.changesRepository })
+        #expect(AppCommand.commitChanges.changesRepository)
+        #expect(AppCommand.fetch.changesRepository)
+        #expect(AppCommand.cloneRepository.changesRepository)
+    }
 }

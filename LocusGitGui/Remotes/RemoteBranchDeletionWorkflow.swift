@@ -19,6 +19,7 @@ final class RemoteBranchDeletionWorkflow {
 
     /// `branch` is its name on the remote, such as `feature`.
     func delete(_ branch: String, from remote: String, window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
         Task { [weak self] in
             guard let self else { return }
             let point = await RestorePoint.read("refs/remotes/\(remote)/\(branch)", running: commands.run)

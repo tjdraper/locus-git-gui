@@ -12,6 +12,9 @@ nonisolated struct GitCommand: Sendable, Equatable {
     var askpass: AskpassChannel?
     /// Added to the environment Git runs with, such as the editor a rebase uses.
     var environment: [String: String] = [:]
+    /// Changes only what Git keeps for itself, such as a cache, and nothing the user sees, so it
+    /// runs while the app is read-only after the trial.
+    var isHousekeeping = false
 
     static func reading(_ arguments: [String]) -> GitCommand {
         GitCommand(arguments: arguments, isReadOnly: true)
@@ -19,5 +22,9 @@ nonisolated struct GitCommand: Sendable, Equatable {
 
     static func changing(_ arguments: [String], input: Data? = nil) -> GitCommand {
         GitCommand(arguments: arguments, isReadOnly: false, input: input)
+    }
+
+    static func housekeeping(_ arguments: [String]) -> GitCommand {
+        GitCommand(arguments: arguments, isReadOnly: false, isHousekeeping: true)
     }
 }

@@ -30,6 +30,7 @@ final class CommitWorkflow {
             NSSound.beep()
             return
         }
+        guard ReadOnlyLock.allowsChange(in: nil) else { return }
         let message = editor.message
         let amend = editor.isAmending
         editor.isCommitting = true

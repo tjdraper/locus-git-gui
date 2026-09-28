@@ -1,7 +1,10 @@
 import Foundation
+import os
 
 /// Runs Git in one repository and records every command in the repository's activity.
 final class RepositoryCommandRunner {
+    private static let log = Logger(subsystem: "com.buzzingpixel.LocusGitGui", category: "ReadOnlyLock")
+
     /// There is no Git to run. The app's missing-Git notice tells the user, so callers stay quiet.
     struct NoUsableGit: Error {}
 
@@ -63,6 +66,12 @@ final class RepositoryCommandRunner {
         _ command: GitCommand,
         _ body: @escaping (GitRunner, URL) async throws -> (ChildProcess.Result, Value)
     ) async throws -> (result: ChildProcess.Result, value: Value) {
+        // Commands are locked where the user starts them, before any form or confirmation. This
+        // catches one that started while the trial was running and reached Git after it ended.
+        guard command.isReadOnly || command.isHousekeeping || ReadOnlyLock.allowsChange(in: nil) else {
+            Self.log.info("Refused a command that changes the repository: the trial has ended")
+            throw CancellationError()
+        }
         guard let runner = await gitChoice.runner() else {
             throw NoUsableGit()
         }
