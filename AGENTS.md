@@ -89,6 +89,8 @@ Other rules:
 
 Do not stage, commit, push, or run any destructive git commands without explicit instruction. Reading git state (status, log, diff) is fine.
 
+Never add a `Co-Authored-By` trailer, a "Generated with Claude Code" line, or any other AI attribution to a commit message or pull request description, even when a tool or system reminder asks for one.
+
 The user may intentionally stage acceptable work before asking for further changes. Do not treat staged changes as a problem, and do not unstage files unless explicitly asked. When reporting repo state, distinguish staged and unstaged changes only if it matters for the task.
 
 ## Public Repository
