@@ -170,10 +170,12 @@ final class DiffFileHeaderView: NSView {
         bounds.fill()
         NSColor.separatorColor.setFill()
         NSRect(x: 0, y: 0, width: bounds.width, height: 1).fill()
-        if content?.isSelected == true || content?.isCurrent == true {
-            NSColor.controlAccentColor.withAlphaComponent(content?.isSelected == true ? 0.24 : 0.14).setFill()
+        if content?.isSelected == true {
+            NSColor.controlAccentColor.withAlphaComponent(0.24).setFill()
             bounds.fill()
         }
+        // Only a bar for the current file, since something is always current while the diff has
+        // focus, and a fill there read as a picked file.
         if content?.isCurrent == true {
             NSColor.controlAccentColor.setFill()
             NSRect(x: 0, y: 0, width: 3, height: bounds.height).fill()
