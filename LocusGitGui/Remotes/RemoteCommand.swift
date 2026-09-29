@@ -57,6 +57,11 @@ nonisolated enum RemoteCommand {
         .changing(["push", "--progress", remote, "refs/tags/\(tag)"])
     }
 
+    /// Tags have no remote-tracking refs for `--force-with-lease` to check against.
+    static func forcePushTag(_ tag: String, to remote: String) -> GitCommand {
+        .changing(["push", "--progress", remote, "+refs/tags/\(tag)"])
+    }
+
     static func deleteTag(_ tag: String, from remote: String) -> GitCommand {
         .changing(["push", "--progress", remote, "--delete", "refs/tags/\(tag)"])
     }

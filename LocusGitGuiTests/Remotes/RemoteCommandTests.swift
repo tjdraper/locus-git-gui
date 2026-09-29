@@ -81,6 +81,30 @@ struct RemoteCommandTests {
     }
 
     @Test
+    func aForcePushedTagReplacesTheRemotesTag() async throws {
+        // Arrange
+        let bare = try FixtureRepository(folder: TestGit.makeScratchFolder())
+        defer { bare.remove() }
+        try await bare.git("init", "--quiet", "--bare", "--initial-branch=main")
+        let clone = try await bare.clone()
+        defer { clone.remove() }
+        try await clone.git("checkout", "--quiet", "-b", "main")
+        try await clone.commit("First", writing: "a", to: "a.txt")
+        try await clone.git("tag", "v1")
+        try await clone.git("push", "--quiet", "origin", "main", "v1")
+        try await clone.commit("Second", writing: "b", to: "b.txt")
+        try await clone.git("tag", "--force", "v1")
+
+        // Act
+        let result = try await clone.run(RemoteCommand.forcePushTag("v1", to: "origin"))
+
+        // Assert
+        #expect(result.status == 0)
+        #expect(try await bare.git("rev-parse", "v1") == clone.git("rev-parse", "v1"))
+        #expect(try await bare.git("rev-parse", "main") != clone.git("rev-parse", "main"))
+    }
+
+    @Test
     func pruningRemovesARemoteBranchDeletedOnTheRemote() async throws {
         // Arrange
         let bare = try FixtureRepository(folder: TestGit.makeScratchFolder())

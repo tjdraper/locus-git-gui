@@ -31,6 +31,12 @@ struct GitFailureExplanation: View {
             push stopped rather than drop commits nobody here has seen. Fetch, look at what \
             arrived, then decide.
             """)
+        case .pushTagExists:
+            Text("""
+            The remote already has a tag with this name on a different commit, and Git won’t move \
+            it unless forced. Force pushing the tag replaces the remote’s with this repository’s. \
+            Anyone who fetched the old one keeps it, since fetching doesn’t move a tag Git already has.
+            """)
         case let .pushRefusedByRemote(reason, messages):
             remoteRefusal(reason: reason, messages: messages)
         case .pullNeedsStrategy:

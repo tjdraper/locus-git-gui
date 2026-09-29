@@ -64,6 +64,23 @@ struct RecognizedRemoteFailureTests {
     }
 
     @Test
+    func pushingATagTheRemoteHasOnAnotherCommitIsRecognized() async throws {
+        // Arrange
+        let remote = try await Remote.make()
+        defer { remote.remove() }
+        try await remote.first.git("tag", "v1")
+        try await remote.first.git("push", "--quiet", "origin", "v1")
+        try await remote.first.commit("Second", writing: "b", to: "b.txt")
+        try await remote.first.git("tag", "--force", "v1")
+
+        // Act
+        let result = try await remote.first.run(RemoteCommand.pushTag("v1", to: "origin"))
+
+        // Assert
+        #expect(RecognizedGitFailure.recognize(result) == .pushTagExists)
+    }
+
+    @Test
     func aPushTheServerRefusesKeepsWhatTheServerSaid() async throws {
         // Arrange
         let remote = try await Remote.make()

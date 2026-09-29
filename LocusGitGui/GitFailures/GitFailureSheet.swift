@@ -120,6 +120,13 @@ struct GitFailureSheet: View {
                     pull()
                 }
             }
+        case (.pushTagExists, _):
+            if let forcePushTag = nextSteps.forcePushTag {
+                Button("Force Push…") {
+                    dismiss()
+                    forcePushTag()
+                }
+            }
         case (.upstreamGone, _):
             if let push = nextSteps.push {
                 Button("Push") {

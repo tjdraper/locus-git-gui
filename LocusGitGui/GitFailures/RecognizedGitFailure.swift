@@ -18,6 +18,8 @@ nonisolated enum RecognizedGitFailure: Equatable, Sendable {
     case pushBehindRemote
     /// `--force-with-lease` found the remote's branch had moved since it was last fetched.
     case pushLeaseStale
+    /// The remote has a tag of the same name on another commit, which Git doesn't replace unless forced.
+    case pushTagExists
     /// The server turned the push down, such as for a protected branch or in a hook of its own.
     /// `messages` is what the server said, from Git's `remote:` lines, and `reason` Git's summary.
     case pushRefusedByRemote(reason: String, messages: [String])
@@ -161,6 +163,7 @@ nonisolated enum RecognizedGitFailure: Equatable, Sendable {
         }
         switch match.reason {
         case "stale info": return .pushLeaseStale
+        case "already exists": return .pushTagExists
         case "fetch first", "non-fast-forward": return .pushBehindRemote
         default: return nil
         }

@@ -1,7 +1,7 @@
 import AppKit
 
-/// Pushes a tag to a remote, or deletes it from one, which Push leaves alone since it pushes only
-/// the branch.
+/// Pushes a tag to a remote, replaces one the remote already has, or deletes it from one, which
+/// Push leaves alone since it pushes only the branch.
 final class RemoteTagWorkflow {
     /// Shows a failed command's sheet on the window it was started from.
     var present: ((GitFailure, NSWindow?, _ retry: (() -> Void)?, GitFailureNextSteps) -> Void)?
@@ -21,8 +21,31 @@ final class RemoteTagWorkflow {
             RemoteCommand.pushTag(tag, to: remote),
             titled: "Pushing the tag “\(tag)” to “\(remote)”",
             failureSummary: "Git couldn’t push the tag “\(tag)” to “\(remote)”.",
-            from: window
+            from: window,
+            nextSteps: GitFailureNextSteps(forcePushTag: { [weak self] in self?.forcePush(tag, to: remote, from: window) })
         ) { [weak self] in self?.push(tag, to: remote, from: window) }
+    }
+
+    /// Asks first, since the remote's tag is replaced and anyone who fetched it keeps the old one.
+    /// Return force pushes and Escape cancels.
+    func forcePush(_ tag: String, to remote: String, from window: NSWindow?) {
+        guard ReadOnlyLock.allowsChange(in: window ?? repositoryWindow?()) else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let alert = NSAlert()
+            alert.messageText = "Force push the tag “\(tag)” to “\(remote)”?"
+            alert.informativeText = "The remote’s “\(tag)” is replaced with this repository’s, and the commit it was on "
+                + "is no longer tagged there. Anyone who fetched the old one keeps it until they delete theirs."
+            alert.addButton(withTitle: "Force Push")
+            alert.addButton(withTitle: "Cancel").keyEquivalent = "\u{1b}"
+            guard await AlertPresentation.run(alert, on: window ?? repositoryWindow?()) == .alertFirstButtonReturn else { return }
+            run(
+                RemoteCommand.forcePushTag(tag, to: remote),
+                titled: "Force pushing the tag “\(tag)” to “\(remote)”",
+                failureSummary: "Git couldn’t force push the tag “\(tag)” to “\(remote)”.",
+                from: window
+            ) { [weak self] in self?.forcePush(tag, to: remote, from: window) }
+        }
     }
 
     /// Asks first. The tag stays in this repository, so pushing it again undoes it.
@@ -51,6 +74,7 @@ final class RemoteTagWorkflow {
         titled title: String,
         failureSummary: String,
         from window: NSWindow?,
+        nextSteps: GitFailureNextSteps = GitFailureNextSteps(),
         retry: @escaping () -> Void
     ) {
         guard !runner.isBusy else {
@@ -63,7 +87,7 @@ final class RemoteTagWorkflow {
             defer { runner.release() }
             let outcome = await runner.run(command, titled: title, failureSummary: failureSummary, from: window)
             if case let .failed(failure) = outcome {
-                present?(failure, window, retry, GitFailureNextSteps())
+                present?(failure, window, retry, nextSteps)
             }
         }
     }
