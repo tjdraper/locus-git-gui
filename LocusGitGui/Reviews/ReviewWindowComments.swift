@@ -14,6 +14,9 @@ extension ReviewWindowController {
             }]
         }
         threads.submitDraft = { [weak self] draft, text in self?.submit(draft, text: text) }
+        diff.lineButtons.action = DiffLineButton(symbol: "plus.bubble.fill", title: "Comment on This Line") { [weak self] target in
+            self?.threads.startDraft(ReviewThreadInserts.Draft(file: target.file, lines: target))
+        }
         followThreads()
     }
 
@@ -22,6 +25,12 @@ extension ReviewWindowController {
         guard let shown else { return }
         let file = DiffFile.Identity(group: nil, path: shown.entry.file.path)
         threads.startDraft(ReviewThreadInserts.Draft(file: file, lines: diff.selectedLineTarget))
+    }
+
+    /// Shows the review's comments with the field for a new one ready.
+    func startReviewComment() {
+        session.selection = [ReviewSession.overviewTag]
+        session.reviewCommentRequest += 1
     }
 
     func startFileComment(_ path: String) {

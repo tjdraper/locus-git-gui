@@ -55,6 +55,8 @@ GitLab merge request comments are the model.
 
 ## The review window
 
+Changed after trying it (2026-10-01): the two points moved into the window's toolbar, with Comment on Review and Rename Review beside them. The list lost the sidebar's grey, and takes several files at once: the right column then says how many are picked and offers to mark them all reviewed or not, and Space and the Review menu act on them all. Each file has a context menu: marking it, commenting on it, only its changes since reviewed, and the diff's own Open in Editor, Reveal in Finder and Copy Path commands. The diff has no collapse control, since files are picked on the left. A comment button shows beside the line under the pointer, and one on the file's header comments on the file. Comments are written in text areas, where Return starts a new line and ⌘Return sends, and are shown with their line breaks. Threads and the Comments page use the column's whole width.
+
 - Two columns. Files on the left, the selected file's diff on the right.
 - One window per review. Opening a review that's already open brings its window forward.
 - Above the columns: the review's name, the two points with a picker for each, the revision, and the progress ("12 of 30"). The two points can be swapped.

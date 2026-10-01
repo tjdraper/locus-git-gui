@@ -14,6 +14,7 @@ final class DiffFileHeaderView: NSView {
         var isCurrent = false
         /// One of several files picked to act on together.
         var isSelected = false
+        var canCollapse = true
     }
 
     var onToggle: (() -> Void)?
@@ -104,6 +105,7 @@ final class DiffFileHeaderView: NSView {
         self.content = content
         let file = content.file
         disclosure.state = content.isCollapsed ? .off : .on
+        disclosure.isHidden = !content.canCollapse
         let symbol: (name: String, color: NSColor)? = switch file.change {
         case .added: ("plus.circle.fill", .systemGreen)
         case .deleted: ("trash.fill", .systemRed)
@@ -137,18 +139,23 @@ final class DiffFileHeaderView: NSView {
     func show(actions: [DiffAction]) {
         let actions = actions.filter { !$0.isInMenuOnly }
         self.actions = actions
-        let views = actionButtons.arrangedSubviews
         for (index, action) in actions.enumerated() {
-            let isCheckbox = action.isOn != nil
+            let kind = ButtonKind(action)
+            let views = actionButtons.arrangedSubviews
             var button = views.indices.contains(index) ? views[index] as? NSButton : nil
-            if let existing = button, (existing.identifier == Self.checkboxIdentifier) != isCheckbox {
+            if let existing = button, existing.identifier != kind.identifier {
                 existing.removeFromSuperview()
                 button = nil
             }
-            let shown = button ?? makeButton(isCheckbox: isCheckbox, at: index)
-            shown.title = action.title
+            let shown = button ?? makeButton(kind, at: index)
+            if let symbol = action.symbol {
+                shown.image = NSImage(systemSymbolName: symbol, accessibilityDescription: action.title)
+                shown.setAccessibilityLabel(action.title)
+            } else {
+                shown.title = action.title
+            }
             shown.isEnabled = action.isEnabled
-            shown.toolTip = action.toolTip
+            shown.toolTip = action.toolTip ?? (action.symbol == nil ? nil : action.title)
             shown.state = action.isOn == true ? .on : .off
             shown.tag = index
         }
@@ -157,20 +164,41 @@ final class DiffFileHeaderView: NSView {
         }
     }
 
-    private static let checkboxIdentifier = NSUserInterfaceItemIdentifier("DiffActionCheckbox")
+    /// A button is made again when an action at its place wants another kind.
+    private enum ButtonKind {
+        case push
+        case checkbox
+        case icon
 
-    private func makeButton(isCheckbox: Bool, at index: Int) -> NSButton {
-        let button = if isCheckbox {
-            NSButton(checkboxWithTitle: "", target: self, action: #selector(runAction(_:)))
-        } else {
-            NSButton(title: "", target: self, action: #selector(runAction(_:)))
+        init(_ action: DiffAction) {
+            self = action.isOn != nil ? .checkbox : action.symbol != nil ? .icon : .push
+        }
+
+        var identifier: NSUserInterfaceItemIdentifier {
+            switch self {
+            case .push: NSUserInterfaceItemIdentifier("DiffActionPush")
+            case .checkbox: NSUserInterfaceItemIdentifier("DiffActionCheckbox")
+            case .icon: NSUserInterfaceItemIdentifier("DiffActionIcon")
+            }
+        }
+    }
+
+    /// An icon looks like the header's own Open in Editor and More buttons.
+    private func makeButton(_ kind: ButtonKind, at index: Int) -> NSButton {
+        let button: NSButton
+        switch kind {
+        case .push:
+            button = NSButton(title: "", target: self, action: #selector(runAction(_:)))
+            button.bezelStyle = .push
+        case .checkbox:
+            button = NSButton(checkboxWithTitle: "", target: self, action: #selector(runAction(_:)))
+        case .icon:
+            button = NSButton(title: "", target: self, action: #selector(runAction(_:)))
+            button.bezelStyle = .accessoryBarAction
+            button.isBordered = false
         }
         button.controlSize = .small
-        if isCheckbox {
-            button.identifier = Self.checkboxIdentifier
-        } else {
-            button.bezelStyle = .push
-        }
+        button.identifier = kind.identifier
         actionButtons.insertArrangedSubview(button, at: min(index, actionButtons.arrangedSubviews.count))
         return button
     }
@@ -217,6 +245,7 @@ final class DiffFileHeaderView: NSView {
     }
 
     private func toggle(allFiles: Bool) {
+        guard content?.canCollapse != false else { return }
         if allFiles {
             onToggleAll?()
         } else {

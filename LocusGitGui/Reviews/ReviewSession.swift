@@ -44,19 +44,26 @@ final class ReviewSession {
         }
     }
 
-    /// The path of the file shown.
-    var selection: String? {
+    /// The paths picked in the list, which may be the Comments row's tag instead.
+    var selection: Set<String> = [] {
         didSet {
             if selection != oldValue {
-                onSelectionChange?(selection)
+                onSelectionChange?()
                 onPlaceChange?()
             }
         }
     }
 
+    /// The one row picked, when only one is.
+    var selectedPath: String? {
+        selection.count == 1 ? selection.first : nil
+    }
+
+    /// Counts up each time a comment on the review is asked for, for the field to take focus.
+    var reviewCommentRequest = 0
     /// Files changed since they were reviewed show only those changes, apart from these.
     var showsWholeDiff: Set<String> = []
-    @ObservationIgnored var onSelectionChange: ((String?) -> Void)?
+    @ObservationIgnored var onSelectionChange: (() -> Void)?
     @ObservationIgnored var onPlaceChange: (() -> Void)?
     /// Whenever the listing or a file's state changes, for the diff to follow.
     @ObservationIgnored var onFilesChange: (() -> Void)?
@@ -76,14 +83,14 @@ final class ReviewSession {
         store.review(id, in: repository)
     }
 
-    /// The files the list shows. A file checked while checked files are hidden stays until another
-    /// is picked, so it doesn't vanish from under the pointer.
+    /// The files the list shows. A file checked while checked files are hidden stays while it's
+    /// picked, so it doesn't vanish from under the pointer.
     var entries: [Entry] {
         guard let listing, let review else { return [] }
         let threads = Dictionary(grouping: review.threads.filter { !$0.isResolved }) { $0.place.path ?? "" }
         return listing.files.compactMap { file in
             let state = review.checks.state(of: ReviewedFile(file))
-            if hidesChecked, state == .checked, file.path != selection {
+            if hidesChecked, state == .checked, !selection.contains(file.path) {
                 return nil
             }
             return Entry(
@@ -96,7 +103,11 @@ final class ReviewSession {
     }
 
     var selectedEntry: Entry? {
-        entries.first { $0.file.path == selection }
+        selectedPath.flatMap { path in entries.first { $0.file.path == path } }
+    }
+
+    var selectedEntries: [Entry] {
+        entries.filter { selection.contains($0.file.path) }
     }
 
     /// After every refresh of the repository.
@@ -115,8 +126,11 @@ final class ReviewSession {
                     self.listing = listing
                 }
                 await readContainingBranches(refs: refs)
-                if selection == nil || selection != Self.overviewTag && !listing.files.contains(where: { $0.path == selection }) {
-                    selection = entries.first { $0.state != .checked }?.file.path ?? entries.first?.file.path
+                let paths = Set(listing.files.map(\.path)).union([Self.overviewTag])
+                if selection.isDisjoint(with: paths) {
+                    selection = Set([entries.first { $0.state != .checked }?.file.path ?? entries.first?.file.path].compactMap(\.self))
+                } else if !selection.isSubset(of: paths) {
+                    selection.formIntersection(paths)
                 }
                 onFilesChange?()
             } catch is CancellationError {
@@ -146,48 +160,50 @@ final class ReviewSession {
         }
     }
 
-    func isChecked(_ path: String) -> Bool {
-        entries.first { $0.file.path == path }?.state == .checked
-    }
-
-    /// Checks the file off, or unchecks it.
-    func toggleCheck(_ path: String) {
-        guard let entry = listing?.files.first(where: { $0.path == path }), let review else { return }
-        if review.checks.state(of: ReviewedFile(entry)) == .checked {
+    /// Checks the files off, or unchecks them, storing a working-tree file's contents first so
+    /// the check can be compared with the file as it is later.
+    func setReviewed(_ paths: Set<String>, _ isReviewed: Bool) {
+        guard let files = listing?.files.filter({ paths.contains($0.path) }), !files.isEmpty else { return }
+        guard isReviewed else {
             store.update(id, in: repository) { review in
-                review.checks.uncheck(path)
+                for file in files {
+                    review.checks.uncheck(file.path)
+                }
                 review.lastChanged = Date()
                 review.progress = progress(of: review)
             }
             onFilesChange?()
             return
         }
-        Task { await check(entry) }
+        Task { await check(files) }
     }
 
-    /// A file in the working tree has its contents stored first, so the check can be compared with
-    /// the file as it is later.
-    private func check(_ file: ChangedFile) async {
-        var reviewed = ReviewedFile(file)
-        if review?.revision?.includesWorkingTree == true, listing?.files.contains(file) == true,
-           file.newMode != ChangedFile.absentMode, file.newMode != ChangedFile.submoduleMode {
+    private func check(_ files: [ChangedFile]) async {
+        var reviewed: [ReviewedFile] = []
+        for file in files {
+            guard review?.revision?.includesWorkingTree == true,
+                  file.newMode != ChangedFile.absentMode, file.newMode != ChangedFile.submoduleMode else {
+                reviewed.append(ReviewedFile(file))
+                continue
+            }
             do {
                 let stored = try await storeWorkingTreeFile(file.path)
-                reviewed = ReviewedFile(
+                reviewed.append(ReviewedFile(
                     path: file.path,
                     originalPath: file.originalPath,
                     oldMode: file.oldMode,
                     newMode: file.newMode,
                     oldObject: file.oldObject,
                     newObject: stored
-                )
+                ))
             } catch {
                 Self.log.error("Storing a reviewed file failed: \(String(describing: type(of: error)), privacy: .public)")
-                return
             }
         }
         store.update(id, in: repository) { review in
-            review.checks.check(reviewed, at: Date())
+            for file in reviewed {
+                review.checks.check(file, at: Date())
+            }
             review.lastChanged = Date()
             review.progress = progress(of: review)
         }
@@ -219,40 +235,6 @@ final class ReviewSession {
         } catch {
             Self.log.error("Keeping a review's files failed: \(String(describing: type(of: error)), privacy: .public)")
         }
-    }
-
-    /// The next file not yet checked off after the one shown, going round to the start.
-    var nextUncheckedPath: String? {
-        let files = entries
-        let start = files.firstIndex { $0.file.path == selection } ?? -1
-        let after = files[(start + 1)...] + files[..<max(start, 0)]
-        return after.first { $0.state != .checked }?.file.path
-    }
-
-    /// Checks off the file shown and moves on to the next one not yet checked.
-    func checkAndMoveOn() {
-        guard let selection, selectedEntry != nil else { return }
-        let wasChecked = isChecked(selection)
-        let next = nextUncheckedPath
-        toggleCheck(selection)
-        if !wasChecked, let next {
-            self.selection = next
-        }
-    }
-
-    func move(by offset: Int) -> Bool {
-        let files = entries
-        guard let index = files.firstIndex(where: { $0.file.path == selection }), files.indices.contains(index + offset) else {
-            return false
-        }
-        selection = files[index + offset].file.path
-        return true
-    }
-
-    func canMove(by offset: Int) -> Bool {
-        let files = entries
-        guard let index = files.firstIndex(where: { $0.file.path == selection }) else { return false }
-        return files.indices.contains(index + offset)
     }
 
     /// Both points at once, which records a revision at the next refresh.

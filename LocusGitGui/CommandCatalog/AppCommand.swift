@@ -150,6 +150,7 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case showChangesSinceReviewed
     case addReviewComment
     case copyReviewComments
+    case commentOnReview
     case renameReview
     case deleteReview
 
@@ -302,6 +303,7 @@ nonisolated extension AppCommand {
         case .showChangesSinceReviewed: "Show Only Changes Since Reviewed"
         case .addReviewComment: "Add Comment"
         case .copyReviewComments: "Copy Comments as Markdown"
+        case .commentOnReview: "Comment on Review"
         case .renameReview: "Rename Review…"
         case .deleteReview: "Delete Review…"
         case .minimize: "Minimize"

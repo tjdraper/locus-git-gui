@@ -24,11 +24,18 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
     private(set) lazy var threads = ReviewThreadInserts(session: session, diff: diff)
     private lazy var detail = ReviewDetailViewController(
         diff: diff,
-        overview: ReviewOverviewView(
+        comments: ReviewOverviewView(
             session: session,
-            openFile: { [weak self] path in self?.session.selection = path },
+            openFile: { [weak self] path in self?.session.selection = [path] },
             copyComments: { [weak self] in self?.copyReviewComments(nil) }
-        )
+        ),
+        files: ReviewSelectionView(session: session)
+    )
+    private lazy var toolbar = ReviewToolbar(
+        session: session,
+        chooseCommit: { [weak self] isBase in self?.chooseCommit(isBase: isBase) },
+        commentOnReview: { [weak self] in self?.startReviewComment() },
+        rename: { [weak self] in self?.onRename?() }
     )
     private let split = NSSplitViewController()
     private let failureSheet = GitFailureSheetPresenter()
@@ -44,7 +51,7 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         self.session = session
         self.repositoryName = repositoryName
         scrolls = place?.scrolls ?? [:]
-        session.selection = place?.selection
+        session.selection = Set([place?.selection].compactMap(\.self))
         session.hidesChecked = place?.hidesChecked ?? false
         session.showsWholeDiff = place?.showsWholeDiff ?? []
         diff = DiffViewController(options: diffOptions, workTree: session.repository.workTree)
@@ -52,6 +59,7 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         diff.opensFileWindows = false
         diff.showsSummary = false
         diff.highlightsCurrentFile = false
+        diff.allowsCollapsing = false
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -63,13 +71,10 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
         window.isRestorable = false
         // Kept apart from repository windows, which would otherwise take it as a tab.
         window.tabbingIdentifier = "ReviewWindow"
-        // Gives the title bar room for the subtitle.
-        window.toolbar = NSToolbar(identifier: "ReviewWindow")
         window.toolbarStyle = .unified
         super.init(window: window)
-        let listController = NSHostingController(rootView: ReviewSidebarView(session: session) { [weak self] isBase in
-            self?.chooseCommit(isBase: isBase)
-        })
+        window.toolbar = toolbar.toolbar
+        let listController = NSHostingController(rootView: ReviewSidebarView(session: session, fileMenu: makeFileMenu()))
         listController.sizingOptions = []
         let listItem = NSSplitViewItem(viewController: listController)
         listItem.minimumThickness = 220
@@ -105,7 +110,7 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
     var place: ReviewPlace {
         rememberScroll()
         return ReviewPlace(
-            selection: session.selection,
+            selection: session.selectedPath,
             hidesChecked: session.hidesChecked,
             scrolls: scrolls,
             showsWholeDiff: session.showsWholeDiff
@@ -118,7 +123,7 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func connectSession() {
-        session.onSelectionChange = { [weak self] _ in self?.showSelection() }
+        session.onSelectionChange = { [weak self] in self?.showSelection() }
         session.onFilesChange = { [weak self] in self?.showSelection() }
         session.onPlaceChange = { [weak self] in self?.onChange?() }
     }
@@ -161,7 +166,13 @@ final class ReviewWindowController: NSWindowController, NSWindowDelegate {
     /// checkbox may have changed. `force` reads them again anyway, as with other diff options.
     func showSelection(force: Bool = false) {
         guard !isLocked else { return }
-        detail.showsOverview = session.selection == ReviewSession.overviewTag
+        detail.mode = if session.selectedPath == ReviewSession.overviewTag {
+            .comments
+        } else if session.selectedEntries.count > 1 {
+            .files
+        } else {
+            .file
+        }
         guard let entry = session.selectedEntry else {
             reading?.cancel()
             rememberScroll()
@@ -289,6 +300,18 @@ extension ReviewWindowController {
         if !isLocked {
             showSelection(force: true)
         }
+    }
+
+    /// The context menu's commands for the files picked in the list.
+    private func makeFileMenu() -> ReviewSidebarView.FileMenu {
+        ReviewSidebarView.FileMenu(
+            commentOnFile: { [weak self] path in
+                self?.session.selection = [path]
+                self?.startFileComment(path)
+            },
+            canShowChangesSince: { [weak self] entry in self?.canShowChangesSince(entry) ?? false },
+            toggleChangesSince: { [weak self] path in self?.toggleChangesSince(path) }
+        )
     }
 
     private func chooseCommit(isBase: Bool) {

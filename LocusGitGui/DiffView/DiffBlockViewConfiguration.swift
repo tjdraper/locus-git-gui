@@ -52,7 +52,8 @@ extension DiffViewController {
             isCollapsed: collapsedFiles.contains(id),
             isInWorkingTree: isInWorkingTree(path),
             isCurrent: highlightsCurrentFile && canvas.hasFocus && commandTarget?.file == index,
-            isSelected: selectsFiles && selectedFiles.contains(id)
+            isSelected: selectsFiles && selectedFiles.contains(id),
+            canCollapse: allowsCollapsing
         ))
         view.onCommandClick = selectsFiles ? { [weak self] in self?.toggleSelection(of: id) } : nil
         view.onShiftClick = selectsFiles ? { [weak self] in self?.extendSelection(to: id) } : nil

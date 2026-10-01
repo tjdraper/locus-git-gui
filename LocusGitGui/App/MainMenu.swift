@@ -190,7 +190,7 @@ enum MainMenu {
             [.separator()],
             items(.markFileReviewed, .goToNextUnreviewedFile, .showChangesSinceReviewed),
             [.separator()],
-            items(.addReviewComment, .copyReviewComments),
+            items(.addReviewComment, .commentOnReview, .copyReviewComments),
             [.separator()],
             items(.renameReview, .deleteReview),
         ])

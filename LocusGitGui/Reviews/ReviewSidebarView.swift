@@ -1,16 +1,22 @@
 import SwiftUI
 
-/// The review window's left column: the two points, the files with a checkbox each, and how far
-/// through the review is.
+/// The review window's left column: the review's comments, then its files with a checkbox each,
+/// and how far through the review is. Several files can be picked to act on together.
 struct ReviewSidebarView: View {
+    /// What the file context menu does beyond checking files off, which belongs to the window.
+    struct FileMenu {
+        let commentOnFile: (String) -> Void
+        let canShowChangesSince: (ReviewSession.Entry) -> Bool
+        let toggleChangesSince: (String) -> Void
+    }
+
     @Bindable var session: ReviewSession
-    /// Commit… in either point's menu.
-    let chooseCommit: (_ isBase: Bool) -> Void
+    let fileMenu: FileMenu
 
     var body: some View {
         VStack(spacing: 0) {
-            if let review = session.review {
-                ReviewPointsView(session: session, review: review, chooseCommit: chooseCommit)
+            if let review = session.review, !review.missingPoints.isEmpty {
+                ReviewMissingPointsNotice(review: review)
                     .padding(10)
                 Divider()
             }
@@ -18,21 +24,25 @@ struct ReviewSidebarView: View {
             Divider()
             footer
         }
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private var fileList: some View {
         ScrollViewReader { proxy in
             List(selection: $session.selection) {
-                overviewRow
+                commentsRow
                     .tag(ReviewSession.overviewTag)
                     .id(ReviewSession.overviewTag)
                 ForEach(session.entries) { entry in
-                    ReviewFileRow(entry: entry) { session.toggleCheck(entry.file.path) }
+                    ReviewFileRow(entry: entry) { session.setReviewed([entry.file.path], entry.state != .checked) }
                         .tag(entry.file.path)
                         .id(entry.file.path)
                 }
             }
-            .listStyle(.sidebar)
+            .listStyle(.inset)
+            .contextMenu(forSelectionType: String.self) { paths in
+                menu(for: paths.subtracting([ReviewSession.overviewTag]))
+            }
             .overlay {
                 if let message = emptyMessage {
                     Text(message)
@@ -46,14 +56,14 @@ struct ReviewSidebarView: View {
                 return .handled
             }
             .onChange(of: session.selection) { _, selection in
-                if let selection {
-                    proxy.scrollTo(selection)
+                if selection.count == 1, let path = selection.first {
+                    proxy.scrollTo(path)
                 }
             }
         }
     }
 
-    private var overviewRow: some View {
+    private var commentsRow: some View {
         let unresolved = session.review?.unresolvedThreads ?? 0
         return HStack(spacing: 6) {
             Label("Comments", systemImage: "text.bubble")
@@ -65,6 +75,50 @@ struct ReviewSidebarView: View {
                     .help(unresolved == 1 ? "1 unresolved comment" : "\(unresolved) unresolved comments")
             }
         }
+        .padding(.vertical, 3)
+    }
+
+    @ViewBuilder
+    private func menu(for paths: Set<String>) -> some View {
+        let entries = session.entries.filter { paths.contains($0.file.path) }
+        if !entries.isEmpty {
+            let isReviewed = entries.allSatisfy { $0.state == .checked }
+            Button(ReviewSelectionView.reviewedTitle(count: entries.count, isReviewed: isReviewed)) {
+                session.setReviewed(paths, !isReviewed)
+            }
+            if entries.count == 1, let entry = entries.first {
+                Button("Comment on File") { fileMenu.commentOnFile(entry.file.path) }
+                if entry.state == .changedSinceReviewed, fileMenu.canShowChangesSince(entry) {
+                    Toggle("Show Only Changes Since Reviewed", isOn: Binding(
+                        get: { !session.showsWholeDiff.contains(entry.file.path) },
+                        set: { _ in fileMenu.toggleChangesSince(entry.file.path) }
+                    ))
+                }
+            }
+            Divider()
+            fileSystemItems(entries.map(\.file.path))
+        }
+    }
+
+    /// As the diff's own file menu has them, for every file picked.
+    @ViewBuilder
+    private func fileSystemItems(_ paths: [String]) -> some View {
+        let files = paths.map { WorkingTreeFile(path: $0, in: session.repository.workTree) }
+        let existing = files.filter(\.exists)
+        if files.count == 1, let file = existing.first {
+            Button(AppCommand.openInEditor.title) { file.openInEditor() }
+        }
+        Button(AppCommand.revealChangedFileInFinder.title) {
+            NSWorkspace.shared.activateFileViewerSelecting(existing.map(\.url))
+        }
+        .disabled(existing.isEmpty)
+        Button(AppCommand.copyAbsolutePath.title) { copy(files.map(\.url.path)) }
+        Button(AppCommand.copyPathFromRepositoryRoot.title) { copy(paths) }
+    }
+
+    private func copy(_ lines: [String]) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(lines.joined(separator: "\n"), forType: .string)
     }
 
     private var emptyMessage: String? {
@@ -148,6 +202,7 @@ private struct ReviewFileRow: View {
                     .help("Changed since you reviewed it")
             }
         }
+        .padding(.vertical, 2)
         .help(path)
     }
 

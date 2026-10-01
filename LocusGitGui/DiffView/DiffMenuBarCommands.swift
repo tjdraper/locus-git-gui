@@ -141,9 +141,9 @@ extension DiffViewController: NSMenuItemValidation {
         case #selector(showLessContext(_:)):
             return options.options.lessContext != nil
         case #selector(collapseAllFiles(_:)):
-            return files.contains { !collapsedFiles.contains($0.id) }
+            return allowsCollapsing && files.contains { !collapsedFiles.contains($0.id) }
         case #selector(expandAllFiles(_:)):
-            return files.contains { collapsedFiles.contains($0.id) }
+            return allowsCollapsing && files.contains { collapsedFiles.contains($0.id) }
         case #selector(goToNextFile(_:)):
             return adjacentFiles?.canGo(1) ?? (files.count > 1)
         case #selector(goToPreviousFile(_:)):
@@ -156,8 +156,8 @@ extension DiffViewController: NSMenuItemValidation {
     private func validateFileCommand(_ action: Selector?) -> Bool {
         guard let file = currentFile else { return false }
         switch action {
-        case #selector(collapseFile(_:)): return !collapsedFiles.contains(file.id)
-        case #selector(expandFile(_:)): return collapsedFiles.contains(file.id)
+        case #selector(collapseFile(_:)): return allowsCollapsing && !collapsedFiles.contains(file.id)
+        case #selector(expandFile(_:)): return allowsCollapsing && collapsedFiles.contains(file.id)
         case #selector(openInEditor(_:)), #selector(revealChangedFileInFinder(_:)): return isInWorkingTree(file.changed.path)
         case #selector(openFileInNewWindow(_:)): return opensFileWindows
         default: return true

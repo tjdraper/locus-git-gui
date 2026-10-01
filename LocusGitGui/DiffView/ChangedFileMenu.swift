@@ -9,7 +9,8 @@ struct ChangedFileMenu {
     var lineActions: [DiffAction] = []
     let isInWorkingTree: Bool
     let opensFileWindows: Bool
-    let isCollapsed: Bool
+    /// Nil where files can't be collapsed.
+    let isCollapsed: Bool?
     let openInEditor: () -> Void
     let revealInFinder: () -> Void
     let copyAbsolutePath: () -> Void
@@ -42,8 +43,10 @@ struct ChangedFileMenu {
         menu.addItem(item(.copyAbsolutePath, isEnabled: true, perform: copyAbsolutePath))
         menu.addItem(item(.copyPathFromRepositoryRoot, isEnabled: true, perform: copyPathFromRepositoryRoot))
         menu.addItem(item(.openFileInNewWindow, isEnabled: opensFileWindows, perform: openFileWindow))
-        menu.addItem(.separator())
-        menu.addItem(item(isCollapsed ? .expandFile : .collapseFile, isEnabled: true, perform: toggleCollapsed))
+        if let isCollapsed {
+            menu.addItem(.separator())
+            menu.addItem(item(isCollapsed ? .expandFile : .collapseFile, isEnabled: true, perform: toggleCollapsed))
+        }
         return menu
     }
 

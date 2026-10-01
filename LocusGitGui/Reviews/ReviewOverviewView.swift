@@ -22,7 +22,13 @@ struct ReviewOverviewView: View {
                 ForEach(reviewThreads) { thread in
                     ReviewThreadView(session: session, threadID: thread.id, label: "Review", isOutdated: false, insets: false)
                 }
-                ReviewCommentField(text: $text, prompt: "Comment on the review", confirmTitle: "Comment", focusesOnAppear: false) {
+                ReviewCommentField(
+                    text: $text,
+                    prompt: "Comment on the review",
+                    confirmTitle: "Comment",
+                    focusesOnAppear: false,
+                    focusRequest: session.reviewCommentRequest
+                ) {
                     session.startThread(.review, body: text.trimmingCharacters(in: .whitespacesAndNewlines))
                     text = ""
                 }
@@ -36,7 +42,6 @@ struct ReviewOverviewView: View {
                 }
             }
             .padding(20)
-            .frame(maxWidth: 800, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Color(nsColor: .textBackgroundColor))

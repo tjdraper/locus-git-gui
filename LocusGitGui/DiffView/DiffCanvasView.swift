@@ -22,6 +22,9 @@ final class DiffCanvasView: NSView {
     var onTypedKey: ((String) -> Bool)?
     /// Escape.
     var onCancel: (() -> Void)?
+    /// The row and side under the pointer as it moves, and nil once it leaves.
+    var onHover: ((_ block: Int?, _ side: Int) -> Void)?
+    private var hoverArea: NSTrackingArea?
 
     private(set) var content: Content?
     private(set) var selection: DiffSelection?
@@ -69,6 +72,27 @@ final class DiffCanvasView: NSView {
             selection = nil
         }
         needsDisplay = true
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea {
+            removeTrackingArea(hoverArea)
+        }
+        let options: NSTrackingArea.Options = [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect]
+        let area = NSTrackingArea(rect: .zero, options: options, owner: self)
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard let content else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        onHover?(content.layout.block(atY: location.y), side(at: location, layout: content.layout))
+    }
+
+    override func mouseExited(with _: NSEvent) {
+        onHover?(nil, 0)
     }
 
     func clearSelection() {

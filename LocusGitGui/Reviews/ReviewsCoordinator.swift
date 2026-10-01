@@ -154,15 +154,20 @@ final class ReviewsCoordinator {
         popover.show(relativeTo: item)
     }
 
+    /// A fixed size, set before it's shown. Sized by SwiftUI, it was placed before it had a size
+    /// and then grew past the edge of the screen.
     private func makePopover() -> NSPopover {
+        let size = NSSize(width: 380, height: 420)
         let popover = NSPopover()
         popover.behavior = .transient
         let content = NSHostingController(rootView: ReviewListView(list: list) { [weak self] in
             self?.popover?.performClose(nil)
             self?.showListWindow()
-        }
-        .frame(width: 380, height: 420))
+        })
+        content.sizingOptions = []
+        content.preferredContentSize = size
         popover.contentViewController = content
+        popover.contentSize = size
         return popover
     }
 

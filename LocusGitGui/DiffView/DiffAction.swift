@@ -10,5 +10,8 @@ struct DiffAction {
     var isOn: Bool?
     /// Only in the file's menu, not as a button on its header.
     var isInMenuOnly = false
+    /// Shown as this symbol on the header, with the title as its tooltip, rather than as a titled
+    /// button.
+    var symbol: String?
     let perform: () -> Void
 }

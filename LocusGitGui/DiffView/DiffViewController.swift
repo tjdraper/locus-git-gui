@@ -71,6 +71,11 @@ final class DiffViewController: NSViewController {
     /// Marks the file the keyboard and the menu bar's file commands act on while the diff has focus.
     /// A diff of one file has no need to.
     var highlightsCurrentFile = true
+    /// False where files are picked somewhere else, one at a time, as in a review, which leaves
+    /// nothing to collapse them for.
+    var allowsCollapsing = true
+    /// A button beside the line under the pointer, such as for commenting on it.
+    private(set) lazy var lineButtons = DiffLineButtonPresenter(controller: self)
     /// A key typed while the diff has focus, for whoever shows it to use first, as the working area
     /// uses Space. True when it was used.
     var onTypedKey: ((String) -> Bool)?

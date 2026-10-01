@@ -46,7 +46,7 @@ extension DiffViewController {
             actions: fileActions?(files[index]) ?? [],
             isInWorkingTree: isInWorkingTree(path),
             opensFileWindows: opensFileWindows,
-            isCollapsed: collapsedFiles.contains(id),
+            isCollapsed: allowsCollapsing ? collapsedFiles.contains(id) : nil,
             openInEditor: { [weak self] in self?.openInEditor(path: path) },
             revealInFinder: file.revealInFinder,
             copyAbsolutePath: file.copyAbsolutePath,

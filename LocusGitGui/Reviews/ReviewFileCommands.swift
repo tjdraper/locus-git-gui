@@ -15,13 +15,14 @@ extension ReviewWindowController: NSMenuItemValidation {
                 isOn: isSince
             ) { [weak self] in self?.toggleChangesSince(path) })
         }
+        actions.append(DiffAction(title: "Comment on File", symbol: "plus.bubble") { [weak self] in self?.startFileComment(path) })
+        let isChecked = entry.state == .checked
         actions.append(DiffAction(
             title: "Reviewed",
-            menuTitle: entry.state == .checked ? "Mark as Not Reviewed" : "Mark as Reviewed",
+            menuTitle: isChecked ? "Mark as Not Reviewed" : "Mark as Reviewed",
             toolTip: "Space checks this file off and moves on to the next",
-            isOn: entry.state == .checked
-        ) { [weak self] in self?.session.toggleCheck(path) })
-        actions.append(DiffAction(title: "Comment on File", isInMenuOnly: true) { [weak self] in self?.startFileComment(path) })
+            isOn: isChecked
+        ) { [weak self] in self?.session.setReviewed([path], !isChecked) })
         return actions
     }
 
@@ -52,12 +53,16 @@ extension ReviewWindowController: NSMenuItemValidation {
             NSSound.beep()
             return
         }
-        session.selection = next
+        session.selection = [next]
     }
 
     @objc func showChangesSinceReviewed(_: Any?) {
-        guard let path = session.selection else { return }
+        guard let path = session.selectedPath else { return }
         toggleChangesSince(path)
+    }
+
+    @objc func commentOnReview(_: Any?) {
+        startReviewComment()
     }
 
     /// On the lines selected, or else on the file shown.
@@ -84,8 +89,11 @@ extension ReviewWindowController: NSMenuItemValidation {
         let entry = session.selectedEntry
         switch menuItem.action {
         case #selector(markFileReviewed(_:)):
-            menuItem.title = entry?.state == .checked ? "Mark as Not Reviewed" : AppCommand.markFileReviewed.title
-            return entry != nil && !isLocked
+            let count = session.selectedEntries.count
+            menuItem.title = ReviewSelectionView.reviewedTitle(count: count, isReviewed: session.isSelectionReviewed)
+            return !session.selectedEntries.isEmpty && !isLocked
+        case #selector(commentOnReview(_:)):
+            return session.review != nil && !isLocked
         case #selector(addReviewComment(_:)):
             menuItem.title = diff.selectedLineTarget.map { "Comment on \(ReviewLineAnchor.label($0.lines))" } ?? "Comment on File"
             return entry != nil && !isLocked

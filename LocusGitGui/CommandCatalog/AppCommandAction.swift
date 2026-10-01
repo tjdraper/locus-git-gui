@@ -143,6 +143,7 @@ extension AppCommand {
         case .showChangesSinceReviewed: #selector(ReviewWindowController.showChangesSinceReviewed(_:))
         case .addReviewComment: #selector(ReviewWindowController.addReviewComment(_:))
         case .copyReviewComments: #selector(ReviewWindowController.copyReviewComments(_:))
+        case .commentOnReview: #selector(ReviewWindowController.commentOnReview(_:))
         case .renameReview: #selector(ReviewWindowController.renameReview(_:))
         case .deleteReview: #selector(ReviewWindowController.deleteReview(_:))
         case .minimize: #selector(NSWindow.performMiniaturize(_:))

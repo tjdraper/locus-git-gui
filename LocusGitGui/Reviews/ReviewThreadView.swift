@@ -127,7 +127,7 @@ struct ReviewThreadView: View {
                     editing = nil
                 }
             } else {
-                MessageBodyView(text: comment.body, showsMarkdown: true)
+                MessageBodyView(text: comment.shownBody, showsMarkdown: true)
                     .textSelection(.enabled)
             }
         }
@@ -158,12 +158,18 @@ struct ReviewDraftView: View {
     }
 }
 
-/// A field for a comment, which grows as it's written. ⌘Return sends it, and Escape cancels.
+/// A text area for a comment, which grows with what's written up to a point and scrolls after.
+/// Return starts a new line, ⌘Return sends it, and Escape cancels.
 struct ReviewCommentField: View {
+    private static let lineHeight: CGFloat = 17
+    private static let shownLines = 3 ... 12
+
     @Binding var text: String
     let prompt: String
     let confirmTitle: String
     let focusesOnAppear: Bool
+    /// Counts up each time the field should take focus again.
+    var focusRequest = 0
     let confirm: () -> Void
     var cancel: (() -> Void)?
 
@@ -173,18 +179,49 @@ struct ReviewCommentField: View {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// While it's in use, at least a few lines, or more as they're typed, without counting where
+    /// long ones wrap, which the area scrolls for. One line until then, so a reply below every
+    /// thread doesn't crowd the diff.
+    private var isInUse: Bool {
+        isFocused || !text.isEmpty || cancel != nil
+    }
+
+    private var height: CGFloat {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).count
+        let shown = isInUse ? min(max(lines, Self.shownLines.lowerBound), Self.shownLines.upperBound) : 1
+        return CGFloat(shown) * Self.lineHeight + 12
+    }
+
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
-            TextField(prompt, text: $text, axis: .vertical)
-                .lineLimit(1 ... 12)
-                .textFieldStyle(.roundedBorder)
+            TextEditor(text: $text)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .scrollIndicators(isInUse ? .automatic : .never)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 6)
+                .frame(height: height)
+                .background(Color(nsColor: .textBackgroundColor), in: .rect(cornerRadius: 6))
+                .overlay(alignment: .topLeading) {
+                    if text.isEmpty {
+                        Text(prompt)
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(Color(nsColor: isFocused ? .keyboardFocusIndicatorColor : .separatorColor))
+                }
                 .focused($isFocused)
                 .onKeyPress(.escape) {
                     guard let cancel else { return .ignored }
                     cancel()
                     return .handled
                 }
-            if isFocused || canConfirm || cancel != nil {
+            if isInUse {
                 HStack {
                     Text("Markdown")
                         .font(.caption)
@@ -210,6 +247,11 @@ struct ReviewCommentField: View {
                 isFocused = true
             }
         }
+        .onChange(of: focusRequest) {
+            DispatchQueue.main.async {
+                isFocused = true
+            }
+        }
     }
 }
 
@@ -223,7 +265,7 @@ struct ReviewCommentCard<Content: View>: View {
     var body: some View {
         content
             .padding(10)
-            .frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color(nsColor: .separatorColor)))
             .padding(.leading, insets ? 40 : 0)
@@ -238,6 +280,20 @@ struct ReviewCommentCard<Content: View>: View {
 }
 
 extension ReviewComment {
+    /// Each line as written, as GitHub and GitLab show a comment, where Markdown alone would run
+    /// lines with a single break between them together. Lines in code blocks are left as they are.
+    var shownBody: String {
+        var isInCode = false
+        return body.split(separator: "\n", omittingEmptySubsequences: false).map { line in
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                isInCode.toggle()
+                return String(line)
+            }
+            return isInCode || line.isEmpty ? String(line) : line + "  "
+        }
+        .joined(separator: "\n")
+    }
+
     /// The first line, with its inline Markdown applied, for where a comment is summed up.
     var excerpt: AttributedString {
         let line = body.split(separator: "\n").first.map(String.init) ?? ""
