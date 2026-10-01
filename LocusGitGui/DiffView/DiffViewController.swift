@@ -48,6 +48,19 @@ final class DiffViewController: NSViewController {
     var describeGroup: ((_ group: Int) -> (title: String, actions: [DiffAction]))?
     /// What can be done to a file, shown in its header and at the top of its menu.
     var fileActions: ((DiffFile) -> [DiffAction])?
+    /// Put into the diff below lines or at the top of files, such as threads of comments. Each is
+    /// as tall as `insertHeight` says at the diff's width, and shows `insertView`.
+    var inserts: [DiffInsert] = [] {
+        didSet {
+            if inserts != oldValue, isViewLoaded {
+                rebuild(keepingPlace: true)
+            }
+        }
+    }
+
+    var insertHeight: ((_ id: String, _ width: Double) -> Double)?
+    /// Listed first in the menu for lines that are right-clicked or selected.
+    var lineActions: ((DiffLineTarget) -> [DiffAction])?
     /// What can be done to a hunk, or to the lines of it that are selected, shown on its band. Nil
     /// for a diff whose hunks have nothing to do. `lines` are the selected lines' indices in the
     /// hunk, and empty when none are.
@@ -103,9 +116,10 @@ final class DiffViewController: NSViewController {
     /// Files whose left-out changes the user asked to see, which whoever reads the diff again, as
     /// the working area does on every refresh, reads whole again.
     private(set) var filesShownWhole: Set<DiffFile.Identity> = []
-    private var numberColumns = 3
+    private(set) var numberColumns = 3
     private var shownWidth = 0.0
-    private var workingTreePresence: [String: Bool] = [:]
+    /// Whether each path is in the working tree, as of when the diff was last shown.
+    var workingTreePresence: [String: Bool] = [:]
 
     init(options: DiffOptionsStore, workTree: URL) {
         self.options = options
@@ -140,11 +154,7 @@ final class DiffViewController: NSViewController {
         images.onLoad = { [weak self] in self?.blockViews.update() }
         canvas.setAccessibilityLabel("Changes")
         canvas.setAccessibilityRole(.textArea)
-        canvas.makeMenu = { [weak self] file in
-            guard let self, let file else { return nil }
-            let copies = canvas.selection.map { !$0.isEmpty } ?? false
-            return menu(forFile: file).make(copying: copies ? canvas : nil)
-        }
+        canvas.makeMenu = { [weak self] file in self?.canvasMenu(forFile: file) }
         emptyMessage.textColor = .secondaryLabelColor
         emptyMessage.alignment = .center
         emptyMessage.isHidden = true
@@ -248,8 +258,7 @@ final class DiffViewController: NSViewController {
         let metrics = appearance.metrics
         let style = DiffLayout.style(forWidth: width, metrics: metrics, numberColumns: numberColumns, layout: appearance.layout)
         let collapsed = Set(files.indices.filter { collapsedFiles.contains(files[$0].id) })
-        let document = DiffDocument(files: files, collapsed: collapsed, style: style, headsGroups: describeGroup != nil)
-        let layout = DiffLayout(document: document, files: files, metrics: metrics, width: width, numberColumns: numberColumns)
+        let (document, layout) = laidOut(collapsed: collapsed, style: style, metrics: metrics, width: width)
         let isSameShape = canvas.content.map { $0.document == document } ?? false
         canvas.show(
             DiffCanvasView.Content(
@@ -317,63 +326,6 @@ private extension DiffViewController {
         guard appearance.differs(from: self.appearance) else { return }
         self.appearance = appearance
         rebuild(keepingPlace: true)
-    }
-}
-
-/// What can be done with one file in the diff, from its header, its menu or the menu bar.
-extension DiffViewController {
-    var commandTarget: DiffCommandTarget? {
-        guard let content = canvas.content else { return nil }
-        return DiffCommandTarget(
-            document: content.document,
-            layout: content.layout,
-            selection: canvas.selection,
-            visibleTop: canvas.visibleRect.minY + content.layout.metrics.headerHeight
-                + DiffStickyHeadings.cover(atTop: canvas.visibleRect.minY, document: content.document, layout: content.layout),
-            visibleBottom: canvas.visibleRect.maxY,
-            markedFile: markedFile.flatMap(index(of:))
-        )
-    }
-
-    func isInWorkingTree(_ path: String) -> Bool {
-        if let known = workingTreePresence[path] {
-            return known
-        }
-        let exists = WorkingTreeFile(path: path, in: workTree).exists
-        workingTreePresence[path] = exists
-        return exists
-    }
-
-    func openInEditor(path: String) {
-        let file = WorkingTreeFile(path: path, in: workTree)
-        guard file.exists else {
-            NSSound.beep()
-            return
-        }
-        file.openInEditor()
-    }
-
-    func openFileWindow(_ id: DiffFile.Identity) {
-        guard opensFileWindows, let index = index(of: id) else { return }
-        openFileWindow?(files[index])
-    }
-
-    func menu(forFile index: Int) -> ChangedFileMenu {
-        let id = files[index].id
-        let path = id.path
-        let file = WorkingTreeFile(path: path, in: workTree)
-        return ChangedFileMenu(
-            actions: fileActions?(files[index]) ?? [],
-            isInWorkingTree: isInWorkingTree(path),
-            opensFileWindows: opensFileWindows,
-            isCollapsed: collapsedFiles.contains(id),
-            openInEditor: { [weak self] in self?.openInEditor(path: path) },
-            revealInFinder: file.revealInFinder,
-            copyAbsolutePath: file.copyAbsolutePath,
-            copyPathFromRepositoryRoot: file.copyPathFromRepositoryRoot,
-            openFileWindow: { [weak self] in self?.openFileWindow(id) },
-            toggleCollapsed: { [weak self] in self?.toggleCollapsed(id) }
-        )
     }
 }
 

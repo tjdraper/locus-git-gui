@@ -15,6 +15,8 @@ final class DiffCanvasView: NSView {
 
     var onSelectionChange: (() -> Void)?
     var makeMenu: ((_ file: Int?) -> NSMenu?)?
+    /// The row and side last right-clicked, while its menu is built.
+    private(set) var menuRow: (block: Int, side: Int)?
     var onFocusChange: (() -> Void)?
     /// A key typed while the diff has focus, which has no text to type into. True when it was used.
     var onTypedKey: ((String) -> Bool)?
@@ -114,7 +116,7 @@ final class DiffCanvasView: NSView {
                         isFocused: isFocused
                     )
                 )
-            case .group, .header, .notice, .images:
+            case .group, .header, .notice, .images, .insert:
                 break
             }
         }
@@ -258,7 +260,9 @@ final class DiffCanvasView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? {
         guard let content else { return nil }
         let location = convert(event.locationInWindow, from: nil)
-        return makeMenu?(content.layout.block(atY: location.y).flatMap(content.document.file(at:)))
+        let block = content.layout.block(atY: location.y)
+        menuRow = block.map { ($0, side(at: location, layout: content.layout)) }
+        return makeMenu?(block.flatMap(content.document.file(at:)))
     }
 }
 

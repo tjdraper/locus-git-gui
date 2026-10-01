@@ -25,8 +25,13 @@ nonisolated struct DiffScrollAnchor: Codable, Equatable, Sendable {
         self.offset = offset
     }
 
+    /// An insert's height can change while the diff doesn't, so the place is kept by the row above
+    /// it, and found again a little lower than it was if the insert grew.
     init?(top: Double, document: DiffDocument, layout: DiffLayout, files: [DiffFile]) {
-        guard let block = layout.block(atY: top), files.indices.contains(document.blocks[block].file) else { return nil }
+        guard var block = layout.block(atY: top), files.indices.contains(document.blocks[block].file) else { return nil }
+        while case .insert = document.blocks[block], block > 0 {
+            block -= 1
+        }
         file = files[document.blocks[block].file].id
         position = Self.position(of: document.blocks[block])
         offset = top - layout.top(of: block)
@@ -42,6 +47,9 @@ nonisolated struct DiffScrollAnchor: Codable, Equatable, Sendable {
         let end = document.fileEnds[index]
         var target = header
         for index in start ..< end where Self.position(of: document.blocks[index]) <= position {
+            if case .insert = document.blocks[index] {
+                continue
+            }
             target = index
         }
         let frame = layout.frame(of: target)
@@ -52,7 +60,7 @@ nonisolated struct DiffScrollAnchor: Codable, Equatable, Sendable {
         switch block {
         case .group, .gap: Position(hunk: -2, line: 0)
         case .header: Position(hunk: -1, line: 0)
-        case .notice, .images: Position(hunk: -1, line: 1)
+        case .notice, .images, .insert: Position(hunk: -1, line: 1)
         case let .hunk(_, hunk): Position(hunk: hunk, line: -1)
         case let .lines(_, hunk, left, right): Position(hunk: hunk, line: left ?? right ?? 0)
         }

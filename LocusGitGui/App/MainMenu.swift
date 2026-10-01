@@ -70,6 +70,7 @@ enum MainMenu {
         main.addItem(commitMenu(owned))
         main.addItem(stashMenu(owned))
         main.addItem(remoteMenu(owned))
+        main.addItem(reviewMenu())
 
         let windowMenu = submenu(named: "Window", items: [
             items(.minimize, .zoom),
@@ -180,6 +181,18 @@ enum MainMenu {
             [.separator()],
             owned.choices(.deleteRemoteBranch),
             owned.tagChoices,
+        ])
+    }
+
+    private static func reviewMenu() -> NSMenuItem {
+        submenu(named: "Review", items: [
+            items(.newReview, .showReviews),
+            [.separator()],
+            items(.markFileReviewed, .goToNextUnreviewedFile, .showChangesSinceReviewed),
+            [.separator()],
+            items(.addReviewComment, .copyReviewComments),
+            [.separator()],
+            items(.renameReview, .deleteReview),
         ])
     }
 

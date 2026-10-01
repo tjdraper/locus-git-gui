@@ -77,7 +77,15 @@ nonisolated struct DiffLayout: Sendable {
         return max(3, String(largest).count)
     }
 
-    init(document: DiffDocument, files: [DiffFile], metrics: Metrics, width: Double, numberColumns: Int) {
+    /// `insertHeights` is each insert's height at this width, by its id.
+    init(
+        document: DiffDocument,
+        files: [DiffFile],
+        metrics: Metrics,
+        width: Double,
+        numberColumns: Int,
+        insertHeights: [String: Double] = [:]
+    ) {
         self.metrics = metrics
         self.width = width
         style = document.style
@@ -103,7 +111,11 @@ nonisolated struct DiffLayout: Sendable {
         for block in document.blocks {
             tops.append(top)
             let blockSides = document.fileStyles[block.file] == document.style ? sides : inlineSides
-            top += Self.blockHeight(of: block, files: files, sides: blockSides, metrics: metrics)
+            if case let .insert(_, id) = block {
+                top += insertHeights[id] ?? 0
+            } else {
+                top += Self.blockHeight(of: block, files: files, sides: blockSides, metrics: metrics)
+            }
         }
         tops.append(top)
         self.tops = tops
@@ -126,6 +138,7 @@ nonisolated struct DiffLayout: Sendable {
         case .notice: metrics.noticeHeight
         case .images: metrics.imagesHeight
         case .hunk: metrics.hunkHeight
+        case .insert: 0
         case let .lines(file, hunk, left, right):
             Double(lineCount(file: files[file], hunk: hunk, left: left, right: right, sides: sides)) * metrics.lineHeight
         }

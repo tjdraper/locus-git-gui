@@ -6,5 +6,9 @@ struct DiffAction {
     var menuTitle: String?
     var isEnabled = true
     var toolTip: String?
+    /// Shown as a checkbox ticked or not, rather than a button, when set.
+    var isOn: Bool?
+    /// Only in the file's menu, not as a button on its header.
+    var isInMenuOnly = false
     let perform: () -> Void
 }

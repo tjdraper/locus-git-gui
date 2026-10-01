@@ -12,7 +12,13 @@ final class OpenedWindowsCoordinator {
     var onChange: (() -> Void)?
     /// The windows to open again once the repository has been read, which stand for the open windows
     /// until they have been.
-    var toRestore: OpenWindows?
+    var toRestore: OpenWindows? {
+        didSet {
+            if let toRestore, oldValue == nil {
+                reviews.adopt(places: toRestore.reviewPlaces, showsOlder: toRestore.showsOlderReviews)
+            }
+        }
+    }
     private var isRestoring = false
     /// While the repository's window closes them, which isn't the user closing them one at a time.
     private var isClosingAll = false
@@ -26,6 +32,7 @@ final class OpenedWindowsCoordinator {
     private let conflicts: ConflictWindowCoordinator
     private let activity: ActivityWindowPresenter
     private let notices: NoticesWindowPresenter
+    let reviews: ReviewsCoordinator
     private lazy var conflictCommand = ConflictWindowCommand(
         canShow: { [weak self] in self?.conflicts.hasConflicts == true || self?.conflicts.window != nil },
         show: { [weak self] in self?.showConflicts(from: NSApp.keyWindow) }
@@ -72,6 +79,16 @@ final class OpenedWindowsCoordinator {
         )
         activity = ActivityWindowPresenter(log: commands.log, repositoryName: repositoryName)
         notices = NoticesWindowPresenter(status: status, repositoryName: repositoryName)
+        reviews = ReviewsCoordinator(
+            commands: commands,
+            diffOptions: diffOptions,
+            repositoryName: repositoryName,
+            repositoryWindow: repositoryWindow
+        )
+        connect()
+    }
+
+    private func connect() {
         commits.reveal = { [weak self] id in self?.reveal?(id) }
         commits.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
         workingArea.openFileWindow = { [weak self] request, window in self?.openFile(request, from: window) }
@@ -87,6 +104,7 @@ final class OpenedWindowsCoordinator {
         conflicts.onChange = { [weak self] in self?.windowsChanged() }
         activity.onChange = { [weak self] in self?.windowsChanged() }
         notices.onChange = { [weak self] in self?.windowsChanged() }
+        reviews.onChange = { [weak self] in self?.windowsChanged() }
     }
 
     var openWindows: OpenWindows {
@@ -100,7 +118,11 @@ final class OpenedWindowsCoordinator {
             workingArea: workingArea.record,
             conflicts: conflicts.record,
             isActivityShown: activity.isShown,
-            isNoticesShown: notices.isShown
+            isNoticesShown: notices.isShown,
+            reviews: reviews.windows.records,
+            isReviewListShown: reviews.isListShown,
+            reviewPlaces: reviews.places,
+            showsOlderReviews: reviews.list.showsOlder
         )
     }
 
@@ -117,9 +139,13 @@ final class OpenedWindowsCoordinator {
         conflicts.window
     }
 
-    /// View > Show Conflicts, from any of the repository's windows.
+    /// View > Show Conflicts, from any of the repository's windows, and New Review and Show
+    /// Reviews.
     func target(forAction action: Selector) -> Any? {
-        ConflictWindowCommand.actions.contains(action) ? conflictCommand : nil
+        if ReviewCommands.actions.contains(action) {
+            return reviews.commandTarget
+        }
+        return ConflictWindowCommand.actions.contains(action) ? conflictCommand : nil
     }
 
     func openCommit(_ commit: Commit, from window: NSWindow?) {
@@ -169,6 +195,7 @@ final class OpenedWindowsCoordinator {
         conflicts.showRepositoryName(name)
         activity.showRepositoryName(name)
         notices.showRepositoryName(name)
+        reviews.showRepositoryName(name)
     }
 
     /// After every refresh. The working area's files are only listed when a file window shows one.
@@ -185,6 +212,7 @@ final class OpenedWindowsCoordinator {
         commits.showLabels(labels)
         histories.show(refs: refs, head: head, contents: contents, labels: labels)
         conflicts.show(refs: refs)
+        reviews.show(refs: refs, head: head)
     }
 
     func closeAll() {
@@ -196,6 +224,7 @@ final class OpenedWindowsCoordinator {
         histories.closeAll()
         workingArea.close()
         conflicts.close()
+        reviews.closeAll()
     }
 
     /// Once the repository has been read, so the working area's files are known. Commits that are
@@ -216,6 +245,7 @@ final class OpenedWindowsCoordinator {
         if record.isNoticesShown {
             notices.show()
         }
+        reviews.restore(record.reviews, isListShown: record.isReviewListShown, from: window)
         for historyRecord in record.histories {
             histories.show(historyRecord.item, from: window, repositoryName: repositoryName, record: historyRecord)
         }

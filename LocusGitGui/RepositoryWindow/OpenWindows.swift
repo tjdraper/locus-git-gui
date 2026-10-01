@@ -1,3 +1,5 @@
+import Foundation
+
 /// The windows opened from a repository's window that were open when it was last seen, to open
 /// again with it, after it's closed and reopened or the app is quit and opened again.
 nonisolated struct OpenWindows: Codable, Equatable, Sendable {
@@ -33,6 +35,11 @@ nonisolated struct OpenWindows: Codable, Equatable, Sendable {
         var showsBase = false
     }
 
+    struct ReviewWindow: Codable, Equatable, Sendable {
+        let review: UUID
+        var frame: String?
+    }
+
     var commits: [CommitWindow] = []
     var files: [FileWindow] = []
     var histories: [HistoryWindow] = []
@@ -40,6 +47,12 @@ nonisolated struct OpenWindows: Codable, Equatable, Sendable {
     var conflicts: ConflictWindow?
     var isActivityShown = false
     var isNoticesShown = false
+    var reviews: [ReviewWindow] = []
+    var isReviewListShown = false
+    /// Where each review's window was left, by the review's id, kept with the open windows since
+    /// they're saved and restored together, though it outlives the review's window.
+    var reviewPlaces: [String: ReviewPlace] = [:]
+    var showsOlderReviews = false
 }
 
 nonisolated extension OpenWindows {
@@ -54,5 +67,9 @@ nonisolated extension OpenWindows {
         conflicts = try container.decodeIfPresent(ConflictWindow.self, forKey: .conflicts)
         isActivityShown = try container.decodeIfPresent(Bool.self, forKey: .isActivityShown) ?? false
         isNoticesShown = try container.decodeIfPresent(Bool.self, forKey: .isNoticesShown) ?? false
+        reviews = try container.decodeIfPresent([ReviewWindow].self, forKey: .reviews) ?? []
+        isReviewListShown = try container.decodeIfPresent(Bool.self, forKey: .isReviewListShown) ?? false
+        reviewPlaces = try container.decodeIfPresent([String: ReviewPlace].self, forKey: .reviewPlaces) ?? [:]
+        showsOlderReviews = try container.decodeIfPresent(Bool.self, forKey: .showsOlderReviews) ?? false
     }
 }

@@ -16,19 +16,19 @@ enum PurchaseSheet {
             alert.messageText = daysLeft == 1 ? "1 day left in your trial" : "\(daysLeft) days left in your trial"
             alert.informativeText = """
             Everything works until then. After the trial, Locus Git Gui still opens your repositories \
-            and shows their history, changes, and status. Changing a repository or talking to a \
-            remote needs a license.
+            and shows their history, changes, and status. Changing a repository, talking to a \
+            remote, or using reviews needs a license.
             """
         case .ended:
             alert.messageText = "Your trial has ended"
             alert.informativeText = """
             Locus Git Gui still opens your repositories and shows their history, changes, and status. \
-            Changing a repository or talking to a remote needs a license.
+            Changing a repository, talking to a remote, or using reviews needs a license.
             """
         case nil:
             // Only for the moment at launch before the trial's start has been read.
             alert.messageText = "Purchase Locus Git Gui"
-            alert.informativeText = "After the trial, changing a repository or talking to a remote needs a license."
+            alert.informativeText = "After the trial, changing a repository, talking to a remote, or using reviews needs a license."
         }
         alert.addButton(withTitle: "OK")
         Task {

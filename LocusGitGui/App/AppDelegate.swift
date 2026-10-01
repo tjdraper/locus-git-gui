@@ -115,10 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Waits for the repositories' view state to be written, which happens off the main actor.
+    /// Waits for the repositories' view state and reviews to be written, which happens off the main
+    /// actor.
     func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
         Task { [viewStates] in
             await viewStates.finish()
+            await ReviewStore.shared.finish()
             NSApp.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater

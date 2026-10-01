@@ -22,7 +22,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
    - SwiftLint before any feature code, running on every build with zero violations. Build tool plugin from `SimplyDanny/SwiftLintPlugins`; copy `.swiftlint.yml` from locus-sound-control and repoint its `included` paths.
    - A regular Dock app, not `LSUIElement`. AppKit entry point with the main menu built in code (see Decisions), ported from locus-sound-control's `MainMenu`, and an empty window.
    - Developer ID signing and hardened runtime from day one. No App Sandbox (see Decisions).
-     - The iCloud key-value storage entitlement the license needs is in from the start, as in locus-sound-control, so the Developer ID provisioning profile is part of the release chain before the first release rather than a surprise in slice 16.
+     - The iCloud key-value storage entitlement the license needs is in from the start, as in locus-sound-control, so the Developer ID provisioning profile is part of the release chain before the first release rather than a surprise in slice 17.
    - `Scripts/` ported from locus-sound-control: `release.sh`, `install-test-build.sh`, `sparkle-tools.sh`, `ExportOptions.plist`, and a rewritten `Scripts/README.md`. Change the app name, bundle identifier, artifact name, GitHub repo, feed URL and notary profile.
    - Sparkle, sharing the Locus signing key, with the feed at `https://tjdraper.github.io/locus-git-gui/appcast.xml`. The beta channel works from here, as it does in locus-sound-control.
      - Sparkle's gentle reminders aren't ported. They exist for apps without a Dock icon, whose update window would otherwise open behind other apps; a regular Dock app gets Sparkle's standard behavior. Slice 13 brought them in after all, since the update window still interrupts whatever the user is doing.
@@ -137,7 +137,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 5. **The three-column window and the sidebar**
 
-   Done, except Tab and Shift-Tab between the columns, which moved to slice 7. Seen only in light mode so far; slice 17's appearance pass covers dark.
+   Done, except Tab and Shift-Tab between the columns, which moved to slice 7. Seen only in light mode so far; slice 18's appearance pass covers dark.
 
    - `NSSplitViewController` with three columns: sidebar, history, detail. The sidebar collapses with the standard shortcut (⌃⌘S).
      - Done, as View > Show Sidebar, with Show Toolbar (⌥⌘T) and Customize Toolbar… beside it. The sidebar runs the full height of the window. The history and detail columns are empty until slices 7 and 8 fill them.
@@ -162,7 +162,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 6. **Command catalog and command palette**
 
-   Done. Seen only in light mode so far; slice 17's appearance pass covers dark.
+   Done. Seen only in light mode so far; slice 18's appearance pass covers dark.
 
    Early, so every slice after this one adds its commands to the palette as a matter of course rather than in a sweep at the end.
 
@@ -274,7 +274,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 8. **Diff view**
 
-   Done. Seen running in light and dark mode, by hand and driven by script on this repository and on the performance commits: side by side and inline, wrapping, changed words, sticky headers, collapsing and expanding, the summary bar, More Context Lines, Show Changes, images, the enormous line, selecting and copying, Open in Editor, the file menus, commit windows, and file windows with their Previous and Next File. Not looked at yet: Tab and Shift-Tab into and out of the diff, and the "No newline at end of file" note; slice 17's keyboard audit and a file that ends without a newline will reach them. The diff can't be read by VoiceOver yet (see slice 17).
+   Done. Seen running in light and dark mode, by hand and driven by script on this repository and on the performance commits: side by side and inline, wrapping, changed words, sticky headers, collapsing and expanding, the summary bar, More Context Lines, Show Changes, images, the enormous line, selecting and copying, Open in Editor, the file menus, commit windows, and file windows with their Previous and Next File. Not looked at yet: Tab and Shift-Tab into and out of the diff, and the "No newline at end of file" note; slice 18's keyboard audit and a file that ends without a newline will reach them. The diff can't be read by VoiceOver yet (see slice 18).
 
    - Unified diff, one section per file, each with a header that collapses and expands the file. Collapse All and Expand All in the View menu.
      - Built as the app's own drawing rather than a text view (see Decisions). Each file's header stays at the top while any of the file is in view, until the next file's header pushes it up. Clicking a header collapses or expands the file, and the header stays where it was on screen; Option-clicking it collapses or expands every file, as in Finder. A bar above the files gives their count and the lines they add and remove, with a button that collapses them all, or expands them all once they're all collapsed. File windows show one file and leave the bar out. View has Collapse File (⌥⌘←), Expand File (⌥⌘→), Collapse All Files (⌥⇧⌘←), Expand All Files (⌥⇧⌘→), Next File (⌥⌘↓) and Previous File (⌥⌘↑).
@@ -566,7 +566,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
         | Taking a side and finding the conflicts again | 64 ms |
 
       - Indexing the sides' lines as strings took 1.5 s on the main actor; hashing their bytes brought it to 102 ms, and it now runs away from the main actor. In the Debug app the large file showed in under a second after it was picked, and the list of 5,001 files kept up.
-      - Reading the large file's text through Accessibility took 47 seconds, which slice 17's VoiceOver pass should know about.
+      - Reading the large file's text through Accessibility took 47 seconds, which slice 18's VoiceOver pass should know about.
 
 13. **Settings**
 
@@ -600,13 +600,13 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
     Built (2026-09-28). Driven by script in the Debug build on a scratch repository, in light mode: the lock with `--expire-trial` from the diff's buttons, the toolbar, the menu bar and the palette, the notice at each stage in light and dark mode, and a trial ending 100 seconds after launch with the app left alone. Not yet tried: the Keychain and iCloud in an installed build (`Scripts/install-test-build.sh`), a second Mac, a reinstall, dark mode, and the License pane by eye.
 
-    Not to be released before slice 16: a trial that ends has no way to buy a license yet, so everyone on the release would be locked after 30 days with nowhere to go.
+    Not to be released before slice 17: a trial that ends has no way to buy a license yet, so everyone on the release would be locked after 30 days with nowhere to go.
 
     - The trial starts at first launch and runs 30 days (see Decisions). No account, no card, nothing to sign up for.
     - The start date is kept in the Keychain and in iCloud key-value storage. Reinstalling doesn't restart it, and a second Mac on the same Apple ID shares the first one's trial rather than starting its own. When two start dates disagree, the earliest wins.
       - Built as `TrialStartRecords` (in the test target), `TrialStartKeychain` and `EntitlementStore`, in `Licensing/`. The Keychain item is in the data protection keychain, which every build signed by the team shares through the application identifier the iCloud provisioning profile already brings, so a Debug build reads a release build's start without a password prompt. Each place that has no start, or a later one, is given the earliest, and iCloud's changes from another Mac are settled the same way as they arrive, so two Macs that start before iCloud reaches either agree on whichever started first.
     - The trial clock and the entitlement check are pure date math and go in the test target. Port locus-todo's `TrialClock` and its entitlement snapshot, where one "entitled until" date covers trial and license alike and "still checking" counts as entitled.
-      - Built as `TrialClock` and `Entitlement`, whose reasons are only checking and trial for now; slice 16 adds the license's.
+      - Built as `TrialClock` and `Entitlement`, whose reasons are only checking and trial for now; slice 17 adds the license's.
     - Fail open: when the trial or the license can't be read, the app works
       - Until the Keychain has been read, the app counts as entitled. A start neither place can keep is a trial starting at each launch.
     - When the trial ends without a license, the app goes read-only (see Decisions). A command that would change a repository opens the purchase sheet instead of running. It stays enabled in the menu and the palette rather than greyed out, so it's clear what buying unlocks.
@@ -614,7 +614,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
       - Behind those, `RepositoryCommandRunner` refuses any command that changes a repository while locked, which catches one started during the trial that reaches Git after it ended. Writing the commit-graph file isn't refused: it's a cache Git keeps for itself (`GitCommand.isHousekeeping`).
       - Typing in the conflict window's result is refused too, since taking a side and typing both go through the text view's change check, and edits reach the file without a command. Save and the saves on switching files, closing and quitting still write edits made before the lock.
       - Automatic fetch pauses while locked, and carries on once a license arrives.
-      - The purchase sheet only explains the lock for now: what still works, and that changing a repository or talking to a remote needs a license. Slice 16 adds the plans and Purchase.
+      - The purchase sheet only explains the lock for now: what still works, and that changing a repository or talking to a remote needs a license. Slice 17 adds the plans and Purchase.
       - Removing a stale lock file from the failure sheet stays available, since it's recovering from a crash rather than changing anything.
     - Countdown: nothing for most of the trial, a quiet notice in the last week, a persistent one in the last two days, then the locked state. Port locus-todo's staged banner and its expiry timer, so a trial that ends while the app is open locks then, not at the next click.
       - Built as `TrialNotice` (in the test target), a notice in each repository window's toolbar status and the Notices panel, and a line in the dashboard's bottom bar. `EntitlementStore` wakes when the days left next go down, and on the last day at the end itself, and again whenever the app becomes active, for a Mac asleep across it.
@@ -622,11 +622,17 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - `--expire-trial` and `--reset-trial` launch arguments in Debug. They override the clock and never touch the stored date, which syncs through iCloud; locus-todo's plan explains how that goes wrong.
       - Built, with `--trial-ends-in <seconds>` for the countdown's stages and the lock arriving with the app open. An overridden clock writes no start anywhere.
     - Settings gains a License pane: days left in the trial, or what the license is and when it renews
-      - Built with the days left, when the trial started and when it ends or ended, and what the lock means once it has. Slice 16 adds the license.
+      - Built with the days left, when the trial started and when it ends or ended, and what the lock means once it has. Slice 17 adds the license.
     - Decide whether Set Display Name… stays available while locked. It writes into the repository's working tree, though it isn't Git.
       - Decided: it stays, and so do pins, which write `.locus/.pinned`. Both change how the app shows a repository rather than the work in it, and a locked app is still for reading repositories, which they help with.
 
-15. **License server and Paddle**
+15. **Reviews**
+
+    Added on 2026-10-01. A review checks off, file by file, what differs between two points in a repository, such as a pull request branch against `production`, with comments on the review, its files and their lines. It's built on Git rather than being Git, an exception to Not planned. Planned in full in [`ReviewsPlan.md`](ReviewsPlan.md).
+
+    Built (2026-10-01) and driven by script in light mode; [`ReviewsPlan.md`](ReviewsPlan.md) lists what was tried and what wasn't yet.
+
+16. **License server and Paddle**
 
     A small PHP web service in its own repository, running in a Docker container on the same Docker host as the tjdraper.com sites. Paddle takes payment and is the seller (see Decisions), but Paddle Billing doesn't make license keys, and the app can't hold Paddle's secret API key or sign its own licenses, so this service does.
 
@@ -644,7 +650,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Revoking a license, for refunds and for keys posted publicly
     - The pages Paddle's domain approval looks for: the product and its prices, terms, a refund policy and a privacy policy. The shared Locus privacy policy gains a section for this app: Paddle holds the payment details, the server keeps an email address and the license, and the license check sends no repository data.
 
-16. **Buying, keys and codes in the app**
+17. **Buying, keys and codes in the app**
 
     - Purchase… in the app menu, the palette, the License pane and the trial notice. Always reachable, during the trial too.
     - The purchase sheet shows monthly and yearly with prices from the server, and opens the checkout page in the default browser (see Decisions)
@@ -658,7 +664,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Remove License from This Mac, for passing a Mac on
     - Nothing about a repository ever goes to the server. It sees the license, the app version and an anonymous identifier for the Mac.
 
-17. **Polish and first release**
+18. **Polish and first release**
 
     - Keyboard audit: walk every feature with the mouse unplugged. Anything that can't be reached is a bug.
     - VoiceOver pass on all three columns, the palette and the conflict window. The diff is drawn by the app (see Decisions), so VoiceOver can't read its text until the app describes its rows itself; its file headers, buttons and notices are ordinary views and already read.
@@ -686,7 +692,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
   AppKit isn't going away. Apple still adds to it every year, including the macOS 26 design, and SwiftUI on the Mac runs on top of it. Keeping views in SwiftUI is still the forward-looking choice, since that's where Apple's new view work lands first. If SwiftUI later gains what the shell needs, the shell can move without the views changing.
 
-- **The diff view draws its own rows.** The plan was TextKit 2, but side by side needs each changed line level with the line it replaced, and two text views can't keep wrapped lines level without laying out both in full. The diff is drawn instead as rows of fixed-width text: a row's height is the taller side's wrapped height, worked out from character widths (`LineWrap`) without laying out any text, and only the rows on screen are typeset. That also keeps a hundred thousand lines, or one line of millions of characters, as quick to scroll as ten. The cost is that selection, copying and accessibility are the app's own code rather than a text view's; slice 17's VoiceOver pass covers the diff.
+- **The diff view draws its own rows.** The plan was TextKit 2, but side by side needs each changed line level with the line it replaced, and two text views can't keep wrapped lines level without laying out both in full. The diff is drawn instead as rows of fixed-width text: a row's height is the taller side's wrapped height, worked out from character widths (`LineWrap`) without laying out any text, and only the rows on screen are typeset. That also keeps a hundred thousand lines, or one line of millions of characters, as quick to scroll as ten. The cost is that selection, copying and accessibility are the app's own code rather than a text view's; slice 18's VoiceOver pass covers the diff.
 
 - **One command catalog feeds every surface.** Menus, context menus, the toolbar and the palette read their titles and shortcuts from the same place, and enabling follows the responder chain, so a command is available in the palette exactly when it is in the menu. locus-sound-control's `DeviceCommand` is the small version of this.
 
@@ -702,7 +708,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 - **Git's words are always shown.** A GUI that paraphrases a failure hides the one piece of text people know how to search for. Every failure shows Git's full output. A recognized failure adds a plain explanation and a next step above it. An unrecognized one shows a plain "Git couldn't finish" summary above the output. Git's messages are recognized in English, so the app runs Git with its messages set to English and leaves the rest of the locale alone, which keeps non-ASCII file names and commit messages working. Which variable does that depends on what the user's shell sets (`LC_ALL` overrides `LC_MESSAGES`, and gettext's `LANGUAGE` overrides both), so verify it against a Git whose messages are translated. A failure's severity follows who started it: a sheet for something the user asked for, a quiet toolbar warning for something the app did on its own.
 
-- **Performance is checked in the slice that builds it.** A slice whose work grows with the size of a repository, whether its commits, files, branches or diffs, is tried against a large one before it's done. What that finds is fixed then, or written down with the reason it waits. A problem is cheapest to fix while the code is fresh and before other code is built on it, and slice 17's pass over the whole app stays a look at how the parts behave together rather than a first look at each. Slice 7 builds the test repositories the later slices reuse.
+- **Performance is checked in the slice that builds it.** A slice whose work grows with the size of a repository, whether its commits, files, branches or diffs, is tried against a large one before it's done. What that finds is fixed then, or written down with the reason it waits. A problem is cheapest to fix while the code is fresh and before other code is built on it, and slice 18's pass over the whole app stays a look at how the parts behave together rather than a first look at each. Slice 7 builds the test repositories the later slices reuse.
 
 - **Refresh follows the file system, quietly.** FSEvents on the working tree and the Git directory, debounced, plus a refresh when the window becomes key. Read-only commands never take optional locks, so the app can't cause an `index.lock` error in someone's terminal.
 
@@ -757,6 +763,8 @@ Git clients tend to grow things that aren't Git. These stay out on purpose:
 - Built-in file editing beyond resolving conflicts. Open in Editor hands off to the user's editor.
 - Project management, notes or snippets
 
+Reviews (slice 15) are the one exception, kept local to the Mac.
+
 ## Future versions
 
 - **Interactive rebase.** Reorder, squash, fixup, edit and reword commits in a list, then run. The biggest Git feature missing from v1, and the one most worth doing well. Rewording or editing one commit picked in the history comes earlier, in slice 11.
@@ -764,6 +772,7 @@ Git clients tend to grow things that aren't Git. These stay out on purpose:
 - **Undo through the reflog.** ⌘Z after a commit, reset, checkout or rebase, restoring the previous state. Needs care to never lose work, so it waits until the rest is solid.
 - **Syntax highlighting in diffs.** Side by side moved into slice 8.
 - **Submodules, worktrees and LFS** shown in the sidebar and handled in their own terms. Until then they work, because Git does the work, but aren't shown specially.
+- **Reviews from GitHub pull requests and GitLab merge requests.** Starting a review from a pull request, and sending its comments back as the pull request's own. Slice 15 keeps its reviews and comments in a shape that can map onto both.
 - **Commit signing status in the history's rows.** The selected commit's shows in its detail from slice 7; checking every row needs GPG or `ssh-keygen` once per commit.
 
 ## Public repo
@@ -785,4 +794,4 @@ The GitHub repo will be public, and it will host the release zips and the Sparkl
 
 ## Open questions
 
-- **Prices** for monthly and yearly. Needed before slice 15. They live in Paddle, so they can change later without a release.
+- **Prices** for monthly and yearly. Needed before slice 16. They live in Paddle, so they can change later without a release.

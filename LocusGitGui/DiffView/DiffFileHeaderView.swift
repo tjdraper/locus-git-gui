@@ -135,24 +135,44 @@ final class DiffFileHeaderView: NSView {
 
     /// Buttons for what whoever shows the diff can do to the file, such as staging it.
     func show(actions: [DiffAction]) {
+        let actions = actions.filter { !$0.isInMenuOnly }
         self.actions = actions
         let views = actionButtons.arrangedSubviews
         for (index, action) in actions.enumerated() {
-            let existing = views.indices.contains(index) ? views[index] as? NSButton : nil
-            let button = existing ?? NSButton(title: "", target: self, action: #selector(runAction(_:)))
-            if existing == nil {
-                button.controlSize = .small
-                button.bezelStyle = .push
-                actionButtons.addArrangedSubview(button)
+            let isCheckbox = action.isOn != nil
+            var button = views.indices.contains(index) ? views[index] as? NSButton : nil
+            if let existing = button, (existing.identifier == Self.checkboxIdentifier) != isCheckbox {
+                existing.removeFromSuperview()
+                button = nil
             }
-            button.title = action.title
-            button.isEnabled = action.isEnabled
-            button.toolTip = action.toolTip
-            button.tag = index
+            let shown = button ?? makeButton(isCheckbox: isCheckbox, at: index)
+            shown.title = action.title
+            shown.isEnabled = action.isEnabled
+            shown.toolTip = action.toolTip
+            shown.state = action.isOn == true ? .on : .off
+            shown.tag = index
         }
-        for view in views.dropFirst(actions.count) {
+        for view in actionButtons.arrangedSubviews.dropFirst(actions.count) {
             view.removeFromSuperview()
         }
+    }
+
+    private static let checkboxIdentifier = NSUserInterfaceItemIdentifier("DiffActionCheckbox")
+
+    private func makeButton(isCheckbox: Bool, at index: Int) -> NSButton {
+        let button = if isCheckbox {
+            NSButton(checkboxWithTitle: "", target: self, action: #selector(runAction(_:)))
+        } else {
+            NSButton(title: "", target: self, action: #selector(runAction(_:)))
+        }
+        button.controlSize = .small
+        if isCheckbox {
+            button.identifier = Self.checkboxIdentifier
+        } else {
+            button.bezelStyle = .push
+        }
+        actionButtons.insertArrangedSubview(button, at: min(index, actionButtons.arrangedSubviews.count))
+        return button
     }
 
     @objc private func runAction(_ sender: NSButton) {

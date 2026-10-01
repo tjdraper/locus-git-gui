@@ -5,6 +5,8 @@ import AppKit
 struct ChangedFileMenu {
     /// What whoever shows the diff can do to the file, such as staging it, listed first.
     var actions: [DiffAction] = []
+    /// For the lines right-clicked, above everything for the file.
+    var lineActions: [DiffAction] = []
     let isInWorkingTree: Bool
     let opensFileWindows: Bool
     let isCollapsed: Bool
@@ -21,6 +23,12 @@ struct ChangedFileMenu {
         menu.autoenablesItems = false
         if let copyTarget {
             menu.addItem(AppCommand.copy.makeMenuItem(target: copyTarget))
+            menu.addItem(.separator())
+        }
+        for action in lineActions {
+            menu.addItem(item(action))
+        }
+        if !lineActions.isEmpty {
             menu.addItem(.separator())
         }
         for action in actions {
@@ -57,6 +65,7 @@ struct ChangedFileMenu {
         item.representedObject = target
         item.isEnabled = action.isEnabled
         item.toolTip = action.toolTip
+        item.state = action.isOn == true ? .on : .off
         return item
     }
 }

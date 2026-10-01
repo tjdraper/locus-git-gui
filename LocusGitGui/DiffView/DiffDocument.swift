@@ -46,11 +46,13 @@ nonisolated struct DiffDocument: Equatable, Sendable {
         /// Indices into the hunk's lines. Inline, only `left` is set. Side by side, an unchanged
         /// line is on both sides, and a side is nil where the other has a line with no counterpart.
         case lines(file: Int, hunk: Int, left: Int?, right: Int?)
+        /// Room for something whoever shows the diff puts into it, by the insert's id.
+        case insert(file: Int, id: String)
 
         var file: Int {
             switch self {
             case let .group(file), let .gap(file), let .header(file), let .notice(file, _), let .images(file),
-                 let .hunk(file, _), let .lines(file, _, _, _): file
+                 let .hunk(file, _), let .lines(file, _, _, _), let .insert(file, _): file
             }
         }
     }
@@ -72,7 +74,7 @@ nonisolated struct DiffDocument: Equatable, Sendable {
 
     /// `headsGroups` is false for a diff that doesn't show its files' groups, such as a file window
     /// showing one of the working area's files.
-    init(files: [DiffFile], collapsed: Set<Int>, style: Style, headsGroups: Bool = true) {
+    init(files: [DiffFile], collapsed: Set<Int>, style: Style, headsGroups: Bool = true, inserts: [DiffInsert] = []) {
         self.style = style
         fileStyles = files.map { Self.style(of: $0, in: style) }
         var blocks: [Block] = []
@@ -96,10 +98,13 @@ nonisolated struct DiffDocument: Equatable, Sendable {
             if Self.showsImages(file) {
                 blocks.append(.images(file: index))
             }
+            var rows: [Block] = []
             for (hunkIndex, hunk) in file.patch.hunks.enumerated() {
-                blocks.append(.hunk(file: index, hunk: hunkIndex))
-                Self.appendLines(of: hunk, file: index, hunk: hunkIndex, style: fileStyles[index], to: &blocks)
+                rows.append(.hunk(file: index, hunk: hunkIndex))
+                Self.appendLines(of: hunk, file: index, hunk: hunkIndex, style: fileStyles[index], to: &rows)
             }
+            let fileInserts = inserts.filter { $0.file == file.id }
+            blocks += fileInserts.isEmpty ? rows : Self.placing(fileInserts, in: rows, of: file, at: index)
         }
         if !files.isEmpty {
             fileEnds.append(blocks.count)
@@ -186,6 +191,42 @@ nonisolated struct DiffDocument: Equatable, Sendable {
         case .unmerged: "This file has conflicts to resolve."
         default: "Only whitespace changed."
         }
+    }
+
+    /// Each insert below the last row whose line on its side is at or before the insert's line,
+    /// and those at the top, or before every such row, above the first hunk.
+    private static func placing(_ inserts: [DiffInsert], in rows: [Block], of file: DiffFile, at fileIndex: Int) -> [Block] {
+        var below: [Int: [Block]] = [:]
+        var top: [Block] = []
+        for insert in inserts {
+            let block = Block.insert(file: fileIndex, id: insert.id)
+            guard case let .line(side, number) = insert.place else {
+                top.append(block)
+                continue
+            }
+            let row = rows.indices.last { index in
+                lineNumber(of: rows[index], side: side, in: file).map { $0 <= number } ?? false
+            }
+            if let row {
+                below[row, default: []].append(block)
+            } else {
+                top.append(block)
+            }
+        }
+        var placed = top
+        for (index, row) in rows.enumerated() {
+            placed.append(row)
+            placed += below[index] ?? []
+        }
+        return placed
+    }
+
+    /// The line a row shows on a side, counted from 1, whatever the row's style.
+    private static func lineNumber(of block: Block, side: DiffInsert.Side, in file: DiffFile) -> Int? {
+        guard case let .lines(_, hunk, left, right) = block else { return nil }
+        let lines = file.patch.hunks[hunk].lines
+        let shown = [left, right].compactMap(\.self).map { lines[$0] }
+        return shown.lazy.compactMap { side == .old ? $0.oldNumber : $0.newNumber }.first
     }
 
     private static func appendLines(of hunk: DiffHunk, file: Int, hunk hunkIndex: Int, style: Style, to blocks: inout [Block]) {

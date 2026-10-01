@@ -17,7 +17,7 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
     private static let retiredItems: [NSToolbarItem.Identifier] = [NSToolbarItem.Identifier("Activity")]
 
     /// Titled and reaching their commands as the Remote menu's items do.
-    private static let commands: [AppCommand] = [.fetch, .pull, .push]
+    private static let commands: [AppCommand] = [.showReviews, .fetch, .pull, .push]
 
     let toolbar = NSToolbar(identifier: "RepositoryWindow")
     private let title: RepositoryTitleItem
@@ -189,8 +189,8 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
         } else {
             item = NSToolbarItem(itemIdentifier: command.toolbarIdentifier)
         }
-        item.label = command.title
-        item.paletteLabel = command.title
+        item.label = command == .showReviews ? "Reviews" : command.title
+        item.paletteLabel = item.label
         item.toolTip = command.shortcut.map { "\(command.title) (\($0.displayText))" } ?? command.title
         item.image = NSImage(systemSymbolName: Self.symbol(for: command), accessibilityDescription: command.title)
         item.isBordered = true
@@ -204,13 +204,14 @@ final class RepositoryToolbar: NSObject, NSToolbarDelegate {
         switch command {
         case .pull: "arrow.down.to.line"
         case .push: "arrow.up.to.line"
+        case .showReviews: "checklist"
         default: "arrow.trianglehead.2.clockwise"
         }
     }
 }
 
 extension AppCommand {
-    fileprivate var toolbarIdentifier: NSToolbarItem.Identifier {
+    var toolbarIdentifier: NSToolbarItem.Identifier {
         NSToolbarItem.Identifier(rawValue)
     }
 }

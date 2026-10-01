@@ -143,6 +143,16 @@ nonisolated enum AppCommand: String, CaseIterable, Sendable {
     case deleteRemoteTag
     case deleteRemoteBranch
 
+    case newReview
+    case showReviews
+    case markFileReviewed
+    case goToNextUnreviewedFile
+    case showChangesSinceReviewed
+    case addReviewComment
+    case copyReviewComments
+    case renameReview
+    case deleteReview
+
     case minimize
     case zoom
     case bringAllToFront
@@ -285,6 +295,15 @@ nonisolated extension AppCommand {
         case .pushTag: "Push Tag…"
         case .deleteRemoteTag: "Delete Tag from Remote…"
         case .deleteRemoteBranch: "Delete Branch from Remote…"
+        case .newReview: "New Review"
+        case .showReviews: "Show Reviews"
+        case .markFileReviewed: "Mark as Reviewed"
+        case .goToNextUnreviewedFile: "Next Unreviewed File"
+        case .showChangesSinceReviewed: "Show Only Changes Since Reviewed"
+        case .addReviewComment: "Add Comment"
+        case .copyReviewComments: "Copy Comments as Markdown"
+        case .renameReview: "Rename Review…"
+        case .deleteReview: "Delete Review…"
         case .minimize: "Minimize"
         case .zoom: "Zoom"
         case .bringAllToFront: "Bring All to Front"
@@ -360,39 +379,7 @@ nonisolated extension AppCommand {
         case .pull: KeyShortcut(KeyShortcut.downArrowKey, [.command, .option, .shift])
         case .push: KeyShortcut(KeyShortcut.upArrowKey, [.command, .option, .shift])
         case .minimize: KeyShortcut("m")
-        default: nil
-        }
-    }
-}
-
-nonisolated extension AppCommand {
-    /// Named with how many repositories it acts on, for a command that acts on the dashboard's
-    /// selection.
-    func title(count: Int) -> String {
-        switch self {
-        case .openSelectedRepositories: count > 1 ? "Open \(count) Repositories" : "Open Repository"
-        case .removeSelectedRepositories: count > 1 ? "Remove \(count) Repositories from List" : "Remove Repository from List"
-        default: title
-        }
-    }
-
-    /// The shortcut in the menus, which for the two Copy Path commands depends on which path the
-    /// user wants ⌥⌘C to copy. The other one takes ⌥⇧⌘C.
-    func shortcut(optionCommandCCopiesPathFromRoot: Bool) -> KeyShortcut? {
-        guard optionCommandCCopiesPathFromRoot else { return shortcut }
-        switch self {
-        case .copyAbsolutePath: return AppCommand.copyPathFromRepositoryRoot.shortcut
-        case .copyPathFromRepositoryRoot: return AppCommand.copyAbsolutePath.shortcut
-        default: return shortcut
-        }
-    }
-
-    /// A second shortcut for the same command, on a hidden menu item of its own, since a menu item
-    /// has only one.
-    var alternateShortcut: KeyShortcut? {
-        switch self {
-        case .showDashboard: KeyShortcut("o", [.command, .shift, .option])
-        case .commandPalette: KeyShortcut("p", [.command, .shift])
+        case .showReviews: KeyShortcut("r", [.command, .shift])
         default: nil
         }
     }

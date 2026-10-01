@@ -11,6 +11,9 @@ final class DiffBlockViews {
     var configureImages: ((DiffImagesView, _ file: Int) -> Void)?
     /// Nil for a diff whose hunks have nothing to do, which then has no views over its hunks.
     var configureHunk: ((DiffHunkBarView, _ file: Int, _ hunk: Int) -> Void)?
+    /// Whoever shows the diff keeps an insert's view, so what's typed into one survives it
+    /// scrolling out of sight, and asked for it each time, since they may replace it.
+    var insertView: ((_ id: String) -> NSView?)?
 
     private let canvas: DiffCanvasView
     private var groups: [Int: DiffGroupHeaderView] = [:]
@@ -18,6 +21,7 @@ final class DiffBlockViews {
     private var notices: [Int: DiffNoticeView] = [:]
     private var images: [Int: DiffImagesView] = [:]
     private var hunks: [Int: DiffHunkBarView] = [:]
+    private var inserts: [String: NSView] = [:]
     private var spareGroups: [DiffGroupHeaderView] = []
     private var spareHeaders: [DiffFileHeaderView] = []
     private var spareNotices: [DiffNoticeView] = []
@@ -29,6 +33,8 @@ final class DiffBlockViews {
     }
 
     /// Everything goes when the diff changes, since a block's index then means something else.
+    /// Inserts are known by their own ids, and stay until `update` finds them gone, so one being
+    /// typed into keeps focus while the diff is read again.
     func removeAll() {
         for view in groups.values {
             view.removeFromSuperview()
@@ -60,50 +66,78 @@ final class DiffBlockViews {
     func update() {
         guard let content = canvas.content else {
             removeAll()
+            for view in inserts.values {
+                view.removeFromSuperview()
+            }
+            inserts = [:]
             return
         }
         let visible = canvas.visibleRect
         let layout = content.layout
         let document = content.document
-        let blocks = layout.blocks(from: visible.minY, to: visible.maxY)
-        var shownFiles = Set<Int>()
-        var shownGroups = Set<Int>()
-        var shownNotices = Set<Int>()
-        var shownImages = Set<Int>()
-        var shownHunks = Set<Int>()
-        for block in blocks {
+        var shown = Shown()
+        for block in layout.blocks(from: visible.minY, to: visible.maxY) {
             let frame = layout.frame(of: block)
             let rect = NSRect(x: 0, y: frame.minY, width: canvas.bounds.width, height: frame.maxY - frame.minY)
-            switch document.blocks[block] {
-            case let .group(file):
-                shownGroups.insert(block)
-                configureGroup?(place(block, in: &groups, spares: &spareGroups, at: rect), file)
-            case let .hunk(file, hunk):
-                guard let configureHunk else { break }
-                shownHunks.insert(block)
-                configureHunk(place(block, in: &hunks, spares: &spareHunks, at: rect), file, hunk)
-            case let .notice(file, notice):
-                shownNotices.insert(block)
-                configureNotice?(place(block, in: &notices, spares: &spareNotices, at: rect), file, notice)
-            case let .images(file):
-                shownImages.insert(file)
-                configureImages?(place(file, in: &images, spares: &spareImages, at: rect), file)
-            default:
-                break
-            }
-            shownFiles.insert(document.blocks[block].file)
+            show(document.blocks[block], at: block, in: rect, shown: &shown)
         }
         let heading = DiffStickyHeadings.heading(atTop: visible.minY, document: document, layout: layout)
         if let heading {
-            shownGroups.insert(heading.block)
+            shown.groups.insert(heading.block)
             holdAtTop(heading, width: canvas.bounds.width, height: layout.metrics.groupHeight, file: document.blocks[heading.block].file)
         }
-        placeHeaders(of: shownFiles, in: content, below: heading)
-        retire(&groups, keeping: shownGroups, into: &spareGroups)
-        retire(&hunks, keeping: shownHunks, into: &spareHunks)
-        retire(&headers, keeping: shownFiles, into: &spareHeaders)
-        retire(&notices, keeping: shownNotices, into: &spareNotices)
-        retire(&images, keeping: shownImages, into: &spareImages)
+        placeHeaders(of: shown.files, in: content, below: heading)
+        retire(&groups, keeping: shown.groups, into: &spareGroups)
+        retire(&hunks, keeping: shown.hunks, into: &spareHunks)
+        retire(&headers, keeping: shown.files, into: &spareHeaders)
+        retire(&notices, keeping: shown.notices, into: &spareNotices)
+        retire(&images, keeping: shown.images, into: &spareImages)
+        for (id, view) in inserts where !shown.inserts.contains(id) {
+            view.removeFromSuperview()
+            inserts[id] = nil
+        }
+    }
+
+    /// What `update` has placed, so the rest can be put away.
+    private struct Shown {
+        var files = Set<Int>()
+        var groups = Set<Int>()
+        var notices = Set<Int>()
+        var images = Set<Int>()
+        var hunks = Set<Int>()
+        var inserts = Set<String>()
+    }
+
+    private func show(_ block: DiffDocument.Block, at index: Int, in rect: NSRect, shown: inout Shown) {
+        switch block {
+        case let .group(file):
+            shown.groups.insert(index)
+            configureGroup?(place(index, in: &groups, spares: &spareGroups, at: rect), file)
+        case let .hunk(file, hunk):
+            guard let configureHunk else { break }
+            shown.hunks.insert(index)
+            configureHunk(place(index, in: &hunks, spares: &spareHunks, at: rect), file, hunk)
+        case let .notice(file, notice):
+            shown.notices.insert(index)
+            configureNotice?(place(index, in: &notices, spares: &spareNotices, at: rect), file, notice)
+        case let .images(file):
+            shown.images.insert(file)
+            configureImages?(place(file, in: &images, spares: &spareImages, at: rect), file)
+        case let .insert(_, id):
+            guard let view = insertView?(id) else { break }
+            shown.inserts.insert(id)
+            if let replaced = inserts[id], replaced !== view {
+                replaced.removeFromSuperview()
+            }
+            if view.superview !== canvas {
+                canvas.addSubview(view, positioned: .below, relativeTo: nil)
+            }
+            inserts[id] = view
+            view.frame = rect
+        default:
+            break
+        }
+        shown.files.insert(block.file)
     }
 
     /// Each at the top of its file, or held at the top of the view, below the held group heading
