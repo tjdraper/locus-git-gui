@@ -19,7 +19,9 @@ Decided on 2026-10-03, after checking Paddle's documentation (sources at the end
 
 - Build everything against Paddle's sandbox first. It needs no domain approval and accepts `localhost` as the checkout's address, so slices 16 and 17 can be finished before any page is public.
 - One product with a monthly price of $7 and a yearly price of $59 (see the high-level plan's Decisions). The prices live in Paddle, so changing one needs no app release.
-- The default payment link, which Paddle uses for payment links and in its emails about updating a card, is the checkout page. It has to be on an approved domain in the live account.
+- Prices exclude tax, so a buyer pays the price plus their local tax, which Paddle adds at checkout.
+- The default payment link, which Paddle uses for payment links and in its emails about updating a card, is the checkout page. It has to be on an approved domain in the live account. The sandbox's is `https://localhost/git-gui/checkout`, since its form rejects a port and plain `http`.
+- The API key never expires and has only the permissions the server uses. An expiring key would quietly break the server on the day it lapsed. A leaked key gets revoked and replaced.
 - Paddle's own discount codes stay switched on at checkout, for discounts on paid plans such as a launch sale.
 - The live account needs account verification (domain, business, and identity), which can take a few days. Paddle approves most domains automatically, and a manual review takes about 5–7 business days. Submit locus.tjdraper.com well before launch.
 
@@ -141,7 +143,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 
 | | Where | Work |
 |---|---|---|
-| You | Paddle | The sandbox account, the product and its two prices, an API key, and a client-side token |
+| You | Paddle | The sandbox account, the product and its two prices, an API key, and a client-side token. Done 2026-10-07; the ids and key are in 1Password. |
 | 1 | License server | The repository, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running |
 | 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. |
 | 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. |
