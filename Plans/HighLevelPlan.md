@@ -634,21 +634,11 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 16. **License server and Paddle**
 
-    A small PHP web service in its own repository, running in a Docker container on the same Docker host as the tjdraper.com sites. Paddle takes payment and is the seller (see Decisions), but Paddle Billing doesn't make license keys, and the app can't hold Paddle's secret API key or sign its own licenses, so this service does.
+    Planned in full in [`LicenseServerPlan.md`](LicenseServerPlan.md) (2026-10-03). Paddle takes payment and is the seller (see Decisions), but Paddle Billing doesn't make license keys, and the app can't hold Paddle's secret API key or sign its own licenses.
 
-    - A database for licenses, promo codes and redemptions, on a volume that's backed up. These are sales records.
-
-    - One Paddle product with a monthly price and a yearly price. Prices live in Paddle and the app reads them from the server, so changing a price needs no app release.
-    - A checkout page on the server's own domain, which Paddle has to approve, running Paddle's checkout (Paddle.js). The app opens it with the chosen plan and an id that Paddle passes back in its webhooks, so the server knows which purchase belongs to which waiting app.
-    - Paddle's webhooks tell the server when a subscription starts, renews, goes past due, is cancelled, or is refunded. The server checks each webhook's signature.
-    - Every purchase makes a license: a key a person can read and type, and a record of what it covers and until when
-    - The server hands the app a signed license (see Decisions), which the app checks offline against a public key built into it
-    - Promo codes, made with a command-line tool on the server, each granting free months, free years, or a lifetime unlock. Single-use or with a redemption limit, with an optional last day to redeem. Redeeming needs no card and makes a license like any other (see Decisions). Redeemed while subscribed, free time moves the subscription's next billing date back through Paddle's API instead of making a second license.
-    - Paddle's own discount codes stay switched on at checkout, for discounts on paid plans such as a launch sale
-    - Paddle's customer portal for switching between monthly and yearly, updating the card, cancelling and downloading invoices. The server makes a portal link for the license's customer and the app opens it.
-    - An email carrying the license key, sent by the server once Paddle confirms payment. Paddle sends its own receipt.
-    - Revoking a license, for refunds and for keys posted publicly
-    - The pages Paddle's domain approval looks for: the product and its prices, terms, a refund policy and a privacy policy. The shared Locus privacy policy gains a section for this app: Paddle holds the payment details, the server keeps an email address and the license, and the license check sends no repository data.
+    - A PHP service at `licenses.tjdraper.com`, in its own repository and a Docker container on the same host as the tjdraper.com sites. It holds the app's API, Paddle's webhooks, the signing key, the database, the license email, and a command-line tool for promo codes, finding, resending, and revoking licenses. It serves no pages.
+    - Every page a buyer sees goes on the Locus website, `locus.tjdraper.com`: the product page with its prices, the checkout, the page after paying, the terms, the refund policy, and the privacy policy. It's the only domain Paddle has to approve.
+    - Built against Paddle's sandbox first, which needs no domain approval, so this slice and slice 17 can be finished before any page is public.
 
 17. **Buying, keys and codes in the app**
 
@@ -672,7 +662,8 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Performance pass over the whole app on the Linux kernel. Each slice has already checked its own part (see Decisions), so this looks at the parts together: a fetch refreshing the sidebar and the history while the history is paging, a checkout changing thousands of files with the working area open, and several large repositories open at once.
     - Light and dark mode checked on every window. The repository window's sidebar hasn't been seen in dark mode yet.
     - macOS 27 puts Ask Siri at the top of the sidebar's context menus, and of no other menu in the app: it adds it to menus in a SwiftUI `List`, whether the menu is on the list or on each row, and not to the dashboard's rows in a plain scroll view or to AppKit's menus. There's no public way to leave it out (checked in the macOS 27 SDK, 2026-09-26). Decided to leave it for now. If the keyboard or VoiceOver pass reworks the sidebar, an AppKit outline view would drop it along the way; otherwise look again with a later SDK. The round Siri button at the start of the commit message's body field is the same feature, with no public way to remove it either.
-    - Website download page, built outside this repository
+    - Website download page, built outside this repository. The product page and the legal pages Paddle's domain approval needs come earlier, before the live account can take payments (see [`LicenseServerPlan.md`](LicenseServerPlan.md)).
+    - The last step before release: add Locus Git Gui to locus.tjdraper.com's menu and sitemap, and drop the `noindex` its pages carry until then. They're public from slice 16 for Paddle's review, but unlisted.
 
 ## Decisions
 
@@ -722,7 +713,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
 - **Selling outside the App Store.** The app can't be sandboxed (see No App Sandbox), which rules out the Mac App Store, so it's sold directly. Payment, licenses and sales tax are handled outside Apple.
 
-- **Paddle is the seller.** Selling software directly makes the seller responsible for sales tax and VAT wherever digital sales are taxed, and some places, the EU among them, require sellers from outside to register from the first sale. Paddle is a merchant of record: it buys the app and resells it to the customer, so the tax registration, collection and filing are Paddle's, along with fraud screening, chargebacks and billing questions. Receipts and card statements name Paddle. The fee is 5% + 50¢ per transaction, card processing included, with no monthly fee. That 50¢ weighs most on the monthly plan, about a tenth of a $10 charge, which is one more reason the yearly plan should be the better deal. Paddle doesn't require a company to sell through it.
+- **Paddle is the seller.** Selling software directly makes the seller responsible for sales tax and VAT wherever digital sales are taxed, and some places, the EU among them, require sellers from outside to register from the first sale. Paddle is a merchant of record: it buys the app and resells it to the customer, so the tax registration, collection and filing are Paddle's, along with fraud screening, chargebacks and billing questions. Receipts and card statements name Paddle. The fee is 5% + 50¢ per transaction, card processing included, with no monthly fee. That 50¢ weighs most on the monthly plan, so with the fee it takes about an eighth of a $7 charge and a sixteenth of a $59 one, which is one more reason the yearly plan should be the better deal. Paddle doesn't require a company to sell through it.
 
   Paddle Classic had license keys and a Mac licensing SDK. Paddle Billing, the platform new sellers get, has neither, which is why the license server exists.
 
@@ -733,6 +724,8 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
   The cost: a key given to a friend works for the friend. There's no activation limit in v1. The server sees how many Macs refresh each license, so a key posted publicly shows up and can be revoked. The aim is keeping honest people honest. Anyone with the source can build a copy without the check anyway.
 
 - **The checkout opens in the browser.** The browser brings Apple Pay, saved cards and password managers, and people trust a payment page in their own browser more than one inside an app they downloaded last week.
+
+- **$59 a year or $7 a month.** Decided on 2026-10-07. Tower is the obvious comparison: Tower Basic is $69 a year and Tower Pro $129, with no monthly plan. Locus is newer, Mac only, and has no track record, so it asks a little less than Tower Basic for the whole app, with no tiers. Twelve months at $7 is $84, so the yearly plan saves about 30%. Fork ($59.99) and Sublime Merge ($99 with three years of updates) are one-time purchases, and some will compare against them; lifetime unlocks stay with promo codes. Launch discounts go through Paddle's discount codes, so the list price stays put.
 
 - **The trial is 30 days.** A Git client proves itself over weeks of real work. Tower's trial is also 30 days. locus-todo uses 14, and nothing requires them to match.
 
@@ -753,6 +746,8 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
   CLA Assistant Lite runs as a GitHub Action. A contributor signs once by posting a set sentence as a comment on their pull request, and the signature is recorded in the repository with their GitHub username. Unsigned pull requests fail its check. The token it needs is a GitHub Actions secret, never committed.
 
 - **The license server's address is a subdomain of its own.** It's built into every copy of the app, so it gets a name that only this service uses: `licenses.tjdraper.com`. The service can then move to another host without an app update.
+
+- **The checkout lives on the website, not the license server.** Paddle approves each domain a checkout opens on, subdomains separately, and looks there for the product, prices, terms, refund policy, and privacy policy, which are all on `locus.tjdraper.com`. The app gets the checkout's address from the license server, so the checkout can move without an app release.
 
 ## Not planned
 
@@ -780,7 +775,7 @@ Reviews (slice 15) are the one exception, kept local to the Mac.
 The GitHub repo will be public, and it will host the release zips and the Sparkle appcast.
 
 - Never commit secrets: signing certificates, notarization credentials, or the Sparkle private key. The release script reads them from the Keychain or environment variables.
-- The license signing key, Paddle's API key and the webhook secret live only on the server, which has its own repository. The license public key is built into the app and is safe to publish.
+- The license signing key, Paddle's API key, the webhook secret, and Mailgun's API key live only on the server, which has its own repository (see [`LicenseServerPlan.md`](LicenseServerPlan.md)). The license public key is built into the app and is safe to publish.
 - Write everything in the repo — code, comments, commit messages, plans, docs — as if the public will read it.
 - The source is public under the PolyForm Strict License, which doesn't allow modification or redistribution (see Decisions). The app itself is licensed under `EULA.md`. The README says both and points contributors to `CONTRIBUTING.md` and the contributor license agreement.
 - `.gitignore` covers `.DS_Store`, `xcuserdata`, build output and local config from the start.
@@ -791,7 +786,3 @@ The GitHub repo will be public, and it will host the release zips and the Sparkl
 - **locus-sound-control:** `Scripts/`, `Plans/ReleaseSetupChecklist.md`, `MainMenu` (the AppKit main menu built in code), `RememberedWindowPlacement` with its `fittingSize` fix, `DeviceCommand` as the pattern for the command catalog, and the Sparkle gentle reminders and beta channel work.
 - **locus-launcher:** iCloud key-value storage sync. The fuzzy matcher and ranking by recent use, for the dashboard search and the palette. The floating launcher panel and its keyboard handling, for the palette.
 - **locus-todo:** the trial and entitlement design in `LocusToDo/Architecture/SubscriptionsPlan.md` (`TrialClock`, the entitlement snapshot, the staged banner and expiry timer, the Debug launch arguments), the `.swiftlint.yml` lineage, the Architecture docs, the `.icon` workflow, and its Mac menu commands for reference. It turns native tabs off (`allowsAutomaticWindowTabbing = false`); this app wants them on.
-
-## Open questions
-
-- **Prices** for monthly and yearly. Needed before slice 16. They live in Paddle, so they can change later without a release.

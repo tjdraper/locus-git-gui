@@ -4,7 +4,7 @@ Locus Git Gui's source is public so people can read it, but it is not open sourc
 
 ## Permission to prepare a contribution
 
-The PolyForm Strict License doesn't allow changes to the software, and a pull request is a change. So, in addition to that license, TJ Draper grants you permission to:
+The PolyForm Strict License doesn't allow changes to the software, and a pull request is a change. So, in addition to that license, Timmothy Allen Draper II ("TJ Draper") grants you permission to:
 
 - copy and change the software, only to prepare a contribution to this repository (`github.com/tjdraper/locus-git-gui`)
 - build and run your changed copy, only to test that contribution
@@ -34,7 +34,7 @@ You accept and agree to the following terms for your present and future Contribu
 
 **"You"** (or **"your"**) means the copyright owner, or the legal entity authorized by the copyright owner, that is making this agreement with the Licensor. For legal entities, the entity making a Contribution and all other entities that control, are controlled by, or are under common control with that entity are considered a single Contributor. "Control" means (i) the power, direct or indirect, to cause the direction or management of such entity, whether by contract or otherwise, or (ii) ownership of fifty percent (50%) or more of the outstanding shares, or (iii) beneficial ownership of such entity.
 
-**"Licensor"** means TJ Draper, and any person or entity to whom TJ Draper assigns the rights in Locus Git Gui.
+**"Licensor"** means Timmothy Allen Draper II ("TJ Draper"), and any person or entity to whom TJ Draper assigns the rights in Locus Git Gui.
 
 **"Contribution"** means any original work of authorship, including any modifications or additions to an existing work, that you intentionally submit to the Licensor for inclusion in, or documentation of, Locus Git Gui or any other product owned or managed by the Licensor (the **"Work"**). "Submit" means any form of electronic, verbal or written communication sent to the Licensor or its representatives, including but not limited to pull requests, issues, comments, and communication on mailing lists and source code control systems, for the purpose of discussing and improving the Work. It excludes communication that you conspicuously mark, or otherwise designate in writing, as "Not a Contribution."
 

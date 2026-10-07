@@ -1,8 +1,8 @@
 # Locus Git Gui License Agreement
 
-Last updated 24 September 2026
+Last updated 7 October 2026
 
-This agreement is between you and TJ Draper, who makes Locus Git Gui. It covers your use of the app. By installing or using Locus Git Gui, you agree to it. If you use the app on behalf of a company or other organization, you agree to it for that organization too.
+This agreement is between you and Timmothy Allen Draper II ("TJ Draper"), who makes Locus Git Gui. It covers your use of the app. By installing or using Locus Git Gui, you agree to it. If you use the app on behalf of a company or other organization, you agree to it for that organization too.
 
 ## 1. What this covers
 
