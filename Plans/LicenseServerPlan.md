@@ -7,7 +7,7 @@ Decided on 2026-10-03, after checking Paddle's documentation (sources at the end
 ## Where each part lives
 
 - **locus.tjdraper.com**, the existing Next.js site in the `tjdraper.com-v8` repository, holds every page a buyer sees: the product page at `/git-gui` with its pricing, the checkout, the page after paying, the terms, the refund policy, and the privacy policy. It's the only domain submitted to Paddle for approval.
-- **licenses.tjdraper.com** is a PHP service in its own repository, bootstrapped with `rxante/php-app-bootstrap`, in a Docker container on the same host as the tjdraper.com sites, behind the same Traefik. It holds the API the app calls, Paddle's webhooks, the license signing key, the database, the license email, and a command-line tool for running it. It serves no pages.
+- **licenses.tjdraper.com** is a PHP service in the `licenses.tjdraper.com/` folder of the `tjdraper.com-v8` repository, beside the sites, bootstrapped with `rxante/php-app-bootstrap`, in a Docker container on the same host as the tjdraper.com sites, behind the same Traefik. It holds the API the app calls, Paddle's webhooks, the license signing key, the database, the license email, and a command-line tool for running it. It serves no pages.
 
 ### Why this split
 
@@ -144,7 +144,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 | | Where | Work |
 |---|---|---|
 | You | Paddle | The sandbox account, the product and its two prices, an API key, and a client-side token. Done 2026-10-07; the ids and key are in 1Password. |
-| 1 | License server | The repository, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running |
+| 1 | License server | The `licenses.tjdraper.com/` folder in `tjdraper.com-v8`, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running |
 | 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. |
 | 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. |
 | 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and scheduled backups. You add the DNS record. |

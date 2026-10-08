@@ -636,7 +636,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
 
     Planned in full in [`LicenseServerPlan.md`](LicenseServerPlan.md) (2026-10-03). Paddle takes payment and is the seller (see Decisions), but Paddle Billing doesn't make license keys, and the app can't hold Paddle's secret API key or sign its own licenses.
 
-    - A PHP service at `licenses.tjdraper.com`, in its own repository and a Docker container on the same host as the tjdraper.com sites. It holds the app's API, Paddle's webhooks, the signing key, the database, the license email, and a command-line tool for promo codes, finding, resending, and revoking licenses. It serves no pages.
+    - A PHP service at `licenses.tjdraper.com`, in its own folder of the `tjdraper.com-v8` repository and its own Docker container on the same host as the tjdraper.com sites. It holds the app's API, Paddle's webhooks, the signing key, the database, the license email, and a command-line tool for promo codes, finding, resending, and revoking licenses. It serves no pages.
     - Every page a buyer sees goes on the Locus website, `locus.tjdraper.com`: the product page with its prices, the checkout, the page after paying, the terms, the refund policy, and the privacy policy. It's the only domain Paddle has to approve.
     - Built against Paddle's sandbox first, which needs no domain approval, so this slice and slice 17 can be finished before any page is public.
 
@@ -775,7 +775,7 @@ Reviews (slice 15) are the one exception, kept local to the Mac.
 The GitHub repo will be public, and it will host the release zips and the Sparkle appcast.
 
 - Never commit secrets: signing certificates, notarization credentials, or the Sparkle private key. The release script reads them from the Keychain or environment variables.
-- The license signing key, Paddle's API key, the webhook secret, and Mailgun's API key live only on the server, which has its own repository (see [`LicenseServerPlan.md`](LicenseServerPlan.md)). The license public key is built into the app and is safe to publish.
+- The license signing key, Paddle's API key, the webhook secret, and Mailgun's API key live only on the server, never in a repository (see [`LicenseServerPlan.md`](LicenseServerPlan.md)). The license public key is built into the app and is safe to publish.
 - Write everything in the repo — code, comments, commit messages, plans, docs — as if the public will read it.
 - The source is public under the PolyForm Strict License, which doesn't allow modification or redistribution (see Decisions). The app itself is licensed under `EULA.md`. The README says both and points contributors to `CONTRIBUTING.md` and the contributor license agreement.
 - `.gitignore` covers `.DS_Store`, `xcuserdata`, build output and local config from the start.
