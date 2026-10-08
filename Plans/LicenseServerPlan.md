@@ -69,7 +69,21 @@ Every request from the app carries its version and the Mac's anonymous identifie
 - Each license records which product it's for and how it was granted (Paddle, a promo code, by hand, or another seller), so the server can license other products later, sold through Paddle or not.
   - Each product gets its own signing key, so a leaked key unlocks only that product.
   - Signed licenses are for software running on someone else's machine, such as a Mac app, a command-line tool, or a plugin. A hosted web app asks the license server directly instead.
-- The server signs each license with an Ed25519 key, and the app checks it offline against the public key it carries (see the high-level plan's Decisions). The signing key exists only on the server, and never in either repository.
+- The server signs each license with an Ed25519 key, and the app checks it offline against the public key it carries (see the high-level plan's Decisions). The production signing key exists only on the server, and never in either repository.
+  - The signing key is a 32-byte Ed25519 seed in base64, in a Docker secret named for its product (`LOCUS_GIT_GUI_SIGNING_KEY`). The public key the app carries is the raw 32 bytes in base64, which CryptoKit's `Curve25519.Signing.PublicKey(rawRepresentation:)` reads. `signing-key:generate` in the command-line tool makes a pair.
+  - Local development has its own key pair. Its signing key is committed to `tjdraper.com-v8` at `docker/licenses.tjdraper.com/secrets/`, so every machine signs with the same key, and its public key is `JidROdKIKnsELDadN5rzv3fcOr9R3ZNa33sdFd93azQ=`. Debug builds of the app trust it. Release builds must trust only the production public key: the app picks the key by build configuration, and a test checks that a release build carries only the production key. A release build that trusted the dev key would take licenses from anyone who has that file.
+  - A signed license is one line of text: the payload in base64, a `.`, and the signature in base64. Both are standard base64 with padding, which `Data(base64Encoded:)` reads. The signature covers the payload's exact bytes, so the app checks the signature against the decoded bytes before reading them as JSON, never against JSON it has encoded again.
+  - The payload is a JSON object:
+
+    | Field | Example | Meaning |
+    |---|---|---|
+    | `format` | `1` | The payload's format. It stays 1 for as long as fields are only added. |
+    | `product` | `"locus-git-gui"` | The product the license is for |
+    | `key` | `"LGG-7K2QM-F9XHD-3RTVA-WN8EP"` | The license key, formatted, for showing in the License pane |
+    | `expiresAt` | `"2026-11-08T12:30:00Z"` | When the license stops working, or `null` for a lifetime license |
+    | `issuedAt` | `"2026-10-08T12:30:00Z"` | When the server signed it, which the 30 days offline can count from, since the app can't fake it |
+
+    Dates are ISO 8601 in UTC, to the second, ending in `Z`, which `ISO8601DateFormatter` reads with its default options. Fields may be added, so the app ignores any it doesn't know. A revoked license is never signed.
 - The server counts the Macs that refresh each license, so a key posted publicly shows up and can be revoked.
 - Revoking a license, for refunds and for keys posted publicly. A revoked license stops working at its next refresh.
 
@@ -132,7 +146,7 @@ If one is built, it's a Next.js front end that calls the license server's API ov
 
 ## Secrets
 
-The signing key, Paddle's API key, the webhook secret, Mailgun's API key, and the database password live only on the server, as Docker secrets. None goes in any repository. The license public key is built into the app and is safe to publish. Paddle's client-side token for Paddle.js is public by design.
+The signing key, Paddle's API key, the webhook secret, Mailgun's API key, and the database password live only on the server, as Docker secrets. None goes in any repository; the one exception is local development's own signing key (see Licenses). The license public key is built into the app and is safe to publish. Paddle's client-side token for Paddle.js is public by design.
 
 - Settings that aren't secret, such as the Paddle environment, price ids, and the checkout's address, live in `.env` files loaded into the container's environment.
 - The app is bootstrapped with `rxante/php-app-bootstrap`, whose `RuntimeConfig` reads a setting from the environment when it's there and from Docker secrets otherwise. The environment wins, so in production a secret must never also be set in a `.env` file or the environment, where it would quietly replace the Docker secret.
@@ -145,7 +159,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 |---|---|---|
 | You | Paddle | The sandbox account, the product and its two prices, an API key, and a client-side token. Done 2026-10-07; the ids and key are in 1Password. |
 | 1 | License server | The `licenses.tjdraper.com/` folder in `tjdraper.com-v8`, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running. Done 2026-10-08. |
-| 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. |
+| 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. Done 2026-10-08: `license:make`, `license:find` (by email or key), `license:revoke`, and `signing-key:generate`. |
 | 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. |
 | 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and scheduled backups. You add the DNS record. |
 | 5 | License server | Webhooks: signature checks, the IP allowlist, repeated and out-of-order events, licenses made and changed, and the purchase's license endpoint. Tried with Paddle's webhook simulator against the deployed server, so no tunnel to a laptop is needed. |
