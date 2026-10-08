@@ -144,7 +144,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 | | Where | Work |
 |---|---|---|
 | You | Paddle | The sandbox account, the product and its two prices, an API key, and a client-side token. Done 2026-10-07; the ids and key are in 1Password. |
-| 1 | License server | The `licenses.tjdraper.com/` folder in `tjdraper.com-v8`, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running |
+| 1 | License server | The `licenses.tjdraper.com/` folder in `tjdraper.com-v8`, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running. Done 2026-10-08. |
 | 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. |
 | 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. |
 | 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and scheduled backups. You add the DNS record. |
