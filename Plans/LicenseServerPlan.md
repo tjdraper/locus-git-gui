@@ -63,6 +63,41 @@ Every request from the app carries its version and the Mac's anonymous identifie
 - **Redeem a promo code.**
 - **Customer portal link.** A new portal session each time it's asked for. Paddle says not to cache them. The portal switches between monthly and yearly, updates the card, cancels, and downloads invoices. A session can include direct links for cancelling and for updating the card. Switching plans in the portal has to be switched on in Paddle, and arrives as a subscription update webhook.
 
+#### Every request
+
+- `https://licenses.tjdraper.com/v1/…`, with `Accept: application/json`. A request with a body sends a JSON object with `Content-Type: application/json`.
+- `Locus-App-Version`: the app's version, such as `2026.1` or `2026.1.3`. Numbers separated by dots, up to four parts.
+- `Locus-Mac-Id`: the Mac's anonymous identifier, a UUID the app makes once and keeps. Any UUID version.
+- A request missing either header, or with one that doesn't fit, gets `invalid_client` and isn't counted.
+- The server keeps only the day, in UTC, that each Mac last called each API version on each app version.
+
+#### Errors
+
+An error from the API is a JSON object with a status code:
+
+```json
+{"error": "license_not_found", "message": "No license has this key"}
+```
+
+The app branches on `error`, a code that never changes meaning. `message` is English for logs, and may change. A path or method that doesn't exist gets the framework's own 404 or 405, with only a `message`, so the app treats any failure without an `error` like the server being unreachable.
+
+| `error` | Status | When |
+|---|---|---|
+| `invalid_client` | 400 | `Locus-App-Version` or `Locus-Mac-Id` is missing or doesn't fit |
+| `invalid_request` | 400 | The body isn't a JSON object with the fields the endpoint takes |
+| `license_not_found` | 404 | No license has the key, including input that can't be read as a key |
+| `license_revoked` | 410 | The license has been revoked |
+
+#### `POST /v1/license/enter-key` and `POST /v1/license/refresh`
+
+Both take a key and answer with its signed license. `enter-key` is for a key the person typed or pasted, and `refresh` is the refresh at launch and once a day, with the key from the signed license the app already holds. They do the same thing today. Separate paths let them part later without copies of the app already out losing the difference.
+
+- Request: `{"key": "LGG-7K2QM-F9XHD-3RTVA-WN8EP"}`, in any of the loose forms under License keys. The key goes in the body rather than the URL, so it stays out of access logs.
+- Response, 200: `{"license": "<signed license>"}`, in the format under Licenses.
+- An expired license is still signed. Its `expiresAt` says when it ended, and the app reads it like any other.
+- Errors: `invalid_request`, `license_not_found`, `license_revoked`.
+- Each call that finds a license counts the Mac for that license, revoked or not, so a revoked key still in use shows up.
+
 ### Licenses
 
 - Every purchase and every redeemed promo code makes a license: a key a person can read and type, and a record of what it covers and until when.
@@ -160,8 +195,8 @@ Each numbered step is one Claude session in one repository, and ends with its te
 | You | Paddle | The sandbox account, the product and its two prices, an API key, and a client-side token. Done 2026-10-07; the ids and key are in 1Password. |
 | 1 | License server | The `licenses.tjdraper.com/` folder in `tjdraper.com-v8`, bootstrapped with `rxante/php-app-bootstrap`; Docker for development with MariaDB; migrations; settings through `RuntimeConfig`; tests running. Done 2026-10-08. |
 | 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. Done 2026-10-08: `license:make`, `license:find` (by email or key), `license:revoke`, and `signing-key:generate`. |
-| 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. Also a `signing-key:public` command that prints the configured key's public half, which is how the dev public key reaches the app's Debug build. |
-| 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and scheduled backups. You add the DNS record. Every `php cli` command exits with 0, even when it fails, because `rxante/php-app-bootstrap` throws the exit code away (`Run::runApplication()` turns off auto-exit and returns nothing), and that won't be fixed soon. A deploy step such as `migrate:up` can't be trusted to stop a deploy on failure, so this step either works around it in the server's own `cli` or checks the result another way, such as `migrate:status`. |
+| 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. Also a `signing-key:public` command that prints the configured key's public half, which is how the dev public key reaches the app's Debug build. Done 2026-10-08: the two license endpoints, `license:macs` (one key's Macs, or the 20 licenses with the most in the last 30 days), `api:usage`, and `signing-key:public`. |
+| 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and scheduled backups. You add the DNS record. Every `php cli` command exits with 0, even when it fails, because `rxante/php-app-bootstrap` throws the exit code away (`Run::runApplication()` turns off auto-exit and returns nothing), and that won't be fixed soon. A deploy step such as `migrate:up` can't be trusted to stop a deploy on failure, so this step either works around it in the server's own `cli` or checks the result another way, such as `migrate:status`. The `rxantesystems/php-nginx` base image's nginx writes each request's client IP (`$remote_addr`) to its access log, at `/file-logs/licenses/<env>/nginx/access.log` in the container, which breaks the API section's promise of no log of IP addresses. This step overrides that log's format to drop the IP, keeping the rest of the line. It's the one change to the base image's config this server needs. |
 | 5 | License server | Webhooks: signature checks, the IP allowlist, repeated and out-of-order events, licenses made and changed, and the purchase's license endpoint. Tried with Paddle's webhook simulator against the deployed server, so no tunnel to a laptop is needed. |
 | 6 | License server | Prices and the checkout's address, and customer portal links |
 | 7 | License server | Promo codes: their tables, the tool's commands, redeeming, and moving a subscription's billing date through Paddle |
