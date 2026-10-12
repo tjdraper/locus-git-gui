@@ -1,1 +1,2 @@
 - Review: Filter files search field
+- Review: Undo for marking a file as reviewed
