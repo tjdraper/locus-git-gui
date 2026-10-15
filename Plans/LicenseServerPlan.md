@@ -87,6 +87,7 @@ The app branches on `error`, a code that never changes meaning. `message` is Eng
 | `invalid_request` | 400 | The body isn't a JSON object with the fields the endpoint takes |
 | `license_not_found` | 404 | No license has the key, including input that can't be read as a key |
 | `license_revoked` | 410 | The license has been revoked |
+| `purchase_not_found` | 404 | No license has been made for the purchase id yet |
 
 #### `POST /v1/license/enter-key` and `POST /v1/license/refresh`
 
@@ -97,6 +98,17 @@ Both take a key and answer with its signed license. `enter-key` is for a key the
 - An expired license is still signed. Its `expiresAt` says when it ended, and the app reads it like any other.
 - Errors: `invalid_request`, `license_not_found`, `license_revoked`.
 - Each call that finds a license counts the Mac for that license, revoked or not, so a revoked key still in use shows up.
+
+#### `POST /v1/purchase/license`
+
+The license made for a purchase, which the app asks for every few seconds for a few minutes after opening the checkout.
+
+- Request: `{"purchaseId": "0199c4d2-5b1e-4a3c-9f00-000000000001"}`, the UUID the app put in the checkout's URL. Any UUID version.
+- Response, 200: `{"license": "<signed license>"}`, the same as `refresh`. The key is in the signed license's payload.
+- Errors: `invalid_request` (no `purchaseId`, or one that isn't a UUID), `purchase_not_found` (Paddle's webhook hasn't made the license yet, or never will), `license_revoked`.
+- The server can't tell "not yet" from "never", so the app stops asking after a few minutes and tells the person the key is on its way by email.
+- If one purchase id paid twice, such as a reloaded checkout page, the newer subscription's license comes back.
+- A call that finds the license counts the Mac, like `refresh`.
 
 ### Licenses
 
@@ -139,6 +151,18 @@ Both take a key and answer with its signed license. `enter-key` is for a key the
 - Paddle's subscription events say when a subscription starts, renews, goes past due, is paused or resumed, or is cancelled, and adjustment events carry refunds. Paddle's setup checklist lists pausing and resuming among the cases to handle, so a paused subscription is handled even though nothing in the app offers pausing.
 - Every webhook's signature is checked, and a Traefik IP allowlist on the webhook route lets in only Paddle's addresses, as Paddle asks.
 - Paddle can send the same event more than once and out of order, so handling one is safe to repeat and goes by the event's own time.
+- Paddle posts to `https://licenses.tjdraper.com/paddle/webhook`, outside `/v1`, since only Paddle calls it and it can move. The notification destination is subscribed to `subscription.created`, `.updated`, `.activated`, `.trialing`, `.past_due`, `.paused`, `.resumed`, `.canceled`, and `adjustment.created` and `.updated`. Any other event is answered with a 200 and ignored, so a destination subscribed to too much doesn't get retried.
+- The signature is an HMAC-SHA256 of `<ts>:<raw body>` with the destination's secret, in the `Paddle-Signature` header. A timestamp more than five seconds from the server's clock is refused, as Paddle's SDKs do. A bad signature gets a 401. A signed event the server can't read fails with a 500, so Paddle sends it again and the log shows why.
+- The Traefik allowlist holds both Paddle's sandbox and live addresses, so going live needs no change to it.
+- Each subscription webhook carries the whole subscription, so the server keeps the time of the last event it applied for each subscription and ignores any event no newer, which covers both repeats and lateness. The row is locked while an event applies, so two at once go one after the other.
+- The first webhook for a subscription makes its license, whatever kind of event it is. The checkout's `customData` is `{"purchaseId": "<uuid>"}`, which Paddle copies to the subscription. A purchase id that isn't a UUID is dropped rather than failing the webhook, since the buyer's browser hands it to the checkout and could change it.
+- Paddle's webhooks don't carry the customer's email, so making a license looks it up with Paddle's API (`GET /customers/{id}`, which needs the API key's `customer.read` permission). A customer Paddle doesn't have, as in the webhook simulator's sample events, makes the license with no email. Any other failure fails the webhook, which Paddle retries. A customer who later changes their email in Paddle keeps the old one on the license.
+- When the license expires:
+  - Active, trialing, or past due: seven days after the current billing period ends. The week covers a renewal that lands late or a Mac that doesn't refresh for a few days around one. Past due keeps working while Paddle retries the payment, as Paddle recommends, until Paddle cancels or pauses the subscription.
+  - A cancellation or pause scheduled for the end of the period: exactly when it takes effect, with no extra week.
+  - Cancelled or paused: when that happened.
+- An approved full refund or a chargeback revokes the subscription's license. A partial refund, a credit, or a refund still waiting for Paddle's approval doesn't. Revoking doesn't cancel the subscription in Paddle; that's done in Paddle's dashboard.
+- Each product the server licenses has a setting holding its Paddle product id (`LOCUS_GIT_GUI_PADDLE_PRODUCT_ID`, in `.env.prod`), which differs between the sandbox and live accounts. The license is for whichever product among the subscription's items has one. A subscription for nothing the server licenses is answered with a 200, logged, and makes no license, so the Paddle account can sell other things. A missing or empty setting fails every subscription webhook rather than quietly ignoring sales. A subscription has one license, so one for two licensed products at once fails until bundles get a license per product.
 
 ### Promo codes
 
@@ -197,7 +221,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 | 2 | License server | Licenses: their tables, key generation and loose key input, Ed25519 signing, and the command-line tool's commands to make, find, and revoke a license. The signed license's fields and encoding go into this plan's Licenses section. Done 2026-10-08: `license:make`, `license:find` (by email or key), `license:revoke`, and `signing-key:generate`. |
 | 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. Also a `signing-key:public` command that prints the configured key's public half, which is how the dev public key reaches the app's Debug build. Done 2026-10-08: the two license endpoints, `license:macs` (one key's Macs, or the 20 licenses with the most in the last 30 days), `api:usage`, and `signing-key:public`. |
 | 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and backups. You add the DNS record. Done 2026-10-15: the server runs in the tjdraper.com stack on buzzingpixel-hetzner-docker, on `rxantesystems/php-nginx:8.5.11-fpm-trixie-r1` (PHP 8.5) with MariaDB 11.8.9, and serves over HTTPS with a Let's Encrypt certificate. Production secrets are external Docker secrets with versioned names (`LICENSES_PROD_<NAME>_V1`), generated on a Mac and kept in 1Password. `docker/licenses.tjdraper.com/Secrets.md` in `tjdraper.com-v8` covers creating and rotating them. Each deploy runs `migrate:up` as a one-off service and fails if it fails. `rxante/php-app-bootstrap` 1.4.0 added `runApplication(exitWithStatusCode: true)`, so the server's `cli` exits with the command's status code. The healthcheck reports only this server's health and answers while MariaDB is down. No log keeps IP addresses: the Dockerfile strips the client IP and `X-Forwarded-For` from both the nginx and the php-fpm access log formats, and fails the build if a new base image changes them. Traefik's access log, which logged every site's client IPs, is turned off. Datadog is off (`ENABLE_DATADOG=0`), since the host has no agent, so the server's logs go to `docker service logs`. Backups aren't part of the app's stack: `site-backups` on Ivy dumps the database nightly with `mariadb-dump`. Its first run is still to be confirmed. |
-| 5 | License server | Webhooks: signature checks, the IP allowlist, repeated and out-of-order events, licenses made and changed, and the purchase's license endpoint. Tried with Paddle's webhook simulator against the deployed server, so no tunnel to a laptop is needed. |
+| 5 | License server | Webhooks: signature checks, the IP allowlist, repeated and out-of-order events, licenses made and changed, and the purchase's license endpoint. Tried with Paddle's webhook simulator against the deployed server, so no tunnel to a laptop is needed. Done 2026-10-15: `POST /paddle/webhook`, `POST /v1/purchase/license`, the `paddle_subscriptions` table, and two new Docker secrets, `PADDLE_API_KEY` and `PADDLE_WEBHOOK_SECRET` (`LICENSES_PROD_PADDLE_…_V1`). `LOCUS_GIT_GUI_PADDLE_PRODUCT_ID` holds the sandbox product. The sandbox notification destination is subscribed to the ten events. Tried against the deployed server: a request from outside Paddle gets Traefik's 403; the simulator's sample `subscription.created` was answered and ignored; an edited one made a license the purchase endpoint returned; and an edited full, approved refund revoked it. The simulator only lets you edit a payload after a first run, and its editor shows the event's `data` without the wrapper. |
 | 6 | License server | Prices and the checkout's address, and customer portal links |
 | 7 | License server | Promo codes: their tables, the tool's commands, redeeming, and moving a subscription's billing date through Paddle |
 | 8 | License server | The license email through Mailgun, and the tool's resend command. You add the `licenses@tjdraper.com` forwarder in Namecheap. |
@@ -216,6 +240,11 @@ Each numbered step is one Claude session in one repository, and ends with its te
 - [Paddle: Apple Pay](https://developer.paddle.com/concepts/payment-methods/apple-pay/)
 - [Paddle: Webhooks](https://developer.paddle.com/webhooks/overview)
 - [Paddle: subscription.created](https://developer.paddle.com/webhooks/subscriptions/subscription-created/)
+- [Paddle: Signature verification](https://developer.paddle.com/webhooks/signature-verification)
+- [Paddle: Respond to webhooks](https://developer.paddle.com/webhooks/respond-to-webhooks)
+- [Paddle: Provision access with webhooks](https://developer.paddle.com/build/subscriptions/provision-access-webhooks)
+- [Paddle: Custom data](https://developer.paddle.com/build/transactions/custom-data)
+- [Paddle: adjustment.updated](https://developer.paddle.com/webhooks/adjustments/adjustment-updated)
 - [Paddle: Create a customer portal session](https://developer.paddle.com/api-reference/customer-portals/create-customer-portal-session/)
 - [Paddle: Paddle.PricePreview()](https://developer.paddle.com/paddle-js/methods/paddle-pricepreview/)
 - [Paddle: Refund policy](https://www.paddle.com/legal/refund-policy)
