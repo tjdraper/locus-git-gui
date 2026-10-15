@@ -19,9 +19,10 @@ Decided on 2026-10-03, after checking Paddle's documentation (sources at the end
 
 - Build everything against Paddle's sandbox first. It needs no domain approval and accepts `localhost` as the checkout's address, so slices 16 and 17 can be finished before any page is public.
 - One product with a monthly price of $7 and a yearly price of $59 (see the high-level plan's Decisions). The prices live in Paddle, so changing one needs no app release.
-- Prices exclude tax, so a buyer pays the price plus their local tax, which Paddle adds at checkout.
+- Prices exclude tax, so a buyer pays the price plus their local tax, which Paddle adds at checkout. Each price's tax setting is exclusive; Paddle's automatic setting includes tax in places such as the UK.
+- Every buyer pays in US dollars. Local currencies would need each price's own amount for each country, kept up by hand, which isn't worth it (decided 2026-10-15). The `currency` field in `GET /v1/prices` stays, so adding them later needs no app release.
 - The default payment link, which Paddle uses for payment links and in its emails about updating a card, is the checkout page. It has to be on an approved domain in the live account. The sandbox's is `https://localhost/git-gui/checkout`, since its form rejects a port and plain `http`.
-- The API key never expires and has only the permissions the server uses. An expiring key would quietly break the server on the day it lapsed. A leaked key gets revoked and replaced.
+- The API key never expires and has only the permissions the server uses: `customer.read`, `transaction.read`, and `customer_portal_session.write`. An expiring key would quietly break the server on the day it lapsed. A leaked key gets revoked and replaced.
 - Paddle's own discount codes stay switched on at checkout, for discounts on paid plans such as a launch sale.
 - The live account needs account verification (domain, business, and identity), which can take a few days. Paddle approves most domains automatically, and a manual review takes about 5–7 business days. Submit locus.tjdraper.com well before launch.
 
@@ -33,7 +34,7 @@ Paddle's domain review says: "If the domain includes unrelated products not sold
 
 Built in the `tjdraper.com-v8` repository. Paddle's review needs these live before the live account can take payments:
 
-- **Product page** (`/git-gui`): what the app is, its main features, and its prices. Prices come from `Paddle.PricePreview()` in Paddle.js, which finds the visitor's location itself and shows their currency and tax, with no call to the license server.
+- **Product page** (`/git-gui`): what the app is, its main features, and its prices. Prices come from `Paddle.PricePreview()` in Paddle.js, which finds the visitor's location itself and shows their tax, with no call to the license server.
 - **Checkout** (such as `/git-gui/checkout`): opens Paddle's checkout with the plan and purchase id the app put in the URL, passing the purchase id as `customData`. Paddle hands `customData` back in the transaction and subscription webhooks, which is how the server knows which purchase belongs to which waiting app.
 - **After paying**: opens the app through its URL scheme, and says the license key is on its way by email for when that hand-off doesn't work.
 - **Terms**: `EULA.md` as a page. Paddle prefers a sole proprietor's legal name in the terms, so the agreement names Timmothy Allen Draper II, with TJ Draper as the name used through the rest of it.
@@ -88,6 +89,7 @@ The app branches on `error`, a code that never changes meaning. `message` is Eng
 | `license_not_found` | 404 | No license has the key, including input that can't be read as a key |
 | `license_revoked` | 410 | The license has been revoked |
 | `purchase_not_found` | 404 | No license has been made for the purchase id yet |
+| `subscription_not_found` | 404 | The license isn't paid for by a Paddle subscription, such as one from a promo code or made by hand |
 
 #### `POST /v1/license/enter-key` and `POST /v1/license/refresh`
 
@@ -109,6 +111,45 @@ The license made for a purchase, which the app asks for every few seconds for a 
 - The server can't tell "not yet" from "never", so the app stops asking after a few minutes and tells the person the key is on its way by email.
 - If one purchase id paid twice, such as a reloaded checkout page, the newer subscription's license comes back.
 - A call that finds the license counts the Mac, like `refresh`.
+
+#### `GET /v1/prices`
+
+Each plan's price where the Mac is, and the checkout's address for it.
+
+- Query: `product=locus-git-gui`, and `country`, the Mac's region setting as an ISO 3166-1 alpha-2 code in capitals, such as `GB`. The server passes Paddle only the country, never the Mac's IP address. Without a country, Paddle answers in the prices' own currency (US dollars), before tax.
+- Response, 200:
+
+  ```json
+  {
+    "currency": "USD",
+    "plans": [
+      {
+        "plan": "monthly",
+        "subtotal": "$7.00",
+        "tax": "$1.40",
+        "total": "$8.40",
+        "checkoutUrl": "https://locus.tjdraper.com/git-gui/checkout?plan=monthly"
+      },
+      {"plan": "yearly", "…": "…"}
+    ]
+  }
+  ```
+
+- `plan` is `monthly` or `yearly`. Amounts are for one billing period, formatted by Paddle in `currency`. `subtotal` is the price before tax, and `total` is what the buyer pays. The app skips a plan it doesn't know, so plans can be added.
+- The app opens `checkoutUrl` with `purchaseId=<uuid>` added to its query, and must keep any query it already has. The checkout page maps `plan` to Paddle's price id itself, since the product page needs those ids anyway.
+- Errors: `invalid_request` (no `product`, one the server doesn't know, or a `country` that isn't two capital letters). A country Paddle doesn't sell to fails as the server being unreachable.
+- Each call asks Paddle's pricing preview (`POST /pricing-preview`, which needs the API key's `transaction.read` permission), with nothing cached. The price ids are settings (`LOCUS_GIT_GUI_PADDLE_MONTHLY_PRICE_ID` and `…_YEARLY_PRICE_ID`), as is the checkout's address (`LOCUS_GIT_GUI_CHECKOUT_URL`), all in `.env.prod`.
+
+#### `POST /v1/subscription/portal`
+
+New links into Paddle's customer portal, signed in as the buyer, for Manage Subscription… and for the link to fix a declined card.
+
+- Request: `{"key": "LGG-7K2QM-F9XHD-3RTVA-WN8EP"}`, as for `refresh`.
+- Response, 200: `{"overviewUrl": "…", "cancelUrl": "…", "updatePaymentMethodUrl": "…"}`. The overview is the portal's front page. The other two open the subscription with its cancel form or card form already open, or the overview once it's paused or cancelled.
+- The links expire, so the app asks for new ones each time and never keeps them.
+- Errors: `invalid_request`, `license_not_found`, `license_revoked`, `subscription_not_found`.
+- Anyone holding the key gets the buyer's portal, with their invoices and billing address and the power to cancel, with no email code. That's the same trust the key already carries for the app (decided 2026-10-15). A revoked license gets no portal, since a revoked key may be one posted publicly.
+- Each call makes a portal session (`POST /customers/{id}/portal-sessions`, which needs the API key's `customer_portal_session.write` permission). It doesn't count the Mac.
 
 ### Licenses
 
@@ -222,7 +263,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 | 3 | License server | The app's API: refreshing and entering a key, tracking Macs and API versions, and the tool's reports on both. Each `/v1` request, response, and error goes into this plan's API section, and later steps add theirs. Also a `signing-key:public` command that prints the configured key's public half, which is how the dev public key reaches the app's Debug build. Done 2026-10-08: the two license endpoints, `license:macs` (one key's Macs, or the 20 licenses with the most in the last 30 days), `api:usage`, and `signing-key:public`. |
 | 4 | License server and host | Deploying to `licenses.tjdraper.com` against the sandbox: Traefik, Docker secrets, MariaDB, and backups. You add the DNS record. Done 2026-10-15: the server runs in the tjdraper.com stack on buzzingpixel-hetzner-docker, on `rxantesystems/php-nginx:8.5.11-fpm-trixie-r1` (PHP 8.5) with MariaDB 11.8.9, and serves over HTTPS with a Let's Encrypt certificate. Production secrets are external Docker secrets with versioned names (`LICENSES_PROD_<NAME>_V1`), generated on a Mac and kept in 1Password. `docker/licenses.tjdraper.com/Secrets.md` in `tjdraper.com-v8` covers creating and rotating them. Each deploy runs `migrate:up` as a one-off service and fails if it fails. `rxante/php-app-bootstrap` 1.4.0 added `runApplication(exitWithStatusCode: true)`, so the server's `cli` exits with the command's status code. The healthcheck reports only this server's health and answers while MariaDB is down. No log keeps IP addresses: the Dockerfile strips the client IP and `X-Forwarded-For` from both the nginx and the php-fpm access log formats, and fails the build if a new base image changes them. Traefik's access log, which logged every site's client IPs, is turned off. Datadog is off (`ENABLE_DATADOG=0`), since the host has no agent, so the server's logs go to `docker service logs`. Backups aren't part of the app's stack: `site-backups` on Ivy dumps the database nightly with `mariadb-dump`. Its first run is still to be confirmed. |
 | 5 | License server | Webhooks: signature checks, the IP allowlist, repeated and out-of-order events, licenses made and changed, and the purchase's license endpoint. Tried with Paddle's webhook simulator against the deployed server, so no tunnel to a laptop is needed. Done 2026-10-15: `POST /paddle/webhook`, `POST /v1/purchase/license`, the `paddle_subscriptions` table, and two new Docker secrets, `PADDLE_API_KEY` and `PADDLE_WEBHOOK_SECRET` (`LICENSES_PROD_PADDLE_…_V1`). `LOCUS_GIT_GUI_PADDLE_PRODUCT_ID` holds the sandbox product. The sandbox notification destination is subscribed to the ten events. Tried against the deployed server: a request from outside Paddle gets Traefik's 403; the simulator's sample `subscription.created` was answered and ignored; an edited one made a license the purchase endpoint returned; and an edited full, approved refund revoked it. The simulator only lets you edit a payload after a first run, and its editor shows the event's `data` without the wrapper. |
-| 6 | License server | Prices and the checkout's address, and customer portal links |
+| 6 | License server | Prices and the checkout's address, and customer portal links. Done 2026-10-15: `GET /v1/prices` and `POST /v1/subscription/portal`, with the sandbox's price ids and the checkout's address in `.env.prod`. Tried against the deployed server: GB answered $7.00 + $1.40 VAT and the US $7.00 with no tax, once the prices' tax setting was changed from automatic, which had included VAT in GB's price, to exclusive. A revoked key got `license_revoked` from the portal. A real portal session needs a real sandbox purchase, which waits for the checkout page in step 9. |
 | 7 | License server | Promo codes: their tables, the tool's commands, redeeming, and moving a subscription's billing date through Paddle |
 | 8 | License server | The license email through Mailgun, and the tool's resend command. You add the `licenses@tjdraper.com` forwarder in Namecheap. |
 | 9 | Website | The checkout and after-paying pages, against the sandbox |
