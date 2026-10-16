@@ -55,11 +55,11 @@ Apple Pay in Chrome, Firefox, and Edge, paid for by scanning a code with an iPho
 
 Under a versioned path (`/v1/…`). Copies of the app already out keep calling the paths they were built with, so each path keeps working, and keeps answering the same way, for as long as any app version still supported uses it. Adding an endpoint, or a field to a response, needs no new version, since older copies ignore what they don't know. A change that would break them, such as removing or renaming a field, changing what one means, or changing how licenses are signed, goes under `/v2/…` beside `/v1/…`. A version can be retired once no supported app version calls it. Everything outside the API, such as the pages and the checkout's address, can move.
 
-Every request from the app carries its version and the Mac's anonymous identifier. The server keeps, for each API version, app version, and Mac, the day it last called, so it can say how many Macs called each API version in the last 30 or 90 days, and on which app versions. It counts Macs rather than requests, since one Mac refreshes every day, and keeps no log of individual requests or IP addresses. A version is safe to retire when no Mac has called it for a few months. A Mac still on it then keeps working through its 30 days offline (see the high-level plan's Decisions) and is asked to reconnect, which an update fixes.
+The API serves every product the server licenses, on any platform, so it says "device" rather than "Mac", and every request names its product. Every request from an app carries its product, its version, and the device's anonymous identifier. The server keeps, for each product, API version, app version, and device, the day it last called, so it can say how many devices called each API version in the last 30 or 90 days, for each product and app version. It counts devices rather than requests, since one device refreshes every day, and keeps no log of individual requests or IP addresses. A version is safe to retire when no device of any product has called it for a few months. A device still on it then keeps working through its 30 days offline (see the high-level plan's Decisions) and is asked to reconnect, which an update fixes.
 
 - **Prices and the checkout's address.** The app shows prices from here and opens the checkout from the address given, so neither is built into the app.
 - **A purchase's license.** The app asks for the license made for its purchase id, and keeps asking for a few minutes after opening the checkout.
-- **License refresh.** At launch and once a day: the current signed license, or that it's been revoked. Each refresh carries an anonymous identifier for the Mac and the app's version, and nothing about any repository.
+- **License refresh.** At launch and once a day: the current signed license, or that it's been revoked. Each refresh carries an anonymous identifier for the device and the app's version, and nothing about any repository.
 - **Enter a license key.** Exchanges a key for the signed license.
 - **Redeem a promo code.**
 - **Customer portal link.** A new portal session each time it's asked for. Paddle says not to cache them. The portal switches between monthly and yearly, updates the card, cancels, and downloads invoices. A session can include direct links for cancelling and for updating the card. Switching plans in the portal has to be switched on in Paddle, and arrives as a subscription update webhook.
@@ -67,10 +67,11 @@ Every request from the app carries its version and the Mac's anonymous identifie
 #### Every request
 
 - `https://licenses.tjdraper.com/v1/…`, with `Accept: application/json`. A request with a body sends a JSON object with `Content-Type: application/json`.
+- `Locus-Product`: the product whose app is calling, such as `locus-git-gui`. Every endpoint works for that product alone: another product's key, purchase, or promo code is treated as one that doesn't exist.
 - `Locus-App-Version`: the app's version, such as `2026.1` or `2026.1.3`. Numbers separated by dots, up to four parts.
-- `Locus-Mac-Id`: the Mac's anonymous identifier, a UUID the app makes once and keeps. Any UUID version.
-- A request missing either header, or with one that doesn't fit, gets `invalid_client` and isn't counted.
-- The server keeps only the day, in UTC, that each Mac last called each API version on each app version.
+- `Locus-Device-Id`: the device's anonymous identifier, a UUID the app makes once and keeps. Any UUID version.
+- A request missing any of the three, or with one that doesn't fit, including a product the server doesn't know, gets `invalid_client` and isn't counted.
+- The server keeps only the day, in UTC, that each device last called each API version on each version of each product's app.
 
 #### Errors
 
@@ -84,18 +85,19 @@ The app branches on `error`, a code that never changes meaning. `message` is Eng
 
 | `error` | Status | When |
 |---|---|---|
-| `invalid_client` | 400 | `Locus-App-Version` or `Locus-Mac-Id` is missing or doesn't fit |
+| `invalid_client` | 400 | `Locus-Product`, `Locus-App-Version`, or `Locus-Device-Id` is missing or doesn't fit |
 | `invalid_request` | 400 | The body isn't a JSON object with the fields the endpoint takes |
 | `license_not_found` | 404 | No license has the key, including input that can't be read as a key |
 | `license_revoked` | 410 | The license has been revoked |
 | `license_never_expires` | 409 | The license is already a lifetime one, so a promo code can't add to it |
+| `product_not_for_sale` | 404 | The product isn't sold through Paddle, so it has no prices |
 | `purchase_not_found` | 404 | No license has been made for the purchase id yet |
 | `subscription_not_found` | 404 | The license isn't paid for by a Paddle subscription, such as one from a promo code or made by hand |
 | `subscription_not_changeable` | 409 | The license's subscription is past due, paused, or set to cancel or pause, so a promo code can't change it |
 | `promo_code_not_found` | 404 | No promo code for the product has the code, including input that can't be read as one |
 | `promo_code_expired` | 410 | The promo code is past its last day, or has been retired |
 | `promo_code_used_up` | 410 | The promo code has been redeemed as many times as it allows |
-| `promo_code_already_redeemed` | 409 | This Mac, or the license sent with it, has already redeemed the promo code |
+| `promo_code_already_redeemed` | 409 | This device, or the license sent with it, has already redeemed the promo code |
 
 #### `POST /v1/license/enter-key` and `POST /v1/license/refresh`
 
@@ -105,7 +107,7 @@ Both take a key and answer with its signed license. `enter-key` is for a key the
 - Response, 200: `{"license": "<signed license>"}`, in the format under Licenses.
 - An expired license is still signed. Its `expiresAt` says when it ended, and the app reads it like any other.
 - Errors: `invalid_request`, `license_not_found`, `license_revoked`.
-- Each call that finds a license counts the Mac for that license, revoked or not, so a revoked key still in use shows up.
+- Each call that finds a license counts the device for that license, revoked or not, so a revoked key still in use shows up.
 
 #### `POST /v1/purchase/license`
 
@@ -116,13 +118,13 @@ The license made for a purchase, which the app asks for every few seconds for a 
 - Errors: `invalid_request` (no `purchaseId`, or one that isn't a UUID), `purchase_not_found` (Paddle's webhook hasn't made the license yet, or never will), `license_revoked`.
 - The server can't tell "not yet" from "never", so the app stops asking after a few minutes and tells the person the key is on its way by email.
 - If one purchase id paid twice, such as a reloaded checkout page, the newer subscription's license comes back.
-- A call that finds the license counts the Mac, like `refresh`.
+- A call that finds the license counts the device, like `refresh`.
 
 #### `GET /v1/prices`
 
-Each plan's price where the Mac is, and the checkout's address for it.
+Each plan the product sells, with its price where the device is, and the checkout's address for it.
 
-- Query: `product=locus-git-gui`, and `country`, the Mac's region setting as an ISO 3166-1 alpha-2 code in capitals, such as `GB`. The server passes Paddle only the country, never the Mac's IP address. Without a country, Paddle answers in the prices' own currency (US dollars), before tax.
+- Query: `country`, the device's region setting as an ISO 3166-1 alpha-2 code in capitals, such as `GB`. The product is the request's `Locus-Product`. The server passes Paddle only the country, never the device's IP address. Without a country, Paddle answers in the prices' own currency (US dollars), before tax.
 - Response, 200:
 
   ```json
@@ -141,9 +143,9 @@ Each plan's price where the Mac is, and the checkout's address for it.
   }
   ```
 
-- `plan` is `monthly` or `yearly`. Amounts are for one billing period, formatted by Paddle in `currency`. `subtotal` is the price before tax, and `total` is what the buyer pays. The app skips a plan it doesn't know, so plans can be added.
+- `plan` is `monthly` or `yearly`, and each product lists only the plans it sells. Amounts are for one billing period, formatted by Paddle in `currency`. `subtotal` is the price before tax, and `total` is what the buyer pays. The app skips a plan it doesn't know, so plans can be added.
 - The app opens `checkoutUrl` with `purchaseId=<uuid>` added to its query, and must keep any query it already has. The checkout page maps `plan` to Paddle's price id itself, since the product page needs those ids anyway.
-- Errors: `invalid_request` (no `product`, one the server doesn't know, or a `country` that isn't two capital letters). A country Paddle doesn't sell to fails as the server being unreachable.
+- Errors: `invalid_request` (a `country` that isn't two capital letters), `product_not_for_sale` (a product the server licenses but doesn't sell through Paddle). A country Paddle doesn't sell to fails as the server being unreachable.
 - Each call asks Paddle's pricing preview (`POST /pricing-preview`, which needs the API key's `transaction.read` permission), with nothing cached. The price ids are settings (`LOCUS_GIT_GUI_PADDLE_MONTHLY_PRICE_ID` and `…_YEARLY_PRICE_ID`), as is the checkout's address (`LOCUS_GIT_GUI_CHECKOUT_URL`), all in `.env.prod`.
 
 #### `POST /v1/subscription/portal`
@@ -155,13 +157,13 @@ New links into Paddle's customer portal, signed in as the buyer, for Manage Subs
 - The links expire, so the app asks for new ones each time and never keeps them.
 - Errors: `invalid_request`, `license_not_found`, `license_revoked`, `subscription_not_found`.
 - Anyone holding the key gets the buyer's portal, with their invoices and billing address and the power to cancel, with no email code. That's the same trust the key already carries for the app (decided 2026-10-15). A revoked license gets no portal, since a revoked key may be one posted publicly.
-- Each call makes a portal session (`POST /customers/{id}/portal-sessions`, which needs the API key's `customer_portal_session.write` permission). It doesn't count the Mac.
+- Each call makes a portal session (`POST /customers/{id}/portal-sessions`, which needs the API key's `customer_portal_session.write` permission). It doesn't count the device.
 
 #### `POST /v1/promo-code/redeem`
 
 Redeems a promo code, for Redeem Code….
 
-- Request: `{"product": "locus-git-gui", "code": "LAUNCH2026", "key": "LGG-7K2QM-F9XHD-3RTVA-WN8EP"}`. `code` is matched in any case, with any spaces or dashes. `key` is the license the app already holds, left out when it holds none, in any of the loose forms under License keys.
+- Request: `{"code": "LAUNCH2026", "key": "LGG-7K2QM-F9XHD-3RTVA-WN8EP"}`, for the request's `Locus-Product`. `code` is matched in any case, with any spaces or dashes. `key` is the license the app already holds, left out when it holds none, in any of the loose forms under License keys.
 - Response, 200: `{"license": "<signed license>"}`, the same as `refresh`. The app replaces the license it holds with this one, whose key may be new.
 - What the code does depends on the license sent:
   - None: a new license, as below.
@@ -170,10 +172,10 @@ Redeems a promo code, for Redeem Code….
   - A cancelled subscription's: a new license, as for none.
   - A subscription that's past due, paused, or set to cancel or pause: `subscription_not_changeable`, and the code isn't used up. Paddle refuses to change a past-due subscription's billing date, and doesn't say what it does with the others. A lifetime code for a subscription already set to cancel still makes a lifetime license, since there's nothing left to cancel.
 - A new license is granted by the promo code, with no email, and expires the code's free time from now, or never.
-- Errors: `invalid_request` (no `product` the server knows, or no `code`), `promo_code_not_found`, `promo_code_expired`, `promo_code_used_up`, `promo_code_already_redeemed`, `license_not_found`, `license_revoked`, `license_never_expires`, `subscription_not_changeable`. A refusal uses up nothing.
-- A Mac that redeems a code a second time with no license gets the license its first redemption made, so an answer lost to the network doesn't lose the license with it.
-- Changing a subscription calls Paddle's API (`GET /subscriptions/{id}`, then `PATCH /subscriptions/{id}` or `POST /subscriptions/{id}/cancel`, which need the API key's `subscription.read` and `subscription.write` permissions). The license takes Paddle's answer right away rather than waiting for the webhook. The code's row stays locked while Paddle answers, so its last use can't go to two Macs at once.
-- A call that answers with a license counts the Mac, like `refresh`.
+- Errors: `invalid_request` (no `code`), `promo_code_not_found`, `promo_code_expired`, `promo_code_used_up`, `promo_code_already_redeemed`, `license_not_found`, `license_revoked`, `license_never_expires`, `subscription_not_changeable`. A refusal uses up nothing.
+- A device that redeems a code a second time with no license gets the license its first redemption made, so an answer lost to the network doesn't lose the license with it.
+- Changing a subscription calls Paddle's API (`GET /subscriptions/{id}`, then `PATCH /subscriptions/{id}` or `POST /subscriptions/{id}/cancel`, which need the API key's `subscription.read` and `subscription.write` permissions). The license takes Paddle's answer right away rather than waiting for the webhook. The code's row stays locked while Paddle answers, so its last use can't go to two devices at once.
+- A call that answers with a license counts the device, like `refresh`.
 
 ### Licenses
 
@@ -196,7 +198,7 @@ Redeems a promo code, for Redeem Code….
     | `issuedAt` | `"2026-10-08T12:30:00Z"` | When the server signed it, which the 30 days offline can count from, since the app can't fake it |
 
     Dates are ISO 8601 in UTC, to the second, ending in `Z`, which `ISO8601DateFormatter` reads with its default options. Fields may be added, so the app ignores any it doesn't know. A revoked license is never signed.
-- The server counts the Macs that refresh each license, so a key posted publicly shows up and can be revoked.
+- The server counts the devices that refresh each license, so a key posted publicly shows up and can be revoked.
 - Revoking a license, for refunds and for keys posted publicly. A revoked license stops working at its next refresh.
 
 ### License keys
@@ -227,14 +229,14 @@ Redeems a promo code, for Redeem Code….
   - A cancellation or pause scheduled for the end of the period: exactly when it takes effect, with no extra week.
   - Cancelled or paused: when that happened.
 - An approved full refund or a chargeback revokes the subscription's license. A partial refund, a credit, or a refund still waiting for Paddle's approval doesn't. Revoking doesn't cancel the subscription in Paddle; that's done in Paddle's dashboard.
-- Each product the server licenses has a setting holding its Paddle product id (`LOCUS_GIT_GUI_PADDLE_PRODUCT_ID`, in `.env.prod`), which differs between the sandbox and live accounts. The license is for whichever product among the subscription's items has one. A subscription for nothing the server licenses is answered with a 200, logged, and makes no license, so the Paddle account can sell other things. A missing or empty setting fails every subscription webhook rather than quietly ignoring sales. A subscription has one license, so one for two licensed products at once fails until bundles get a license per product.
+- A product doesn't have to be sold through Paddle. Each one that is has a setting holding its Paddle product id (`LOCUS_GIT_GUI_PADDLE_PRODUCT_ID`, in `.env.prod`), which differs between the sandbox and live accounts, and settings for its checkout's address and the price of each plan it sells. The license is for whichever product among the subscription's items has one. A subscription for nothing the server licenses is answered with a 200, logged, and makes no license, so the Paddle account can sell other things. A missing or empty setting for a product sold through Paddle fails every subscription webhook rather than quietly ignoring sales. A subscription has one license, so one for two licensed products at once fails until bundles get a license per product.
 
 ### Promo codes
 
 - Each grants free months, free years, or a lifetime unlock. Single-use or with a redemption limit, with an optional last day to redeem.
 - Redeeming needs no card and makes a license like any other.
 - Redeemed while subscribed, free time moves the subscription's next billing date back through Paddle's API instead of making a second license. A lifetime code cancels the subscription at the end of its paid period, so it stops billing (decided 2026-10-15). `POST /v1/promo-code/redeem` has the rest.
-- Each code is for one product, and works once per Mac and once per license, so a shared code can't be redeemed again and again for more free time.
+- Each code is for one product, and works once per device and once per license, so a shared code can't be redeemed again and again for more free time. Codes are unique per product, so two products can each have a `LAUNCH2026`, and the commands that make and retire a code take its product.
 - `promo:make` makes a random code of twelve characters from the license keys' alphabet, for single-use giveaways, or takes a chosen one such as `LAUNCH2026` with `--code`, for a shared code with a limit. Codes are 3 to 32 letters and digits, stored in capitals. Unlike keys, O, I, and L stay letters, so a chosen code such as `LOCUS` reads as typed (decided 2026-10-15).
 - Retiring a code stops it being redeemed. Licenses it already made keep working.
 
@@ -247,13 +249,13 @@ The server emails the license key once Paddle confirms payment, and again when t
 - People will reply to the license email asking for help, so `licenses@tjdraper.com` has to receive mail too. tjdraper.com's mail goes through Namecheap's email forwarding, which has a forwarder for it to a mailbox that's read (set up 2026-10-15).
 - The email is plain and short: the key, how to enter it, and where to get help. It holds nothing Paddle's receipt already does.
 - It's sent the first time a webhook for the subscription is answered, after the license is saved, so the app can fetch the license while Mailgun is down. A failed send fails the webhook, and Paddle's retry sends it. The license records when its key was last emailed (`emailed_at`), so the email goes out once, and its row stays locked while Mailgun answers, so a new subscription's first events arriving together send one email. No email goes to a license with no address, such as one from the webhook simulator, or one revoked before the email went out.
-- Plain text, from `Locus Git Gui <licenses@tjdraper.com>`, with nothing to track. It names Enter License Key…, so the app's menu item keeps that name.
+- Plain text, from `Locus Licenses <licenses@tjdraper.com>`, the server's own name rather than a product's, with nothing to track. It names Enter License Key…, so the app's menu item keeps that name.
 - tjdraper.com is in Mailgun's US region. The API key is a sending key for that domain alone, in a Docker secret (`MAILGUN_API_KEY`). Development has no key, so nothing emails a real address by accident.
 - Licenses made by hand or from a promo code get no email. `license:resend` sends any license's key to its address, and refuses a revoked license or one with no address.
 
 ### Database
 
-Licenses, Paddle subscriptions, promo codes, redemptions, the Macs that refresh each license, and the last day each Mac called each API version, on a volume that's backed up. These are sales records.
+Licenses, Paddle subscriptions, promo codes, redemptions, the devices that refresh each license, and the last day each device called each API version, on a volume that's backed up. These are sales records.
 
 - MariaDB, in its own container on the same host, on the current long-term release (11.8 as of 2026-10-07). The host runs no database server yet, so this adds the container and a scheduled `mariadb-dump` to the backed-up volume.
 - Every primary key is a UUIDv7 made in PHP with `ramsey/uuid`, stored in MariaDB's native `UUID` column type. No auto-incrementing keys. Version 7 starts with a timestamp, so new keys sort in insert order, and MariaDB's InnoDB, which keeps rows in primary-key order, adds them at the end rather than scattered through the table.
@@ -266,8 +268,8 @@ Run on the server for everything the app and Paddle don't do:
 - Find a license by email
 - Resend a license key
 - Revoke a license
-- Show how many Macs refresh a license
-- Show how many Macs called each API version recently, and on which app versions
+- Show how many devices refresh a license
+- Show how many devices called each API version recently, for each product and app version
 
 Each operation is written once in the service and the tool calls it, so an admin interface later wraps the same code rather than copying the tool's.
 
@@ -296,7 +298,7 @@ Each numbered step is one Claude session in one repository, and ends with its te
 | 5 | License server | Webhooks: signature checks, the IP allowlist, repeated and out-of-order events, licenses made and changed, and the purchase's license endpoint. Tried with Paddle's webhook simulator against the deployed server, so no tunnel to a laptop is needed. Done 2026-10-15: `POST /paddle/webhook`, `POST /v1/purchase/license`, the `paddle_subscriptions` table, and two new Docker secrets, `PADDLE_API_KEY` and `PADDLE_WEBHOOK_SECRET` (`LICENSES_PROD_PADDLE_…_V1`). `LOCUS_GIT_GUI_PADDLE_PRODUCT_ID` holds the sandbox product. The sandbox notification destination is subscribed to the ten events. Tried against the deployed server: a request from outside Paddle gets Traefik's 403; the simulator's sample `subscription.created` was answered and ignored; an edited one made a license the purchase endpoint returned; and an edited full, approved refund revoked it. The simulator only lets you edit a payload after a first run, and its editor shows the event's `data` without the wrapper. |
 | 6 | License server | Prices and the checkout's address, and customer portal links. Done 2026-10-15: `GET /v1/prices` and `POST /v1/subscription/portal`, with the sandbox's price ids and the checkout's address in `.env.prod`. Tried against the deployed server: GB answered $7.00 + $1.40 VAT and the US $7.00 with no tax, once the prices' tax setting was changed from automatic, which had included VAT in GB's price, to exclusive. A revoked key got `license_revoked` from the portal. A real portal session needs a real sandbox purchase, which waits for the checkout page in step 9. |
 | 7 | License server | Promo codes: their tables, the tool's commands, redeeming, and moving a subscription's billing date through Paddle. Done 2026-10-15: `promo:make`, `promo:list`, `promo:retire`, `POST /v1/promo-code/redeem`, and the `promo_codes` and `promo_code_redemptions` tables. Tried against the dev database: codes made, listed, and retired, and redeemed with no license, with a license made by hand, and as lifetime, with each refusal. The subscription paths are tried only against a mocked Paddle, and wait for a real sandbox purchase in step 9. |
-| 8 | License server | The license email through Mailgun, and the tool's resend command. You add the `licenses@tjdraper.com` forwarder in Namecheap. Done 2026-10-15: the email on a subscription's first webhook, `license:resend`, an `emailed_at` column on `licenses`, which `license:find` shows, and a new Docker secret, `MAILGUN_API_KEY` (`LICENSES_PROD_MAILGUN_API_KEY_V1`), a sending key for tjdraper.com alone. Tried against the deployed server: `license:resend` delivered the email, and mail to `licenses@tjdraper.com` from another account arrived through the forwarder. The email on a real purchase waits for the checkout page in step 9. Later: an HTML version of the email, with the plain text as its fallback. |
+| 8 | License server | The license email through Mailgun, and the tool's resend command. You add the `licenses@tjdraper.com` forwarder in Namecheap. Done 2026-10-15: the email on a subscription's first webhook, `license:resend`, an `emailed_at` column on `licenses`, which `license:find` shows, and a new Docker secret, `MAILGUN_API_KEY` (`LICENSES_PROD_MAILGUN_API_KEY_V1`), a sending key for tjdraper.com alone. Tried against the deployed server: `license:resend` delivered the email, and mail to `licenses@tjdraper.com` from another account arrived through the forwarder. An edited `subscription.created` from the webhook simulator, for a sandbox customer with a real address, made a license and emailed it, and running it again sent no second email (2026-10-16). The email on a real purchase waits for the checkout page in step 9. Later: an HTML version of the email, with the plain text as its fallback. Then, so nothing assumes one product or the Mac: the email comes from `Locus Licenses`, the product is a required argument to every command that needs one, the tool's tables show each license's product, promo codes are unique per product, "Mac" became "device" throughout (`Locus-Device-Id`, the `license_devices` table, `license:devices`), every request names its product in `Locus-Product`, `api:usage` counts each product apart, and each product lists the plans it sells through Paddle, or none. The app doesn't call the server yet, so the header changes needed no new API version. A sold-once purchase through Paddle, rather than a subscription, would need webhook work for one-time payments, left until a product needs it. |
 | 9 | Website | The checkout and after-paying pages, against the sandbox |
 | 10 | Website | The product page with Paddle's price preview, the terms, the refund policy, the privacy section, and links between them, all unlisted, the narrowed `/.well-known` rule in Traefik, and the Apple Pay file |
 | You | Paddle | The live account's verification and domain approval |
