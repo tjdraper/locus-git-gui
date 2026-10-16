@@ -663,6 +663,7 @@ The two reference points: Tower looks and behaves like a Mac app but grows featu
     - Light and dark mode checked on every window. The repository window's sidebar hasn't been seen in dark mode yet.
     - macOS 27 puts Ask Siri at the top of the sidebar's context menus, and of no other menu in the app: it adds it to menus in a SwiftUI `List`, whether the menu is on the list or on each row, and not to the dashboard's rows in a plain scroll view or to AppKit's menus. There's no public way to leave it out (checked in the macOS 27 SDK, 2026-09-26). Decided to leave it for now. If the keyboard or VoiceOver pass reworks the sidebar, an AppKit outline view would drop it along the way; otherwise look again with a later SDK. The round Siri button at the start of the commit message's body field is the same feature, with no public way to remove it either.
     - Website download page, built outside this repository. The product page and the legal pages Paddle's domain approval needs come earlier, before the live account can take payments (see [`LicenseServerPlan.md`](LicenseServerPlan.md)).
+    - A screenshot of the app on the product page (`locus.tjdraper.com/git-gui`) before launch. The page went up without one (2026-10-16); the other Locus apps' pages each show their app.
     - The last step before release: add Locus Git Gui to locus.tjdraper.com's menu and sitemap, and drop the `noindex` its pages carry until then. They're public from slice 16 for Paddle's review, but unlisted.
 
 ## Decisions
